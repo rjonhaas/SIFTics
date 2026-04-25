@@ -17,6 +17,11 @@ import {
 import type { VolatilityContext, MemoryImageResolver } from "./volatility.js";
 import { DEFAULT_CONFIG } from "./volatility.js";
 
+import type { PathGuard } from "../../safety/path_guard.js";
+import type { ReadOnlyGuard } from "../../safety/readonly_guard.js";
+import type { MountManager } from "../../evidence/mount_manager.js";
+import type { HashRegistry } from "../../evidence/hash_registry.js";
+
 // Tool registry signature shared with src/index.ts
 interface ToolHandler {
   name: string;
@@ -26,9 +31,10 @@ interface ToolHandler {
 }
 
 interface ServerContext {
-  pathGuard: import("../../safety/path_guard.js").PathGuard;
-  readOnlyGuard: import("../../safety/readonly_guard.js").ReadOnlyGuard;
-  memoryResolver: MemoryImageResolver;
+  pathGuard: PathGuard;
+  readOnlyGuard: ReadOnlyGuard;
+  mountManager: MountManager;
+  hashRegistry: HashRegistry;
 }
 
 export function registerMemoryTools(
@@ -40,7 +46,8 @@ export function registerMemoryTools(
     readOnlyGuard: serverCtx.readOnlyGuard,
     config: DEFAULT_CONFIG,
   };
-  const resolver = serverCtx.memoryResolver;
+  // MountManager implements MemoryImageResolver
+  const resolver: MemoryImageResolver = serverCtx.mountManager;
 
   registry.set("vol_info", {
     name: "vol_info",

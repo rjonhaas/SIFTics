@@ -165,8 +165,8 @@ export async function parsePrefetchDetailed(
     summary: { fileCount: records.length, writtenToArtifact: true },
     artifactRef: {
       path: canonicalArtifactPath,
-      sizeBytes: (await import("node:fs/promises")).then ? 0 : 0,  // populated by caller with stat
-      sha256: "",  // populated by caller
+      sizeBytes: 0,   // TODO: populate with stat after write
+      sha256: "",    // TODO: populate with hash after write
     },
   };
 }
