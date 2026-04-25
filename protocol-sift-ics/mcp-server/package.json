@@ -1,0 +1,43 @@
+{
+  "name": "protocol-sift-mcp-server",
+  "version": "0.1.0",
+  "description": "Custom MCP server exposing SANS SIFT Workstation forensic tools as typed, read-only functions for the Protocol SIFT ICS swarm",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "npm run test:unit && npm run test:spoliation && npm run test:injection:dry && npm run test:accuracy",
+    "test:unit": "node --test dist/test/unit/*.test.js",
+    "test:accuracy": "node dist/test/accuracy/run.js",
+    "test:accuracy:case": "node dist/test/accuracy/run.js --case=",
+    "test:accuracy:quick": "node dist/test/accuracy/run.js --quick",
+    "test:accuracy:recorded": "node dist/test/accuracy/run.js --use-recorded",
+    "test:injection": "node dist/test/injection/run.js",
+    "test:injection:opus": "node dist/test/injection/run.js --tier=command",
+    "test:injection:sonnet": "node dist/test/injection/run.js --tier=section",
+    "test:injection:haiku": "node dist/test/injection/run.js --tier=fast",
+    "test:injection:all-tiers": "node dist/test/injection/run.js --all-tiers",
+    "test:injection:dry": "node dist/test/injection/run.js --dry-run",
+    "test:spoliation": "node dist/test/spoliation/run.js",
+    "test:spoliation:path": "node dist/test/spoliation/run.js --category=path_traversal",
+    "test:spoliation:writes": "node dist/test/spoliation/run.js --category=write_attempts",
+    "test:spoliation:mount": "node dist/test/spoliation/run.js --category=mount_tampering",
+    "test:spoliation:time": "node dist/test/spoliation/run.js --category=timestamp_tampering",
+    "test:spoliation:indirect": "node dist/test/spoliation/run.js --category=indirect_modification",
+    "test:spoliation:hash": "node dist/test/spoliation/run.js --category=hash_integrity",
+    "test:spoliation:piw": "node dist/test/spoliation/run.js --category=prompt_injection_to_write"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.40.0",
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "ajv": "^8.17.0",
+    "js-yaml": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.5.0"
+  },
+  "license": "Apache-2.0"
+}

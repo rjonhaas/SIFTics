@@ -1,0 +1,87 @@
+case_id: 006-clean-baseline
+scenario: |
+  Clean Win11 workstation with no compromise. The agent should produce no
+  high-confidence threat findings. Low-confidence informational findings
+  about normal user activity are acceptable but should not be flagged as
+  threats.
+
+  This is the most important test case for measuring false-positive rate.
+  An agent that flags a clean system as compromised is more dangerous in
+  practice than one that misses some threats — it wastes responder time
+  and erodes trust in the swarm.
+
+evidence:
+  - id: EVID-001
+    type: disk_image
+    path: fixture/clean_win11.E01
+
+# Tight budget — clean system findings are mostly noise
+allowed_extra_findings: 3
+
+ground_truth_findings:
+  # Every category is a negative case for this fixture
+  - id: GT-N01
+    branch: forensics
+    category: initial_access
+    must_not_appear: true
+    rationale: "Clean baseline — no initial access should be detected."
+
+  - id: GT-N02
+    branch: forensics
+    category: execution
+    must_not_appear: true
+    rationale: "Routine OS/user execution should not be flagged as a threat-category finding."
+
+  - id: GT-N03
+    branch: forensics
+    category: persistence
+    must_not_appear: true
+    rationale: "Standard Windows autostart entries are not 'persistence findings.' Agent must distinguish baseline OS persistence from attacker persistence."
+
+  - id: GT-N04
+    branch: forensics
+    category: defense_evasion
+    must_not_appear: true
+    rationale: "Clean system — no defense evasion should be detected."
+
+  - id: GT-N05
+    branch: forensics
+    category: credential_access
+    must_not_appear: true
+    rationale: "Clean system — no credential access activity."
+
+  - id: GT-N06
+    branch: forensics
+    category: lateral_movement
+    must_not_appear: true
+    rationale: "Single-host clean baseline."
+
+  - id: GT-N07
+    branch: forensics
+    category: collection
+    must_not_appear: true
+    rationale: "Normal user file activity is not 'collection.'"
+
+  - id: GT-N08
+    branch: forensics
+    category: command_and_control
+    must_not_appear: true
+    rationale: "Clean system — no C2 activity."
+
+  - id: GT-N09
+    branch: forensics
+    category: exfiltration
+    must_not_appear: true
+    rationale: "Clean system — no exfiltration."
+
+  - id: GT-N10
+    branch: forensics
+    category: impact
+    must_not_appear: true
+    rationale: "Clean system — no impact actions."
+
+  - id: GT-N11
+    branch: forensics
+    category: known_malware
+    must_not_appear: true
+    rationale: "Clean system — no known malware should YARA-match."

@@ -1,0 +1,256 @@
+case_id: 004-multi-host-lateral
+scenario: |
+  Compromise spreads across three Windows hosts in a small domain. Disk images
+  from all three hosts plus PCAP from the network. Tests the swarm's ability
+  to track an attacker laterally — patient zero, hop one, hop two — and to
+  identify which host was the staging point versus which was the final target.
+  This is the multi-source correlation case: only the Situation Unit's COP
+  integration can see the full picture.
+
+evidence:
+  - id: EVID-004A
+    type: disk_image
+    path: fixture/host-WIN-RECEPTION.E01
+    metadata:
+      hostname: "WIN-RECEPTION"
+      role: "patient_zero"
+  - id: EVID-004B
+    type: disk_image
+    path: fixture/host-WIN-FINANCE.E01
+    metadata:
+      hostname: "WIN-FINANCE"
+      role: "hop_one"
+  - id: EVID-004C
+    type: disk_image
+    path: fixture/host-DC01.E01
+    metadata:
+      hostname: "DC01"
+      role: "final_target"
+  - id: EVID-004D
+    type: pcap
+    path: fixture/east_west_traffic.pcap
+
+# Multi-host cases produce many findings legitimately. Wider noise budget.
+allowed_extra_findings: 12
+
+ground_truth_findings:
+  # ──────────────────────────────────────────────────────────────────
+  # WIN-RECEPTION (Patient Zero)
+  # ──────────────────────────────────────────────────────────────────
+
+  - id: GT-004-001
+    branch: forensics
+    category: initial_access
+    must_have:
+      hostname: "WIN-RECEPTION"
+      artifact_type: malicious_email_attachment
+      filename: "Visitor_Log_Q2.docm"
+      target_user: "reception"
+      sender: "facilities@external-vendor.example.invalid"
+    must_have_within_tolerance:
+      received_time:
+        target: "2026-04-22T09:14:00Z"
+        window_seconds: 60
+    confidence_floor: 0.85
+
+  - id: GT-004-002
+    branch: forensics
+    category: execution
+    must_have:
+      hostname: "WIN-RECEPTION"
+      artifact_type: office_macro_execution
+      parent_process: "WINWORD.EXE"
+      child_process: "powershell.exe"
+      cmdline_contains: "FromBase64String"
+    confidence_floor: 0.9
+
+  - id: GT-004-003
+    branch: forensics
+    category: persistence
+    must_have:
+      hostname: "WIN-RECEPTION"
+      artifact_type: scheduled_task
+      task_name: "OneDriveStandaloneUpdater"   # impersonation
+      executable_path: "C:\\ProgramData\\OneDrive\\update.exe"
+      author: "SYSTEM"
+    rationale: |
+      Real OneDriveStandaloneUpdater is a Microsoft scheduled task. The
+      attacker created a task with the same name pointing to a different
+      executable in ProgramData. The agent should detect the path mismatch.
+    confidence_floor: 0.85
+
+  - id: GT-004-004
+    branch: forensics
+    category: credential_access
+    must_have:
+      hostname: "WIN-RECEPTION"
+      artifact_type: lsass_dump_indicator
+      detection_basis: "amcache_entry_for_procdump"
+      executable_name: "pd64.exe"   # renamed procdump
+    confidence_floor: 0.8
+
+  # ──────────────────────────────────────────────────────────────────
+  # Lateral movement: RECEPTION → FINANCE
+  # ──────────────────────────────────────────────────────────────────
+
+  - id: GT-004-005
+    branch: network
+    category: lateral_movement
+    must_have:
+      detection_type: smb_lateral
+      src_host: "WIN-RECEPTION"
+      dst_host: "WIN-FINANCE"
+      authenticated_as: "FINANCE\\svc-backup"   # stolen service account
+      smb_command: "TREE_CONNECT_ADMIN_SHARE"
+    must_have_within_tolerance:
+      lateral_time:
+        target: "2026-04-22T11:48:00Z"
+        window_seconds: 120
+    confidence_floor: 0.9
+
+  - id: GT-004-006
+    branch: forensics
+    category: lateral_movement
+    must_have:
+      hostname: "WIN-FINANCE"
+      artifact_type: event_log_4624
+      event_id: 4624
+      logon_type: 3   # network logon
+      account_name: "svc-backup"
+      source_workstation: "WIN-RECEPTION"
+    confidence_floor: 0.95
+
+  # ──────────────────────────────────────────────────────────────────
+  # WIN-FINANCE (Hop One)
+  # ──────────────────────────────────────────────────────────────────
+
+  - id: GT-004-007
+    branch: forensics
+    category: execution
+    must_have:
+      hostname: "WIN-FINANCE"
+      artifact_type: psexec_indicator
+      service_name: "PSEXESVC"
+      installed_at_event_id: 7045
+    confidence_floor: 0.9
+
+  - id: GT-004-008
+    branch: forensics
+    category: discovery
+    must_have:
+      hostname: "WIN-FINANCE"
+      artifact_type: ad_recon
+      tools_executed: ["bloodhound", "sharphound"]
+    rationale: |
+      Either tool name should match. Agent should also detect the AmCache
+      entry for SharpHound.exe even if attacker renamed it.
+    confidence_floor: 0.75
+
+  # ──────────────────────────────────────────────────────────────────
+  # Lateral movement: FINANCE → DC01
+  # ──────────────────────────────────────────────────────────────────
+
+  - id: GT-004-009
+    branch: network
+    category: lateral_movement
+    must_have:
+      detection_type: rdp
+      src_host: "WIN-FINANCE"
+      dst_host: "DC01"
+      dst_port: 3389
+      authenticated_as: "DOMAIN\\admin"
+    must_have_within_tolerance:
+      lateral_time:
+        target: "2026-04-22T13:22:00Z"
+        window_seconds: 180
+    confidence_floor: 0.9
+
+  # ──────────────────────────────────────────────────────────────────
+  # DC01 (Final Target)
+  # ──────────────────────────────────────────────────────────────────
+
+  - id: GT-004-010
+    branch: forensics
+    category: credential_access
+    must_have:
+      hostname: "DC01"
+      artifact_type: ntds_dit_dump
+      detection_basis: "vssadmin_create_shadow_then_copy"
+      target_file: "C:\\Windows\\NTDS\\ntds.dit"
+    rationale: |
+      Standard DCSync alternative — create VSS snapshot of C: then copy
+      ntds.dit out of the snapshot. Look for vssadmin event + subsequent
+      file access of \\?\GLOBALROOT\Device\HarddiskVolumeShadowCopyN\...\ntds.dit
+    confidence_floor: 0.9
+
+  - id: GT-004-011
+    branch: forensics
+    category: defense_evasion
+    must_have:
+      hostname: "DC01"
+      artifact_type: event_log_clear
+      cleared_log: "Security"
+      event_id_indicator: 1102
+    confidence_floor: 0.95
+
+  # ──────────────────────────────────────────────────────────────────
+  # Cross-host correlation findings (the multi-source value-add)
+  # ──────────────────────────────────────────────────────────────────
+
+  - id: GT-004-012
+    branch: triage
+    category: lateral_movement
+    must_have:
+      finding_type: lateral_chain_reconstructed
+      hop_sequence: "WIN-RECEPTION,WIN-FINANCE,DC01"
+    rationale: |
+      The full lateral chain should be reconstructed from the three hosts'
+      event logs + PCAP. This is a Situation Unit job (cross-source
+      correlation), surfaced through Triage's broad view. If the agent
+      identifies all three hops in correct order, this matches.
+    confidence_floor: 0.85
+
+  - id: GT-004-013
+    branch: triage
+    category: impact
+    must_have:
+      finding_type: domain_compromise_assessment
+      assessment: "ntds_compromise_confirmed"
+    rationale: |
+      The agent should connect "ntds.dit copied from DC01" to "domain
+      credentials are now compromised" and surface this as a critical
+      finding for the IC.
+    confidence_floor: 0.95
+
+  # ──────────────────────────────────────────────────────────────────
+  # Negative cases
+  # ──────────────────────────────────────────────────────────────────
+
+  - id: GT-004-014
+    branch: network
+    category: exfiltration
+    must_have:
+      detection_type: large_outbound_transfer
+    must_not_appear: true
+    rationale: |
+      Attacker dumped credentials but had not yet exfiltrated to external
+      infrastructure when the response began. PCAP shows internal lateral
+      traffic only. Reporting external exfiltration would be a false positive.
+
+  - id: GT-004-015
+    branch: forensics
+    category: persistence
+    must_have:
+      hostname: "DC01"
+      artifact_type: golden_ticket_creation
+    must_not_appear: true
+    rationale: |
+      No golden ticket creation in this scenario. Attacker stopped at ntds.dit
+      dump. Reporting golden ticket would be inferring something not in evidence.
+
+expected_iocs:
+  file_paths:
+    - "C:\\ProgramData\\OneDrive\\update.exe"
+    - "C:\\Windows\\NTDS\\ntds.dit"
+  registry_keys:
+    - "HKLM\\SYSTEM\\CurrentControlSet\\Services\\PSEXESVC"

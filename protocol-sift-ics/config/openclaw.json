@@ -1,0 +1,104 @@
+{
+  "_comment": "OpenClaw config for Protocol SIFT ICS swarm. Model tiering maps to ICS role. Claude Opus for strategic (IC, Legal). Sonnet for tactical (Section Chiefs, Specialists). Haiku for fast (Triage, Broker, Audit).",
+
+  "providers": {
+    "anthropic_opus": {
+      "type": "anthropic",
+      "model": "claude-opus-4-7",
+      "max_tokens": 8192,
+      "temperature": 0.2
+    },
+    "anthropic_sonnet": {
+      "type": "anthropic",
+      "model": "claude-sonnet-4-6",
+      "max_tokens": 8192,
+      "temperature": 0.2
+    },
+    "anthropic_haiku": {
+      "type": "anthropic",
+      "model": "claude-haiku-4-5-20251001",
+      "max_tokens": 4096,
+      "temperature": 0.1
+    }
+  },
+
+  "skill_provider_map": {
+    "command-staff/incident-commander": "anthropic_opus",
+    "command-staff/legal-counsel": "anthropic_opus",
+    "command-staff/safety-officer": "anthropic_sonnet",
+    "command-staff/liaison-officer": "anthropic_sonnet",
+
+    "operations/ops-chief": "anthropic_sonnet",
+    "operations/triage-branch": "anthropic_haiku",
+    "operations/forensics-branch": "anthropic_sonnet",
+    "operations/memory-branch": "anthropic_sonnet",
+    "operations/network-branch": "anthropic_sonnet",
+    "operations/malware-branch": "anthropic_sonnet",
+
+    "planning/planning-chief": "anthropic_sonnet",
+    "planning/situation-unit": "anthropic_sonnet",
+    "planning/timeline-unit": "anthropic_sonnet",
+    "planning/documentation-unit": "anthropic_sonnet",
+
+    "logistics/logistics-chief": "anthropic_sonnet",
+    "logistics/tool-broker": "anthropic_haiku",
+    "logistics/evidence-store": "anthropic_haiku",
+
+    "finance-admin/audit-log": "anthropic_haiku",
+    "finance-admin/token-budget": "anthropic_haiku"
+  },
+
+  "gateway": {
+    "bind": "127.0.0.1:18789",
+    "auth": "token",
+    "channels": {
+      "cli": true,
+      "webchat": true,
+      "slack": false,
+      "_note": "Production DFIR deployments should disable external channels to reduce prompt injection surface"
+    }
+  },
+
+  "heartbeat": {
+    "enabled": true,
+    "interval_seconds": 1800,
+    "_note": "30-minute operational period cycle. IC evaluates COP and re-tasks branches on each heartbeat."
+  },
+
+  "memory": {
+    "storage": "markdown_files",
+    "base_path": "./memory",
+    "_note": "OpenClaw's local-first markdown memory. COP lives here. Survives restarts."
+  },
+
+  "mcp_servers": {
+    "sift": {
+      "command": "node",
+      "args": ["./mcp-server/dist/index.js"],
+      "env": {
+        "EVIDENCE_MOUNT": "/mnt/evidence",
+        "WORKING_DIR": "/working",
+        "READ_ONLY_ENFORCE": "true"
+      }
+    }
+  },
+
+  "skill_permissions": {
+    "_note": "Only tool-broker is granted invoke access to the sift MCP server. This is the architectural enforcement.",
+    "mcp_server_access": {
+      "sift": ["logistics/tool-broker"]
+    }
+  },
+
+  "prompt_injection_defense": {
+    "enabled": true,
+    "strategy": "typed_output_only",
+    "_note": "Branch agents only receive structured, schema-validated outputs from tool-broker. Raw file content (which may contain injection payloads in filenames, registry values, log entries) is parsed by the MCP server into typed fields before ever reaching an LLM context window."
+  },
+
+  "budget_caps": {
+    "per_incident_total_tokens": 8500000,
+    "per_skill_alert_percent": 75,
+    "per_skill_halt_percent": 100
+  }
+}

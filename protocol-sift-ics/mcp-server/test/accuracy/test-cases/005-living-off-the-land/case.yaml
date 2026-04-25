@@ -1,0 +1,192 @@
+case_id: 005-living-off-the-land
+scenario: |
+  Sophisticated intrusion using only built-in Windows binaries (LOLBins) and
+  PowerShell — no custom malware, no external tools dropped to disk. Disk
+  image + memory capture from one host. This is the hardest accuracy case
+  because every individual artifact looks legitimate; only the combination
+  and timing reveal the attack. Tests the swarm's behavioral analysis
+  capability when signature-based detection is impossible.
+
+evidence:
+  - id: EVID-005A
+    type: disk_image
+    path: fixture/disk_image.E01
+  - id: EVID-005B
+    type: memory_capture
+    path: fixture/memory.raw
+
+allowed_extra_findings: 10
+
+ground_truth_findings:
+  # ── Initial access via remote PowerShell session ──
+  - id: GT-005-001
+    branch: forensics
+    category: initial_access
+    must_have:
+      artifact_type: winrm_inbound_session
+      event_id: 6
+      source_workstation_ip: "203.0.113.45"   # external — unusual
+      authenticated_user: "j.evans"
+    must_have_within_tolerance:
+      session_start:
+        target: "2026-04-22T14:00:00Z"
+        window_seconds: 60
+    rationale: |
+      WinRM is legitimate, but inbound from an external IP is anomalous.
+      Should be detected via Microsoft-Windows-WinRM/Operational log.
+    confidence_floor: 0.8
+
+  # ── Execution via PowerShell ──
+  - id: GT-005-002
+    branch: forensics
+    category: execution
+    must_have:
+      artifact_type: powershell_script_block
+      event_id: 4104
+      script_block_contains: "[System.Reflection.Assembly]::Load"
+      indicator: "in_memory_assembly_load"
+    rationale: |
+      PowerShell 4104 events capture script blocks. Reflective assembly load
+      is the typical pattern for in-memory execution of .NET payloads.
+    confidence_floor: 0.85
+
+  - id: GT-005-003
+    branch: forensics
+    category: execution
+    must_have:
+      artifact_type: powershell_script_block
+      event_id: 4104
+      script_block_contains: "DownloadString"
+      remote_url: "http://203.0.113.45:8080/p"
+    confidence_floor: 0.9
+
+  - id: GT-005-004
+    branch: forensics
+    category: defense_evasion
+    must_have:
+      artifact_type: powershell_logging_bypass
+      indicator: "ScriptBlockLogging_disabled_then_reenabled"
+    rationale: |
+      Attacker disabled script block logging via registry, ran their payload,
+      then re-enabled logging. Look for registry value HKCU\Software\
+      Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging\
+      EnableScriptBlockLogging being toggled.
+    confidence_floor: 0.75
+
+  # ── Persistence via WMI event subscription (LOLBin) ──
+  - id: GT-005-005
+    branch: forensics
+    category: persistence
+    must_have:
+      artifact_type: wmi_event_subscription
+      consumer_name: "PerformanceMonitorUpdate"
+      consumer_type: "CommandLineEventConsumer"
+      command_template_contains: "powershell.exe -nop -w hidden -enc"
+    rationale: |
+      WMI persistence is harder to detect than registry Run keys. Look in
+      the OBJECTS.DATA file or the WMI repository (CIM-XML).
+    confidence_floor: 0.8
+
+  # ── Discovery using built-in tools ──
+  - id: GT-005-006
+    branch: forensics
+    category: discovery
+    must_have:
+      artifact_type: built_in_recon
+      tools_executed: ["nltest", "net", "whoami", "tasklist", "systeminfo"]
+      execution_window_minutes_max: 5
+    rationale: |
+      All built-in Windows binaries. The signal is the BURST — running these
+      in tight sequence within a 5-minute window is highly anomalous for a
+      normal user.
+    confidence_floor: 0.7
+
+  # ── Credential access via reg.exe (LOLBin) ──
+  - id: GT-005-007
+    branch: forensics
+    category: credential_access
+    must_have:
+      artifact_type: registry_hive_extraction
+      tool: "reg.exe"
+      cmdline_contains: "save HKLM\\SAM"
+    rationale: |
+      reg save is a legitimate command but saving SAM/SYSTEM hives offline
+      enables credential extraction. Detection via prefetch + Security
+      log 4673/4674 with SeBackupPrivilege.
+    confidence_floor: 0.85
+
+  # ── Memory: PowerShell process holding the in-memory payload ──
+  - id: GT-005-008
+    branch: memory
+    category: execution
+    must_have:
+      artifact_type: process
+      process_name: "powershell.exe"
+      indicator: "private_rwx_region"
+      cmdline_contains: "-enc"
+    must_have_within_tolerance:
+      pid:
+        target: 4892
+        relative_error: 0
+    rationale: |
+      The PowerShell process should still be holding the reflectively-loaded
+      assembly in a private RWX memory region. vol_malfind should catch this.
+    confidence_floor: 0.85
+
+  - id: GT-005-009
+    branch: memory
+    category: command_and_control
+    must_have:
+      artifact_type: process_network_connection
+      pid: 4892
+      remote_ip: "203.0.113.45"
+      remote_port: 8080
+    rationale: |
+      Live C2 connection visible in vol_netscan owned by the PowerShell
+      process. Cross-corroborates the disk-side finding of the DownloadString
+      URL.
+    confidence_floor: 0.9
+
+  # ── Cross-source correlation (Situation Unit job) ──
+  - id: GT-005-010
+    branch: triage
+    category: command_and_control
+    must_have:
+      finding_type: cross_source_c2_confirmation
+      disk_indicator: "powershell_script_block_4104_DownloadString"
+      memory_indicator: "vol_netscan_powershell_to_external"
+      both_match_remote: "203.0.113.45:8080"
+    rationale: |
+      The agent should explicitly call out that the disk and memory evidence
+      independently confirm the same C2 endpoint. This is the
+      cross-source-confirmation pattern the COP is designed to surface.
+    confidence_floor: 0.95
+
+  # ── Negative cases ──
+  - id: GT-005-011
+    branch: malware
+    category: known_malware
+    must_have:
+      "_": "_"
+    must_not_appear: true
+    rationale: |
+      No custom malware on disk. The Malware Branch should report zero
+      findings. If it claims to identify a "family," that is hallucinated
+      attribution.
+
+  - id: GT-005-012
+    branch: forensics
+    category: persistence
+    must_have:
+      artifact_type: registry_run_key
+    must_not_appear: true
+    rationale: |
+      Persistence in this case is via WMI, NOT a Run key. If a Run key
+      finding appears, the agent has invented one (or misclassified some
+      legitimate Run key entry as malicious).
+
+expected_iocs:
+  ips:
+    - "203.0.113.45"
+  registry_keys:
+    - "HKCU\\Software\\Policies\\Microsoft\\Windows\\PowerShell\\ScriptBlockLogging"
