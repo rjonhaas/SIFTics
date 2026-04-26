@@ -86,6 +86,24 @@ Each test case has a curated ground truth file specifying findings the agent SHO
 
 Micro-averaged metrics sum TP/FP/FN across cases before computing ratios. Macro averages per-case ratios.
 
+## Runtime Integrity
+
+Beyond the integrity of the evidence, SIFTics treats the integrity of its own runtime as a first-class concern. The Safety Officer maintains a runtime version inventory at every operational period boundary, checks each component against published CVE feeds (NVD, OSV, GHSA, vendor advisories), and HALTs the operational period start if any tracked component has an unpatched CVSS 9.0+ CVE.
+
+This addresses a real-world risk surface that most AI agent projects ignore. Agent runtimes are themselves software with vulnerabilities. The most secure architectural pattern in the world cannot guarantee evidence integrity if the runtime executing it has a critical privilege escalation flaw. Recent CVE activity in OpenClaw (137 advisories Feb–Apr 2026, including CVSS 9.9 token rotation flaws and HITL approval bypasses) demonstrated that this is not a theoretical concern.
+
+SIFTics's response is architectural rather than operational:
+
+- **Awareness, not action.** The Safety Officer surfaces runtime concerns. It never applies patches, modifies configuration, or takes any write action on the runtime. Patching decisions are IC-gated and human-in-loop, consistent with the architecture's broader invariant on irreversible actions.
+
+- **Documentation, not just detection.** Even when nothing is wrong, runtime inventory is recorded in the audit log at every operational period boundary. A judge or auditor reviewing chain of custody can later verify exactly which versions of every tool processed the evidence.
+
+- **Multiple feed sources.** No single CVE feed has complete coverage. The Safety Officer queries NVD (US government), OSV (Google), GHSA (GitHub), and vendor advisories where applicable, and takes the union.
+
+- **Runtime-independent core.** The MCP server's typed-function interface is where SIFTics's evidence integrity guarantees actually live. Those guarantees are runtime-independent — they continue to hold even if the agent runtime has security issues. The Safety Officer's runtime integrity role is defense in depth, not the sole protection.
+
+The architectural pattern generalizes to the broader Cyber-ICS framework: every ICS instance has Safety Officer responsibility for its own runtime, and the Coordination Cell has cross-ICS runtime integrity authority for any incident spanning multiple ICS instances.
+
 ## Comparison Context
 
 There is no widely-published benchmark for AI-driven DFIR finding accuracy, but for context:

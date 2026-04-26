@@ -20,6 +20,8 @@ import { registerDiskTools } from "./tools/disk/index.js";
 import { registerMemoryTools } from "./tools/memory/index.js";
 import { registerNetworkTools } from "./tools/network/index.js";
 import { registerMalwareTools } from "./tools/malware/index.js";
+import { registerVelociraptorTools } from "./tools/velociraptor/index.js";
+import { registerRuntimeTools } from "./tools/runtime/index.js";
 
 import { MountManager } from "./evidence/mount_manager.js";
 import { HashRegistry } from "./evidence/hash_registry.js";
@@ -95,6 +97,8 @@ registerDiskTools(toolRegistry, { pathGuard, readOnlyGuard, mountManager, hashRe
 registerMemoryTools(toolRegistry, { pathGuard, readOnlyGuard, mountManager, hashRegistry });
 registerNetworkTools(toolRegistry, { pathGuard, readOnlyGuard, mountManager, hashRegistry });
 registerMalwareTools(toolRegistry, { pathGuard, readOnlyGuard, mountManager, hashRegistry });
+registerVelociraptorTools(toolRegistry, { pathGuard, readOnlyGuard, mountManager, hashRegistry });
+registerRuntimeTools(toolRegistry, { pathGuard, readOnlyGuard, mountManager, hashRegistry });
 
 // ────────────────────────────────────────────────────────────────────
 // Server setup

@@ -19,14 +19,19 @@ The hackathon asks: build an autonomous AI agent on the SIFT Workstation that ca
        │              │           │           │              │
    Legal Counsel  Safety Ofcr  (Ops Chief) (Plan Chief)  Liaison Officer
    (Opus)         (Sonnet)        │           │           (Sonnet)
+                  Evidence
+                  + runtime
+                  integrity HALT
+                  authority
                                   │           │
                   ┌───────────────┼───────────┤
                   │               │           ├── Situation Unit (owns COP)
               Triage          Forensics       ├── Timeline Unit
               (Haiku)         (Sonnet)        └── Documentation Unit
-                              Memory
-                              Network         (Logistics Chief)
-                              Malware              │
+                              Memory (Sonnet) — Volatility-backed when memory image present,
+                              Network          defers to Forensics Branch otherwise
+                              Malware         (Logistics Chief)
+                                                   │
                                                    ├── Tool Broker (ONLY MCP caller)
                                                    └── Evidence Store
 
@@ -62,6 +67,12 @@ These are not style preferences. They are the architecture. Future code must res
 
 10. **Append-only audit log with SHA-256 hash chain.** Tamper-evident. Each entry hashes the prior. See `skills/finance-admin/audit-log/SKILL.md`.
 
+11. **Mac memory analysis is platform-conditional.** The Memory Branch defers to disk-equivalent artifacts (Unified Log, KnowledgeC) when no memory image is present. This is by design, reflecting Apple Silicon constraints — kernel-level memory acquisition is no longer practical on M-series Macs in 2026. Velociraptor's user-space Offline Collector is the realistic alternative. The Memory Branch returns an explicit "memory unavailable for this evidence source" structured result rather than fabricating findings from disk evidence — fabricating a memory finding would violate the citation invariant (#4).
+
+12. **Inference endpoint is a deployment-time decision, not a per-call parameter.** Three modes are supported via `config/openclaw.json` → `inference_mode`: `cloud_direct` (Anthropic API directly — default for development), `cloud_managed` (AWS Bedrock / Azure OpenAI / GCP Vertex — same Claude weights, data path stays inside the responder's existing cloud trust boundary, HIPAA BAA + FedRAMP eligibility per region/service — the most important mode for commercial DFIR adoption), and `local` (on-prem OpenAI-compatible endpoint for cases where evidence cannot egress). Switching modes requires stopping the gateway, editing config, and restarting; there is no runtime fallback or per-call override. Mixing modes within an incident is forbidden because it muddies the audit trail. The architectural invariants above (1–11) hold identically in all three modes — only the LLM endpoint changes. The audit log records the active inference mode and resolved model ID for every call, so `trace_finding(FND-N)` includes which endpoint produced the finding. See `DEPLOYMENT_MODES.md` for the full rationale, compliance posture per mode, and roadmap.
+
+13. **Safety Officer authority extends to runtime integrity.** CVE checks against runtime components (OpenClaw, MCP server, Volatility, Velociraptor, SIFT tools, Node, Python) are part of every operational period start, and the runtime inventory is recorded in the audit log at every operational period boundary regardless of findings — the audit trail is the value, not just detection. The Safety Officer surfaces concerns; humans decide whether to patch. The Safety Officer never applies patches, modifies configuration, pulls updates, or takes any write action on the runtime. This is consistent with invariant #9 (irreversible actions are IC-gated and human-in-loop). The `runtime_inventory` MCP function is the only tool the Safety Officer is permitted to invoke — restricted via OpenClaw `skill_permissions.mcp_tool_access` and a defense-in-depth `_caller` field check inside the function itself. Hard HALT on any tracked component with unpatched CVSS ≥ 9.0 or a CISA KEV match. See `skills/command-staff/safety-officer/SKILL.md`.
+
 ## Project Structure
 
 ```
@@ -69,9 +80,10 @@ protocol-sift-ics/
 ├── README.md                   Project overview
 ├── ARCHITECTURE.md             Trust boundaries, full ASCII diagram, end-to-end finding trace
 ├── SUBMISSION_CHECKLIST.md     Hackathon requirement → artifact mapping (live status doc)
+├── DEPLOYMENT_MODES.md         Three inference modes (cloud_direct / cloud_managed / local), compliance posture, roadmap
 ├── CLAUDE.md                   This file
 ├── install.sh                  SIFT Workstation bootstrap (with architectural-violation check)
-├── config/openclaw.json        Model tiering + MCP server registration + injection defense config
+├── config/openclaw.json        Model tiering + inference_mode + MCP server registration + injection defense config
 │
 ├── skills/                     17 OpenClaw skills (SKILL.md manifests)
 │   ├── command-staff/          IC, Legal, Safety, Liaison
@@ -80,7 +92,7 @@ protocol-sift-ics/
 │   ├── logistics/              Chief + Tool Broker + Evidence Store
 │   └── finance-admin/          Audit Log + Token Budget
 │
-└── mcp-server/                 Custom typed-function MCP server (37 tools)
+└── mcp-server/                 Custom typed-function MCP server (45 tools)
     ├── README.md               Server philosophy
     ├── package.json            Scripts: build, test, test:spoliation, test:injection, test:accuracy
     ├── tsconfig.json
@@ -89,7 +101,7 @@ protocol-sift-ics/
     │   ├── audit/
     │   │   └── audit_log.ts    Append-only hash-chained JSONL audit log (11 unit tests)
     │   ├── evidence/
-    │   │   ├── mount_manager.ts   Evidence mounting lifecycle + MemoryImageResolver
+    │   │   ├── mount_manager.ts   Evidence mounting lifecycle + MemoryImageResolver + VelociraptorCollectionResolver
     │   │   └── hash_registry.ts   SHA-256 tamper detection registry
     │   ├── safety/
     │   │   ├── path_guard.ts   Path containment enforcement
@@ -110,16 +122,24 @@ protocol-sift-ics/
     │       │   ├── pcap.ts         tshark/capinfos wrapper (summary, flows, file extraction)
     │       │   ├── zeek.ts         Zeek TSV parser (conn, dns, http, ssl, files logs)
     │       │   └── detection.ts    Beacon detection + DNS tunneling detection
-    │       └── malware/            11 tools: static analysis
+    │       ├── malware/            11 tools: static analysis
+    │       │   ├── index.ts
+    │       │   └── static_analysis.ts  file ID, hashing, entropy, PE analysis, strings, YARA, capa, packer
+    │       ├── velociraptor/       7 tools: Velociraptor Offline Collector parsing (cross-OS triage)
+    │       │   ├── index.ts
+    │       │   ├── collection.ts   Manifest discovery, JSONL reader, OS inference
+    │       │   ├── parsers.ts      7 typed extractors (persistence, browser, unified log, knowledgec, fs metadata, users)
+    │       │   └── README.md       Module philosophy + collection manifest schema
+    │       └── runtime/            1 tool: runtime integrity inventory (Safety Officer only)
     │           ├── index.ts
-    │           └── static_analysis.ts  file ID, hashing, entropy, PE analysis, strings, YARA, capa, packer
+    │           └── inventory.ts    Detects versions of OpenClaw, MCP server, Volatility, Velociraptor, SIFT binaries, language runtimes; optional SHA-256 hashes; defense-in-depth _caller check
     └── test/
         ├── unit/
         │   ├── volatility.test.ts  Volatility validation tests
         │   └── audit_log.test.ts   Audit log hash chain + query tests (11 tests, all passing)
-        ├── spoliation/         88 vectors, 7 categories — proves evidence integrity
+        ├── spoliation/         99 vectors, 9 categories — proves evidence + runtime integrity (incl. velociraptor parser, runtime_inventory abuse)
         ├── injection/          67 vectors, 6 categories — proves LLM resistance + arch containment
-        └── accuracy/           6 cases, ~60 ground-truth findings — proves correctness
+        └── accuracy/           7 cases, ~75 ground-truth findings — proves correctness
 ```
 
 ## Status (as of last update)
@@ -127,17 +147,20 @@ protocol-sift-ics/
 ### ✅ Complete
 
 - All 17 ICS skills with structured permissions, schemas, and rationale
-- **MCP server — fully compiling, 37 tools registered across 4 branches:**
+- **Safety Officer extended for runtime integrity.** CVE feed integration with NVD/OSV/GHSA + vendor advisories (config in `openclaw.json` → `safety.cve_feed_sources`). Runtime inventory recorded at every operational period boundary in the audit log. Hard HALT on any tracked component with unpatched CVSS ≥ 9.0 or a CISA KEV match. Surfaces concerns; never applies patches (consistent with invariant #9).
+- **MCP server — fully compiling, 45 tools registered across 6 modules:**
   - **Memory** (7 tools): vol_info, vol_pslist, vol_pstree, vol_psscan, vol_cmdline, vol_malfind, vol_netscan — Volatility 3 wrapper with allowlist + arg validation + output spillover
   - **Disk** (9 tools): parse_prefetch_summary, parse_prefetch_detailed, parse_event_logs, extract_registry_hive, get_run_keys, get_services, get_scheduled_tasks, extract_mft_timeline, parse_usn_journal — wrapping PECmd, EvtxECmd, RECmd, MFTECmd with timestomp detection
   - **Network** (10 tools): pcap_summary, pcap_flow_extract, extract_files_from_pcap, zeek_conn_log, zeek_dns_log, zeek_http_log, zeek_ssl_log, zeek_files_log, beacon_detection, dns_tunneling_detection — wrapping tshark/capinfos/zeek with statistical analysis
   - **Malware** (11 tools): file_type_identify, hash_sample, entropy_analysis, pe_header_parse, pe_imports, pe_exports, pe_sections, extract_strings, yara_scan, capa_analysis, packer_detect — wrapping libmagic/pefile/strings/yara/capa/DIE
-- **Evidence management**: MountManager (evidence lifecycle + MemoryImageResolver) + HashRegistry (SHA-256 tamper detection)
+  - **Velociraptor** (7 tools): parse_collection, vr_extract_unified_log, vr_extract_persistence, vr_extract_browser_history, vr_extract_filesystem_metadata, vr_extract_knowledgec, vr_list_users — Offline Collector parsing with cross-OS normalization (LaunchAgents ↔ Run keys, Unified Log ↔ event logs, KnowledgeC ↔ SRUM/BAM)
+  - **Runtime** (1 tool, Safety Officer only): runtime_inventory — versioning manifest of OpenClaw, MCP server, Volatility, Velociraptor, SIFT binaries, language runtimes, with optional SHA-256 hashes. Restricted via OpenClaw `mcp_tool_access` and defense-in-depth `_caller` check.
+- **Evidence management**: MountManager (evidence lifecycle + MemoryImageResolver + VelociraptorCollectionResolver) + HashRegistry (SHA-256 tamper detection)
 - **Audit log**: Append-only hash-chained JSONL with sequential IDs, microsecond timestamps, resume support, query interface (traceFindings, getByPeriod, getByType, verifyChain) — 11 unit tests, all passing
 - **Safety guards**: PathGuard (path containment) + ReadOnlyGuard (mount verification)
-- **Spoliation harness** — 88 attack vectors across 7 categories, runner, example report, all blocked
+- **Spoliation harness** — 99 attack vectors across 9 categories (path traversal, write attempts, mount/timestamp tampering, indirect modification, hash integrity, prompt-injection-to-write, velociraptor parser, runtime integrity), runner, example report, all blocked
 - **Injection harness** — 67 attack vectors across 6 categories, multi-tier runner, judge-model grading, example report
-- **Accuracy harness** — 6 test case ground-truth definitions (001-ransomware, 002-insider-threat, 003-c2-network, 004-multi-host-lateral, 005-living-off-the-land, 006-clean-baseline), runner, matcher with tolerance specs, metrics with calibration tracking, example report
+- **Accuracy harness** — 7 test case ground-truth definitions (001-ransomware, 002-insider-threat, 003-c2-network, 004-multi-host-lateral, 005-living-off-the-land, 006-clean-baseline, 007-velociraptor-multi-host), runner, matcher with tolerance specs, metrics with calibration tracking, example report
 - ARCHITECTURE.md with full trust boundary attribution
 - install.sh with pre-flight architectural-violation check
 - Hackathon rules archived at top of `SUBMISSION_CHECKLIST.md`
@@ -145,8 +168,9 @@ protocol-sift-ics/
 
 ### 🟡 In progress / partially done
 
-- **Accuracy harness fixtures** — case definitions exist, fixture evidence files do not. Each `test-cases/*/fixture/README.md` has a generation guide. Cases 001 and 006 are the cheapest to build (single host, disk only).
+- **Accuracy harness fixtures** — case definitions exist, fixture evidence files do not. Each `test-cases/*/fixture/README.md` has a generation guide. Cases 001 and 006 are the cheapest to build (single host, disk only). Case 007 (Velociraptor multi-host) requires a Mac and Windows VM each — the highest-realism demo material.
 - **Real swarm execution** — design is complete; no actual run has occurred yet. Needed to produce real audit logs and a real final incident report for the demo.
+- **Velociraptor MCP module** — typed functions and parsers complete; needs an end-to-end smoke test against a real Offline Collector zip.
 
 ### ⬜ Not started
 

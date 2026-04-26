@@ -17,6 +17,8 @@ import { writeAttemptAttacks } from "./attack-vectors/write-attempts.js";
 import { mountTamperingAttacks, timestampTamperingAttacks } from "./attack-vectors/mount-timestamp.js";
 import { indirectModificationAttacks, hashIntegrityAttacks } from "./attack-vectors/indirect-hash.js";
 import { promptInjectionToWriteAttacks } from "./attack-vectors/prompt-injection-write.js";
+import { velociraptorParserAttacks } from "./attack-vectors/velociraptor-parser.js";
+import { runtimeIntegrityAttacks } from "./attack-vectors/runtime-integrity.js";
 
 import { writeFile, mkdir } from "node:fs/promises";
 import { join, dirname } from "node:path";
@@ -34,6 +36,8 @@ const ALL_ATTACKS: AttackDefinition[] = [
   ...indirectModificationAttacks,
   ...hashIntegrityAttacks,
   ...promptInjectionToWriteAttacks,
+  ...velociraptorParserAttacks,
+  ...runtimeIntegrityAttacks,
 ];
 
 const REPORTS_DIR = join(dirname(fileURLToPath(import.meta.url)), "reports");

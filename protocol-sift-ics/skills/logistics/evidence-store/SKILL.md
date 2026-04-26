@@ -38,7 +38,7 @@ Record in inventory:
 ```json
 {
   "evidence_id": "EVID-001",
-  "type": "disk_image|memory|pcap|log_bundle",
+  "type": "disk_image|memory|pcap|log_bundle|velociraptor_collection_zip",
   "original_path": "string",
   "original_hash_sha256": "...",
   "ingested_at": "ISO8601",
@@ -60,8 +60,27 @@ Evidence is always mounted with enforcing flags:
 | Memory capture | Not mounted — passed as read-only file handle to Volatility |
 | PCAP | Not mounted — passed as read-only file handle to analysis tools |
 | Log bundles | `mount -o ro` or read-only extraction to a locked directory |
+| `velociraptor_collection_zip` | Hash sealed zip → extract to a read-only directory under `EVIDENCE_MOUNT` (the zip itself stays sealed). Register the extracted root with type `velociraptor`. The MCP parser reads the extracted tree only and refuses to operate on a zip directly. |
 
 Loopback devices are created with `-r` (read-only) flag. On failure to mount read-only, abort — do not fall back to read-write.
+
+For Velociraptor Offline Collector zips, the extraction step is:
+
+```bash
+# 1. Hash the sealed zip (recorded in hash registry as canonical evidence hash)
+sha256sum /ingest/Collection-HOSTNAME-TIMESTAMP.zip > /evidence/EVID-NNN.sha256
+
+# 2. Extract to a read-only working location
+mkdir -p /mnt/evidence/EVID-NNN
+unzip -o /ingest/Collection-HOSTNAME-TIMESTAMP.zip -d /mnt/evidence/EVID-NNN
+
+# 3. Strip write permissions (defense in depth alongside the ro mount)
+chmod -R a-w /mnt/evidence/EVID-NNN
+
+# 4. Register with MountManager as type=velociraptor
+```
+
+The sealed zip is preserved unchanged for chain of custody. The extracted tree is what the MCP parser reads. Both must be re-hashed at the start of every operational period; any drift in either is a critical incident.
 
 ## 3. Periodic Hash Re-verification
 

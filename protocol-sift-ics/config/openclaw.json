@@ -1,20 +1,74 @@
 {
   "_comment": "OpenClaw config for Protocol SIFT ICS swarm. Model tiering maps to ICS role. Claude Opus for strategic (IC, Legal). Sonnet for tactical (Section Chiefs, Specialists). Haiku for fast (Triage, Broker, Audit).",
 
+  "inference_mode": "cloud_direct",
+  "_inference_mode_note": "One of: cloud_direct | cloud_managed | local. Selects which endpoint config under inference_endpoints is active. The runtime resolves a logical model tier (opus|sonnet|haiku) to the active endpoint's model_ids mapping. See DEPLOYMENT_MODES.md for tradeoffs and when to pick each. This is a deployment-time decision — the swarm's architectural invariants do not change with inference mode.",
+
+  "inference_endpoints": {
+    "cloud_direct": {
+      "type": "anthropic_api",
+      "base_url": "https://api.anthropic.com",
+      "auth": { "method": "api_key", "env_var": "ANTHROPIC_API_KEY" },
+      "model_ids": {
+        "opus": "claude-opus-4-7",
+        "sonnet": "claude-sonnet-4-6",
+        "haiku": "claude-haiku-4-5-20251001"
+      },
+      "_implementation_status": "wired",
+      "_note": "Default for development. Direct Anthropic API. Outbound HTTPS only; data leaves the responder's network."
+    },
+
+    "cloud_managed": {
+      "type": "bedrock",
+      "_alternates": ["azure_openai", "vertex_ai"],
+      "region": { "env_var": "AWS_REGION" },
+      "auth": { "method": "iam_role" },
+      "model_ids": {
+        "opus": "anthropic.claude-opus-4-7-v1:0",
+        "sonnet": "anthropic.claude-sonnet-4-6-v1:0",
+        "haiku": "anthropic.claude-haiku-4-5-v1:0"
+      },
+      "compliance": {
+        "hipaa_baa": "available_via_aws_baa",
+        "fedramp": "moderate_high_per_region",
+        "data_residency": "operator_selected_region"
+      },
+      "_implementation_status": "skeleton_only",
+      "_note": "Routes through a managed inference service (AWS Bedrock primarily; Azure OpenAI / GCP Vertex are equivalent shapes). Same Claude weights, but the data path stays inside the responder's existing cloud trust boundary. HIPAA BAA and FedRAMP eligibility apply per region/service. Bedrock model IDs are illustrative — verify exact IDs at deployment time. The actual SDK integration is on the roadmap (see DEPLOYMENT_MODES.md §Roadmap)."
+    },
+
+    "local": {
+      "type": "openai_compatible",
+      "base_url": { "env_var": "LOCAL_INFERENCE_URL" },
+      "auth": { "method": "bearer_token", "env_var": "LOCAL_INFERENCE_TOKEN" },
+      "model_ids": {
+        "opus": { "env_var": "LOCAL_OPUS_MODEL" },
+        "sonnet": { "env_var": "LOCAL_SONNET_MODEL" },
+        "haiku": { "env_var": "LOCAL_HAIKU_MODEL" }
+      },
+      "_implementation_status": "skeleton_only",
+      "_note": "On-prem inference for cases where evidence data cannot leave the responder's infrastructure (classified, defense, certain healthcare). Requires an OpenAI-compatible endpoint serving Claude weights via vLLM/TGI/SGLang or equivalent. Operator picks the model — there is no fixed mapping because available local models depend on entitlements. Quality/latency tradeoffs versus cloud are operator's responsibility to characterize."
+    }
+  },
+
   "providers": {
     "anthropic_opus": {
+      "tier": "opus",
       "type": "anthropic",
       "model": "claude-opus-4-7",
       "max_tokens": 8192,
-      "temperature": 0.2
+      "temperature": 0.2,
+      "_note": "model field is the cloud_direct ID; runtime substitutes per inference_endpoints[<active mode>].model_ids.opus when mode != cloud_direct"
     },
     "anthropic_sonnet": {
+      "tier": "sonnet",
       "type": "anthropic",
       "model": "claude-sonnet-4-6",
       "max_tokens": 8192,
       "temperature": 0.2
     },
     "anthropic_haiku": {
+      "tier": "haiku",
       "type": "anthropic",
       "model": "claude-haiku-4-5-20251001",
       "max_tokens": 4096,
@@ -84,10 +138,29 @@
   },
 
   "skill_permissions": {
-    "_note": "Only tool-broker is granted invoke access to the sift MCP server. This is the architectural enforcement.",
+    "_note": "Only tool-broker is granted invoke access to the sift MCP server. This is the architectural enforcement. Per-tool overrides go in mcp_tool_access — these restrict which skill the broker accepts requests from for a given tool, even though only the broker itself reaches the MCP server.",
     "mcp_server_access": {
       "sift": ["logistics/tool-broker"]
+    },
+    "mcp_tool_access": {
+      "_note": "Whitelist of skills allowed to request a given MCP tool through the Tool Broker. Tools not listed here are open to any skill on its own allowlist. Tools listed here are restricted regardless of allowlists.",
+      "runtime_inventory": ["command-staff/safety-officer"]
     }
+  },
+
+  "safety": {
+    "cve_feed_sources": {
+      "nvd":    { "enabled": true,  "url": "https://services.nvd.nist.gov/rest/json/cves/2.0" },
+      "osv":    { "enabled": true,  "url": "https://api.osv.dev/v1/query" },
+      "ghsa":   { "enabled": true,  "url": "https://api.github.com/graphql" },
+      "vendor": { "enabled": true,  "_note": "Vendor advisory feeds (Anthropic, OpenClaw release notes, etc.) configured per-component in skills/command-staff/safety-officer" }
+    },
+    "halt_thresholds": {
+      "cvss_hard_halt": 9.0,
+      "cvss_soft_flag": 7.0,
+      "kev_match_halt": true
+    },
+    "_note": "Consumed by command-staff/safety-officer. The Safety Officer runs CVE checks at every operational period boundary; per skill responsibility the queries happen in the skill, not in the MCP server (which has no outbound network egress)."
   },
 
   "prompt_injection_defense": {

@@ -20,6 +20,7 @@ import { join } from "node:path";
 import type { PathGuard } from "../safety/path_guard.js";
 import type { ReadOnlyGuard } from "../safety/readonly_guard.js";
 import type { MemoryImageResolver } from "../tools/memory/volatility.js";
+import type { VelociraptorCollectionResolver } from "../tools/velociraptor/collection.js";
 
 export interface MountManagerConfig {
   evidenceMount: string;
@@ -33,12 +34,12 @@ interface EvidenceEntry {
   /** Absolute path under the evidence mount */
   mountPath: string;
   /** Type of evidence: disk image, memory dump, PCAP, etc. */
-  type: "disk" | "memory" | "pcap" | "logs" | "other";
+  type: "disk" | "memory" | "pcap" | "logs" | "velociraptor" | "other";
   /** ISO timestamp when registered */
   registeredAt: string;
 }
 
-export class MountManager implements MemoryImageResolver {
+export class MountManager implements MemoryImageResolver, VelociraptorCollectionResolver {
   private readonly evidenceMount: string;
   private readonly pathGuard: PathGuard;
   private readonly readOnlyGuard: ReadOnlyGuard;
@@ -108,6 +109,26 @@ export class MountManager implements MemoryImageResolver {
   }
 
   /**
+   * VelociraptorCollectionResolver implementation — used by the VR parsers.
+   * Validates the referenced evidence is a Velociraptor collection.
+   */
+  async resolveCollectionPath(collectionId: string): Promise<string> {
+    const entry = this.evidence.get(collectionId);
+    if (!entry) {
+      throw new Error(
+        `MountManager: unknown collection ID "${collectionId}". ` +
+        `Registered: ${Array.from(this.evidence.keys()).join(", ") || "(none)"}`
+      );
+    }
+    if (entry.type !== "velociraptor") {
+      throw new Error(
+        `MountManager: evidence "${collectionId}" is type "${entry.type}", not "velociraptor"`
+      );
+    }
+    return entry.mountPath;
+  }
+
+  /**
    * Auto-discover evidence under the mount point.
    * Scans top-level directories and registers them based on file extensions.
    */
@@ -170,6 +191,13 @@ export class MountManager implements MemoryImageResolver {
     }
     if (lower.endsWith(".evtx") || lower.endsWith(".log")) {
       return "logs";
+    }
+    // Velociraptor Offline Collector outputs are zips; convention here is
+    // a directory whose name starts with "Collection-" or contains a
+    // "results/" subdirectory. The Evidence Store skill is responsible for
+    // extracting sealed zips into a read-only directory before registration.
+    if (lower.startsWith("collection-") || lower.endsWith(".vr.zip") || lower.endsWith(".velociraptor.zip")) {
+      return "velociraptor";
     }
     return "other";
   }
