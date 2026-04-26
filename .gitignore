@@ -1,1 +1,10 @@
 .DS_Store
+
+# Local Claude Code session state
+.claude/
+
+# MCP server build output
+protocol-sift-ics/mcp-server/dist/
+
+# Node deps (lockfile is committed; modules are not)
+**/node_modules/
