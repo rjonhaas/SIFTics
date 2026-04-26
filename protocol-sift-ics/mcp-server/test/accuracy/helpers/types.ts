@@ -42,8 +42,22 @@ export interface GroundTruthFinding {
   id: string;
   branch: Branch;
   category: FindingCategory;
-  /** Fields the produced finding MUST match exactly */
-  must_have: Record<string, string | number | boolean>;
+  /**
+   * Fields the produced finding MUST match. Keys may carry an operator suffix
+   * to relax exact-match semantics. The suffix selects the comparator and the
+   * base field name (key minus the suffix) is what's looked up on the
+   * produced finding.
+   *
+   *   foo:               exact match (default — case-insensitive for strings)
+   *   foo_in:            value must be in the supplied list
+   *   foo_contains:      produced field must contain expected substring (case-insensitive)
+   *   foo_present:       boolean — true requires presence with truthy value, false requires absence/falsy
+   *   foo_in_cidrs:      produced IPv4 must be in one of the supplied CIDR ranges
+   */
+  must_have: Record<
+    string,
+    string | number | boolean | string[] | number[] | boolean[]
+  >;
   /** Fields the produced finding must match within a tolerance */
   must_have_within_tolerance?: Record<string, ToleranceSpec>;
   /** When true, the harness treats this as a negative case — no finding should match */

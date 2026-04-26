@@ -39,13 +39,22 @@ export function matchPair(gt: GroundTruthFinding, prod: ProducedFinding): Findin
     };
   }
 
-  // Exact-match required fields
-  for (const [field, expected] of Object.entries(gt.must_have)) {
+  // Required fields — supports exact-match plus operator suffixes
+  // (_in, _contains, _present, _in_cidrs). The base field name is the key
+  // minus its operator suffix (or the key itself if no suffix is present).
+  for (const [key, expected] of Object.entries(gt.must_have)) {
     requiredFieldsTotal++;
-    const actual = prod.fields[field];
-    const matched = exactMatch(expected, actual);
-    if (matched) requiredFieldsMatched++;
-    fieldDiffs.push({ field, expected, actual, matched });
+    const { fieldName, predicate } = resolveFieldExpectation(key, expected);
+    const actual = prod.fields[fieldName];
+    const result = predicate(actual);
+    if (result.matched) requiredFieldsMatched++;
+    fieldDiffs.push({
+      field: key,
+      expected: expected as unknown,
+      actual,
+      matched: result.matched,
+      note: result.note,
+    });
   }
 
   // Tolerance fields
@@ -67,8 +76,9 @@ export function matchPair(gt: GroundTruthFinding, prod: ProducedFinding): Findin
 
   // Confidence floor check
   let confidenceOk = true;
-  if (gt.confidence_floor !== undefined) {
-    confidenceOk = prod.confidence >= gt.confidence_floor;
+  const hasConfidenceFloor = gt.confidence_floor !== undefined;
+  if (hasConfidenceFloor) {
+    confidenceOk = prod.confidence >= (gt.confidence_floor as number);
     fieldDiffs.push({
       field: "confidence",
       expected: `>= ${gt.confidence_floor}`,
@@ -78,9 +88,17 @@ export function matchPair(gt: GroundTruthFinding, prod: ProducedFinding): Findin
     });
   }
 
-  // Match quality is the weighted fraction of fields that matched
-  const totalFields = requiredFieldsTotal + toleranceFieldsTotal + (gt.confidence_floor !== undefined ? 1 : 0);
-  const matchedFields = requiredFieldsMatched + toleranceFieldsMatched + (confidenceOk ? 1 : 0);
+  // Match quality is the weighted fraction of fields that matched.
+  // The confidence check contributes to BOTH numerator and denominator only
+  // when a floor is set; without a floor it contributes 0 to each. Earlier
+  // versions added +1 to the numerator unconditionally (because confidenceOk
+  // defaulted to true) while gating the +1 to the denominator on the floor
+  // being set — biasing match_quality upward and allowing it to exceed 1.0
+  // in some configurations.
+  const confidenceContribTotal = hasConfidenceFloor ? 1 : 0;
+  const confidenceContribMatched = hasConfidenceFloor && confidenceOk ? 1 : 0;
+  const totalFields = requiredFieldsTotal + toleranceFieldsTotal + confidenceContribTotal;
+  const matchedFields = requiredFieldsMatched + toleranceFieldsMatched + confidenceContribMatched;
   const matchQuality = totalFields > 0 ? matchedFields / totalFields : 0;
 
   // True positive: ALL required fields match and confidence floor met
@@ -112,6 +130,167 @@ function exactMatch(expected: unknown, actual: unknown): boolean {
     return expected.toLowerCase() === actual.toLowerCase();
   }
   return expected === actual;
+}
+
+// ────────────────────────────────────────────────────────────────────
+// Operator suffix dispatch
+// ────────────────────────────────────────────────────────────────────
+//
+// Suffixes are matched longest-first so `_in_cidrs` is not stolen by `_in`.
+
+type FieldPredicate = (actual: unknown) => { matched: boolean; note?: string };
+
+interface ResolvedExpectation {
+  fieldName: string;          // base field on produced finding
+  predicate: FieldPredicate;
+}
+
+const OPERATOR_SUFFIXES = [
+  "_in_cidrs",
+  "_contains",
+  "_present",
+  "_in",
+] as const;
+
+export function resolveFieldExpectation(
+  key: string,
+  expected: unknown
+): ResolvedExpectation {
+  for (const suffix of OPERATOR_SUFFIXES) {
+    if (key.endsWith(suffix)) {
+      const fieldName = key.slice(0, -suffix.length);
+      switch (suffix) {
+        case "_in_cidrs":
+          return { fieldName, predicate: makeCidrPredicate(expected) };
+        case "_contains":
+          return { fieldName, predicate: makeContainsPredicate(expected) };
+        case "_present":
+          return { fieldName, predicate: makePresentPredicate(expected) };
+        case "_in":
+          return { fieldName, predicate: makeInListPredicate(expected) };
+      }
+    }
+  }
+  return {
+    fieldName: key,
+    predicate: (actual) => ({
+      matched: exactMatch(expected, actual),
+      note: undefined,
+    }),
+  };
+}
+
+function makeContainsPredicate(expected: unknown): FieldPredicate {
+  if (typeof expected !== "string") {
+    return () => ({ matched: false, note: "_contains expects a string" });
+  }
+  const needle = expected.toLowerCase();
+  return (actual) => {
+    if (typeof actual !== "string") {
+      return { matched: false, note: actual === undefined ? "missing" : "expected string" };
+    }
+    const haystack = actual.toLowerCase();
+    return {
+      matched: haystack.includes(needle),
+      note: haystack.includes(needle) ? undefined : `does not contain "${expected}"`,
+    };
+  };
+}
+
+function makePresentPredicate(expected: unknown): FieldPredicate {
+  if (typeof expected !== "boolean") {
+    return () => ({ matched: false, note: "_present expects a boolean" });
+  }
+  if (expected === true) {
+    return (actual) => {
+      const present = actual !== undefined && actual !== null && actual !== "";
+      return {
+        matched: present,
+        note: present ? undefined : "expected field to be present and truthy",
+      };
+    };
+  }
+  // expected === false: field must be absent or falsy
+  return (actual) => {
+    const absent = actual === undefined || actual === null || actual === "";
+    return {
+      matched: absent,
+      note: absent ? undefined : "expected field to be absent",
+    };
+  };
+}
+
+function makeInListPredicate(expected: unknown): FieldPredicate {
+  if (!Array.isArray(expected)) {
+    return () => ({ matched: false, note: "_in expects an array" });
+  }
+  if (expected.length === 0) {
+    return () => ({ matched: false, note: "_in list is empty" });
+  }
+  return (actual) => {
+    if (actual === undefined || actual === null) {
+      return { matched: false, note: "missing" };
+    }
+    const matched = expected.some((item) => exactMatch(item, actual));
+    return {
+      matched,
+      note: matched ? undefined : `not in [${expected.map(String).join(", ")}]`,
+    };
+  };
+}
+
+function makeCidrPredicate(expected: unknown): FieldPredicate {
+  if (!Array.isArray(expected) || expected.length === 0) {
+    return () => ({ matched: false, note: "_in_cidrs expects a non-empty CIDR list" });
+  }
+  const cidrs = expected.filter((c): c is string => typeof c === "string");
+  if (cidrs.length === 0) {
+    return () => ({ matched: false, note: "_in_cidrs list contained no strings" });
+  }
+  return (actual) => {
+    if (typeof actual !== "string") {
+      return { matched: false, note: actual === undefined ? "missing" : "expected IPv4 string" };
+    }
+    if (ipv4ToInt(actual) === null) {
+      return { matched: false, note: `not a valid IPv4: "${actual}"` };
+    }
+    for (const cidr of cidrs) {
+      if (ipv4InCidr(actual, cidr)) {
+        return { matched: true, note: `in ${cidr}` };
+      }
+    }
+    return { matched: false, note: `not in [${cidrs.join(", ")}]` };
+  };
+}
+
+function ipv4ToInt(ip: string): number | null {
+  const parts = ip.split(".");
+  if (parts.length !== 4) return null;
+  let result = 0;
+  for (const p of parts) {
+    if (!/^\d+$/.test(p)) return null;
+    const n = Number(p);
+    if (n < 0 || n > 255) return null;
+    result = result * 256 + n;
+  }
+  return result >>> 0;
+}
+
+export function ipv4InCidr(ip: string, cidr: string): boolean {
+  const slash = cidr.indexOf("/");
+  if (slash === -1) return false;
+  const base = cidr.slice(0, slash);
+  const bits = Number(cidr.slice(slash + 1));
+  if (!Number.isInteger(bits) || bits < 0 || bits > 32) return false;
+
+  const ipInt = ipv4ToInt(ip);
+  const baseInt = ipv4ToInt(base);
+  if (ipInt === null || baseInt === null) return false;
+
+  if (bits === 0) return true;
+  // 32-bit mask. JS << has modulo-32 semantics, so handle bits === 32 as "all bits set".
+  const mask = bits === 32 ? 0xFFFFFFFF : ((0xFFFFFFFF << (32 - bits)) >>> 0);
+  return (ipInt & mask) === (baseInt & mask);
 }
 
 function toleranceMatch(spec: ToleranceSpec, actual: unknown): { matched: boolean; note?: string } {
