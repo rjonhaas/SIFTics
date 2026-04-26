@@ -80,23 +80,43 @@ protocol-sift-ics/
 │   ├── logistics/              Chief + Tool Broker + Evidence Store
 │   └── finance-admin/          Audit Log + Token Budget
 │
-└── mcp-server/                 Custom typed-function MCP server
+└── mcp-server/                 Custom typed-function MCP server (37 tools)
     ├── README.md               Server philosophy
     ├── package.json            Scripts: build, test, test:spoliation, test:injection, test:accuracy
     ├── tsconfig.json
     ├── src/
     │   ├── index.ts            MCP entry point (registers tools, wires guards)
+    │   ├── audit/
+    │   │   └── audit_log.ts    Append-only hash-chained JSONL audit log (11 unit tests)
+    │   ├── evidence/
+    │   │   ├── mount_manager.ts   Evidence mounting lifecycle + MemoryImageResolver
+    │   │   └── hash_registry.ts   SHA-256 tamper detection registry
     │   ├── safety/
     │   │   ├── path_guard.ts   Path containment enforcement
     │   │   └── readonly_guard.ts  Mount + file readonly verification
     │   └── tools/
-    │       ├── disk/prefetch.ts    Example pattern (PECmd wrapper)
-    │       └── memory/             Volatility 3 wrapper (7 plugins, fully built)
-    │           ├── README.md
+    │       ├── disk/               9 tools: prefetch, event logs, registry (4), MFT, USN
+    │       │   ├── index.ts
+    │       │   ├── prefetch.ts     PECmd wrapper (summary + detailed)
+    │       │   ├── evtx.ts         EvtxECmd wrapper (event log parsing + filtering)
+    │       │   ├── registry.ts     RECmd wrapper (hive parse, Run keys, services, scheduled tasks)
+    │       │   └── mft.ts          MFTECmd wrapper ($MFT timeline + $UsnJrnl + timestomp detection)
+    │       ├── memory/             7 tools: Volatility 3 wrapper
+    │       │   ├── index.ts
+    │       │   ├── volatility.ts   Core vol invocation with allowlist + arg validation
+    │       │   └── plugins.ts      7 typed plugin wrappers (pslist, pstree, psscan, cmdline, malfind, netscan, info)
+    │       ├── network/            10 tools: PCAP, Zeek, detection
+    │       │   ├── index.ts
+    │       │   ├── pcap.ts         tshark/capinfos wrapper (summary, flows, file extraction)
+    │       │   ├── zeek.ts         Zeek TSV parser (conn, dns, http, ssl, files logs)
+    │       │   └── detection.ts    Beacon detection + DNS tunneling detection
+    │       └── malware/            11 tools: static analysis
     │           ├── index.ts
-    │           ├── volatility.ts
-    │           └── plugins.ts
+    │           └── static_analysis.ts  file ID, hashing, entropy, PE analysis, strings, YARA, capa, packer
     └── test/
+        ├── unit/
+        │   ├── volatility.test.ts  Volatility validation tests
+        │   └── audit_log.test.ts   Audit log hash chain + query tests (11 tests, all passing)
         ├── spoliation/         88 vectors, 7 categories — proves evidence integrity
         ├── injection/          67 vectors, 6 categories — proves LLM resistance + arch containment
         └── accuracy/           6 cases, ~60 ground-truth findings — proves correctness
@@ -107,14 +127,21 @@ protocol-sift-ics/
 ### ✅ Complete
 
 - All 17 ICS skills with structured permissions, schemas, and rationale
-- MCP server scaffold (PathGuard, ReadOnlyGuard, prefetch tool example)
-- **Volatility 3 wrapper** — 7 typed plugin functions (vol_info, vol_pslist, vol_pstree, vol_psscan, vol_cmdline, vol_malfind, vol_netscan), fully built with allowlist + arg validation + output spillover, unit tested
+- **MCP server — fully compiling, 37 tools registered across 4 branches:**
+  - **Memory** (7 tools): vol_info, vol_pslist, vol_pstree, vol_psscan, vol_cmdline, vol_malfind, vol_netscan — Volatility 3 wrapper with allowlist + arg validation + output spillover
+  - **Disk** (9 tools): parse_prefetch_summary, parse_prefetch_detailed, parse_event_logs, extract_registry_hive, get_run_keys, get_services, get_scheduled_tasks, extract_mft_timeline, parse_usn_journal — wrapping PECmd, EvtxECmd, RECmd, MFTECmd with timestomp detection
+  - **Network** (10 tools): pcap_summary, pcap_flow_extract, extract_files_from_pcap, zeek_conn_log, zeek_dns_log, zeek_http_log, zeek_ssl_log, zeek_files_log, beacon_detection, dns_tunneling_detection — wrapping tshark/capinfos/zeek with statistical analysis
+  - **Malware** (11 tools): file_type_identify, hash_sample, entropy_analysis, pe_header_parse, pe_imports, pe_exports, pe_sections, extract_strings, yara_scan, capa_analysis, packer_detect — wrapping libmagic/pefile/strings/yara/capa/DIE
+- **Evidence management**: MountManager (evidence lifecycle + MemoryImageResolver) + HashRegistry (SHA-256 tamper detection)
+- **Audit log**: Append-only hash-chained JSONL with sequential IDs, microsecond timestamps, resume support, query interface (traceFindings, getByPeriod, getByType, verifyChain) — 11 unit tests, all passing
+- **Safety guards**: PathGuard (path containment) + ReadOnlyGuard (mount verification)
 - **Spoliation harness** — 88 attack vectors across 7 categories, runner, example report, all blocked
 - **Injection harness** — 67 attack vectors across 6 categories, multi-tier runner, judge-model grading, example report
 - **Accuracy harness** — 6 test case ground-truth definitions (001-ransomware, 002-insider-threat, 003-c2-network, 004-multi-host-lateral, 005-living-off-the-land, 006-clean-baseline), runner, matcher with tolerance specs, metrics with calibration tracking, example report
 - ARCHITECTURE.md with full trust boundary attribution
 - install.sh with pre-flight architectural-violation check
 - Hackathon rules archived at top of `SUBMISSION_CHECKLIST.md`
+- GitHub repo pushed to https://github.com/rjonhaas/SIFTics.git
 
 ### 🟡 In progress / partially done
 
@@ -125,7 +152,7 @@ protocol-sift-ics/
 
 - Demo video (≤5 min, live terminal, ≥1 self-correction sequence — strict requirement)
 - Devpost project description (story format)
-- GitHub push with Apache 2.0 license
+- Apache 2.0 license file at repo root
 - Devpost registration
 
 ## What To Work On Next (priority order)
@@ -228,4 +255,4 @@ If you're a Claude Code session and the user asks you something about this proje
 
 ## Last Updated
 
-April 25, 2026 — generated by Claude Opus 4.7. If you're reading this and the date is much later, the project may have evolved beyond what this file describes. Check `SUBMISSION_CHECKLIST.md` for current status.
+April 25, 2026 — updated by Claude Opus 4.6. If you're reading this and the date is much later, the project may have evolved beyond what this file describes. Check `SUBMISSION_CHECKLIST.md` for current status.
