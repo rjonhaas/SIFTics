@@ -12,3 +12,9 @@ protocol-sift-ics/mcp-server/dist/
 # Per-incident artifacts written by scripts/run-incident.sh
 protocol-sift-ics/.directive-*.json
 protocol-sift-ics/.preflight-*.json
+
+# Orchestrator build output
+protocol-sift-ics/orchestrator/dist/
+
+# Auto-generated session audit log
+analysis/forensic_audit.log
