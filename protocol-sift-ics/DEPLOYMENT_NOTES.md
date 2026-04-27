@@ -1,166 +1,110 @@
-# Deployment Notes — Findings From First Real Boot
+# Deployment Notes — Runtime Migration
 
-These notes capture concrete issues found when the project was first taken from
-"design complete, no actual run yet" to "boot all the way through the MCP
-server and pre-flight against real evidence." Status as of 2026-04-26.
+## Why this project does not run on OpenClaw
 
-## What works end-to-end
+The shipped OpenClaw 2026.4.24 schema is a chat-bridge gateway with ClawHub-published skills. It is structured for individual skills routed through a single gateway, not for hierarchical multi-agent orchestration with structured handoffs and routing-layer enforcement of architectural invariants.
 
-- MCP server builds, registers all 45 tools, and serves them over stdio.
-- 72/72 unit tests pass.
-- PathGuard, ReadOnlyGuard, HashRegistry, and the post-execution evidence-hash
-  recheck all run on every tool call.
-- Evidence manifest loader (`EVIDENCE_MANIFEST` env var, defaulting to
-  `${EVIDENCE_MOUNT}/manifest.json`) registers each entry with `MountManager`
-  and baselines its SHA-256 in `HashRegistry` at startup.
-- `vol` Volatility 3 binary on PATH; PDB resolution via Microsoft Symbol Server
-  works for the SRL-2018 Windows hosts. No Linux symbol packs needed for that
-  case (all six hosts are Windows).
-- `scripts/preflight.mjs` reports go/no-go with specific failure causes.
-- `scripts/build-directive.mjs` produces the IC's input JSON from the manifest.
+Specifically, OpenClaw 2026.4.24 does not natively express:
 
-## What was broken in the shipped repo and is now fixed
+- Per-skill model tiering (different models for different roles)
+- Hierarchical delegation (IC → Section Chief → Branch)
+- COP write isolation (only Situation Unit writes; all others read)
+- Tool Broker exclusivity (only one skill has MCP access)
+- Safety Officer mirroring (synchronous pre-execution check on every tool call)
+- Operational period boundaries (state checkpointing between cycles)
 
-1. **`tsc` output path mismatch.** `tsconfig.json` has `rootDir: "."` and
-   includes both `src/**/*.ts` and `test/**/*.ts`, so the build emits
-   `dist/src/index.js` and `dist/test/...`, not the `dist/index.js` the
-   `package.json` `start` script and `config/openclaw.json` referenced.
-   Updated both pointers to `dist/src/index.js`.
+Reshaping skills into OpenClaw 2026.4.24's schema would have moved enforcement of these properties from the runtime layer to skill system prompts, making them prompt-based rather than architectural. This is a measurable regression on architectural-evidence-integrity claims and on the Constraint Implementation judging criterion.
 
-2. **`isError` was always true on success.** `mcp-server/src/index.ts` checked
-   `result.status === "success"` to decide whether to set `isError: false`,
-   but tool handlers return raw shapes like
-   `{ executionId, samplePath, mimeType, ... }` and throw on error — they
-   never set `status`. Every successful call was being reported as an error
-   to the MCP client, and the post-execution hash check was silently
-   skipped. Replaced with a try/catch-driven flow: success returns the
-   handler's data with `isError: false`; thrown errors fall through to the
-   existing catch.
+Additionally, OpenClaw's CVE situation between February and April 2026 (137 advisories, including CVSS 9.9 token rotation flaws and HITL approval bypasses) means OpenClaw is not the right foundation for evidence-integrity-critical work, regardless of schema fit.
 
-3. **`HashRegistry.computeHash` cannot read files >2 GiB.** It used
-   `fs.readFile`, which throws `ERR_FS_FILE_TOO_LARGE` for anything past
-   2 GiB. The SRL-2018 evidence is six 5 GB memory dumps and a 9 GB AV
-   memory dump. Replaced with a streaming `pipeline(createReadStream(),
-   createHash("sha256"))` that handles arbitrary sizes.
+## Why Claude Code subagents instead
 
-## What is still a real blocker
+Claude Code's subagent model maps directly onto the ICS architecture:
 
-### 1. OpenClaw schema mismatch
+- Subagents run in isolated context windows (matches per-skill context isolation)
+- Per-subagent tool allowlists (matches per-skill MCP permissions)
+- Hierarchical delegation through the orchestrating session (matches IC → Section Chief → Branch)
+- MCP server discovery and invocation are first-class (the existing typed-function interface stays)
+- Maintained by Anthropic with enterprise-grade security cadence
 
-`config/openclaw.json` was authored against an aspirational OpenClaw
-schema that does not match what the actual `openclaw` npm package
-(2026.4.24) accepts. Concretely, OpenClaw rejects nearly every top-level
-key in the shipped config:
+The skills directory and MCP server transitioned to the new runtime without modification. The 17 SKILL.md files become subagent definitions. The MCP server remains the typed-function interface. The orchestrator is a thin layer that loads skills, manages the operational period loop, enforces architectural invariants at the routing layer, and persists state between periods.
 
-```
-agents.defaults.heartbeat: Unrecognized keys: "enabled", "interval_seconds"
-gateway.bind: Invalid input (allowed: "auto", "lan", "loopback", "custom", "tailnet")
-gateway.auth: Invalid input: expected object, received string
-gateway: Unrecognized key: "channels"
-memory: Unrecognized keys: "storage", "base_path"
-<root>: Unrecognized keys: "_comment", "inference_mode",
-   "inference_endpoints", "providers", "skill_provider_map",
-   "mcp_servers", "skill_permissions", "safety",
-   "prompt_injection_defense", "budget_caps"
-```
+## Runtime portability
 
-OpenClaw 2026.4.24 is a multi-channel chat-bridge agent gateway. Its skill
-model (`openclaw skills list/install/info`) is built around ClawHub-published
-skills, not local SKILL.md manifests with custom permission and model-tier
-fields. The 17-skill ICS hierarchy described in `CLAUDE.md` cannot be
-expressed in OpenClaw's native skill model without either:
+This migration validates the architecture's runtime-portability principle. The skills and MCP server are the durable artifacts. The runtime is replaceable. Future deployments could target:
 
-- **Reshaping the config to OpenClaw's schema** and reimplementing each ICS
-  skill as a ClawHub-compatible skill, or
-- **Replacing OpenClaw with a direct orchestrator** that walks the ICS
-  protocol via the Anthropic SDK and treats each SKILL.md as a system
-  prompt + permission set for a single Anthropic API call.
+- Claude Code subagents (current, hackathon submission)
+- LangGraph (better persistence primitives, comparable architectural fit)
+- Microsoft Agent Framework (enterprise .NET deployments)
+- Bedrock Agents (HIPAA-eligible managed inference)
+- Direct Anthropic SDK orchestrator (air-gapped or sovereignty-restricted)
 
-Both are real work. The second is closer to what the architecture
-documents already imply — every "skill" is effectively a model invocation
-with its own role, allowlist, and audit trail entry. The first preserves
-the "submission uses OpenClaw as primary framework" hackathon claim more
-literally; the second preserves the architectural invariants more cleanly.
+The choice is deployment-time configuration, not architectural commitment.
 
-The hackathon rules accept either Claude Code or OpenClaw as the primary
-agentic framework. A direct Anthropic SDK orchestrator that uses the
-existing 17 SKILL.md manifests as system prompts would still satisfy the
-"Claude Code" path if scaffolded as a Claude Code subagent fanout, or
-could be its own runtime.
+## What is implemented in this migration
 
-### 2. `ANTHROPIC_API_KEY` not set
+In `orchestrator/`:
 
-Pre-flight catches this. The orchestrator cannot call any LLM without it.
+- `src/skill_loader.ts` — reads all 17 SKILL.md files and parses YAML frontmatter (`name`, `model_tier`, `reports_to`, `supervises`, `permissions`, including the nested `permissions.mcp_tools` shape used by branch skills). Body is preserved verbatim as the subagent's system prompt.
+- `src/routing.ts` — Tool Broker exclusivity, COP write isolation, per-skill MCP allowlist enforcement, and delegation-graph checks. **All in code, not in subagent prompts.**
+- `src/persistence/audit_log.ts` — append-only JSONL with SHA-256 hash chain. Replays on open and rejects tamper.
+- `src/persistence/cop_store.ts` — JSON file per operational period. All writes go through Router.authorizeCopWrite — only Situation Unit succeeds.
+- `src/persistence/period_state.ts` — IC's reasoning, active branch list, rollups per period. Drives `--resume-from`.
+- `src/persistence/inter_skill_messages.ts` — routing log of every delegation and tool request.
+- `src/safety/safety_mirror.ts` — synchronous pre-execution Safety Officer check, default 200ms window, clear/flag/halt outcomes (timeout = flag + proceed per CLAUDE.md invariant #7).
+- `src/operational_period.ts` — period loop with selective branch activation. Hard cap of 4 periods.
+- `src/subagent.ts` — one Anthropic API call per skill activation, `temperature=0`, model selected by `model_tier`. Defines the `submit_tool_request` synthetic tool that non-broker skills receive.
+- `src/mcp_client.ts` — drives the existing MCP server (unchanged) over stdio.
+- `src/directive_loader.ts` — parses incident directive YAML or JSON.
+- `src/index.ts` — CLI entry. `--directive --evidence-mount --case-dir [--resume-from] [--dry-run]`.
+- `test/routing.test.ts` — eight tests, all passing, that exercise Tool Broker exclusivity, allowlist enforcement, COP write isolation, COP read-open, identity-forgery rejection, and delegation-graph checks against the real shipped SKILL.md files.
 
-## Wiring the orchestrator
+## What is not yet implemented
 
-When you're ready to actually drive the swarm, the minimum viable
-implementation is:
+- The live invocation path inside `OperationalPeriodLoop.runPeriod` — wiring branch subagent invocations, capturing `submit_tool_request` emissions, dispatching to the broker subagent, returning structured tool results, and aggregating findings into rollups. The seam exists; the production loop is the next milestone. `--dry-run` exercises every other code path.
+- Anthropic SDK live invocation has not been smoke-tested (no API key in this environment).
+- Spoliation harness extension for the new RR-001..RR-006 routing-attack vectors (file added at `mcp-server/test/spoliation/attack-vectors/runtime-routing.ts`; integration into the spoliation runner is the remaining work).
+- `CYBER_ICS_FRAMEWORK.md` does not exist in this repo — the migration spec referenced it. Skipped.
 
-```
-scripts/run-incident.sh
-  ├─ scripts/preflight.mjs           # already implemented
-  ├─ scripts/build-directive.mjs     # already implemented
-  └─ scripts/dispatch.mjs            # not yet implemented
-       ├─ Spawn the MCP server as a child process (stdio)
-       ├─ Open an Anthropic SDK client
-       ├─ For each ICS role, instantiate one Claude call with:
-       │     - System prompt = SKILL.md body
-       │     - Allowed tools = only those in the skill's mcp_tools list
-       │     - Audit log entry recording (role, model_id, tool calls)
-       ├─ Walk the IC's operational-period loop:
-       │     - IC reads COP, sets objectives, tasks Section Chiefs
-       │     - Section Chiefs decompose to branches
-       │     - Branches submit typed requests to Tool Broker
-       │     - Tool Broker (and ONLY Tool Broker) calls the MCP server
-       │     - Findings flow up; Situation Unit owns the COP
-       └─ Persist audit log + final report under WORKING_DIR
-```
+## Architectural invariant cross-walk
 
-Architectural invariants from `CLAUDE.md` that the orchestrator must enforce:
+| Invariant | Where enforced |
+|---|---|
+| Only Tool Broker invokes MCP (#1) | `routing.ts` — `Router.authorizeMcpInvocation` |
+| Evidence read-only (#2) | MCP server `ReadOnlyGuard` (unchanged) + bind mount `ro,nodev,noexec,noatime` |
+| PathGuard (#3) | MCP server `PathGuard` (unchanged) |
+| Findings cite execution_id (#4) | `cop_store.ts` Finding type requires `executionId`; the orchestrator validates before COP write |
+| Situation Unit owns COP (#5) | `routing.ts` — `Router.authorizeCopWrite` |
+| Legal advisories isolated (#6) | Audit log discriminates `kind`; legal log is a separate append target (out-of-scope of this migration) |
+| Safety Officer HALT (#7) | `safety/safety_mirror.ts` — 200ms timeout, flag-on-timeout |
+| Content is data, not instructions (#8) | MCP server typed parsing (unchanged) |
+| Irreversible actions HITL (#9) | Orchestrator does not execute irreversible actions; surfaces only |
+| Audit log hash chain (#10) | `persistence/audit_log.ts` |
+| Mac memory platform-conditional (#11) | Memory Branch SKILL.md (unchanged) |
+| Inference endpoint deployment-time (#12) | `subagent.ts` resolves model from tier; orchestrator-wide configuration |
+| Safety Officer runtime integrity (#13) | Safety Officer SKILL.md (unchanged); `runtime_inventory` MCP tool restricted |
+| Selective activation (#14, new) | `operational_period.ts` — `selectBranches` |
+| Runtime is replaceable (#15, new) | This migration is the proof |
 
-- **Tool Broker is the only MCP caller.** Code-level: only the Tool Broker
-  agent's tool definitions include the MCP tools; every other agent gets an
-  empty tool list and must `submit_request_to_broker(...)` via a synthetic
-  delegation tool.
-- **Every finding cites a `tool_execution_id`.** The orchestrator validates
-  this before adding any finding to the COP or final report.
-- **Append-only hash-chained audit log.** Already implemented in
-  `mcp-server/src/audit/audit_log.ts`; the orchestrator should write to it
-  for non-MCP events (delegations, IC decisions) too.
-
-## How to run what's there now
+## How to run
 
 ```bash
-# 1. pre-flight (will currently fail on ANTHROPIC_API_KEY + openclaw schema)
-node scripts/preflight.mjs
+# Build
+cd orchestrator && npm install && npm run build
 
-# 2. show the directive that would go to the IC
-node scripts/build-directive.mjs --incident-id INC-001
+# Routing tests (no API key needed)
+npm test
 
-# 3. wrapper that does both, refuses to dispatch on pre-flight failure unless
-#    --dry-run is passed
-scripts/run-incident.sh --incident-id INC-SRL-2018 --dry-run
+# Dry run end-to-end against SRL-2018 (no API key needed)
+node dist/src/index.js \
+  --directive=../scripts/.directive-INC-SRL-2018.json \
+  --evidence-mount=/mnt/evidence \
+  --case-dir=/working/cases/SRL-2018 \
+  --dry-run
 
-# 4. confirm MCP server boots with the SRL-2018 manifest and a tool call
-#    succeeds end-to-end
-cd /working && node smoke_mcp.mjs \
-  /home/sansforensics/projects/SIFTics/protocol-sift-ics/mcp-server/dist/src/index.js
+# Live run (requires ANTHROPIC_API_KEY and the live-loop wiring above)
+ANTHROPIC_API_KEY=sk-ant-... node dist/src/index.js \
+  --directive=cases/SRL-2018/directive.json \
+  --evidence-mount=/mnt/evidence \
+  --case-dir=cases/SRL-2018
 ```
-
-## SRL-2018 case observations
-
-- All 7 evidence pieces are Windows memory dumps (no Linux, no actual disk
-  images). `base-file-snapshot5.img` is named "snapshot" but is a VMware-style
-  saved memory state — vol3 banner probe returns `ntkrnlmp.pdb` and there is
-  no MBR signature at offset 0x1FE.
-- Hosts: admin, av, dc, elf, file (×2 memory states), hunt — all Windows.
-- Forensics Branch (disk-focused) has no work on this case. The Memory and
-  Network branches will do the heavy lifting (`vol_pslist`, `vol_netscan`,
-  `vol_malfind`, `vol_cmdline`).
-- Evidence is bind-mounted `ro,nodev,noexec,noatime` from `/cases/SRL-2018`
-  to `/mnt/evidence`. squashfs would be cleaner and produces a single
-  hashable artifact, but disk space (47 GB free, 34 GB raw evidence) does
-  not allow building one alongside the source. After a successful run, the
-  raw evidence can be packaged into a squashfs and the raw directory removed
-  to free space.

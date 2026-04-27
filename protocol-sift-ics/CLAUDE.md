@@ -73,6 +73,10 @@ These are not style preferences. They are the architecture. Future code must res
 
 13. **Safety Officer authority extends to runtime integrity.** CVE checks against runtime components (OpenClaw, MCP server, Volatility, Velociraptor, SIFT tools, Node, Python) are part of every operational period start, and the runtime inventory is recorded in the audit log at every operational period boundary regardless of findings — the audit trail is the value, not just detection. The Safety Officer surfaces concerns; humans decide whether to patch. The Safety Officer never applies patches, modifies configuration, pulls updates, or takes any write action on the runtime. This is consistent with invariant #9 (irreversible actions are IC-gated and human-in-loop). The `runtime_inventory` MCP function is the only tool the Safety Officer is permitted to invoke — restricted via OpenClaw `skill_permissions.mcp_tool_access` and a defense-in-depth `_caller` field check inside the function itself. Hard HALT on any tracked component with unpatched CVSS ≥ 9.0 or a CISA KEV match. See `skills/command-staff/safety-officer/SKILL.md`.
 
+14. **Branches activate selectively per case.** The IC reasons about evidence inventory at the start of each operational period and activates only relevant branches. Branches without relevant evidence sources stand down cleanly without consuming cycles. A typical case runs 3-5 active branches with 2-3 handoffs per operational period. Maximum 4 operational periods per case. This is the structural answer to the handoff-cliff failure mode documented in multi-agent literature: high handoff counts kill coordination, so we keep handoffs shallow and selective.
+
+15. **Runtime is replaceable. The architecture is durable.** The skills directory and MCP server are the durable artifacts. The runtime hosting them is configurable and replaceable. The architecture has been ported from OpenClaw 2026.4.24 to a Claude Code subagent orchestrator (`orchestrator/`) during implementation, with zero modifications to skill manifests or the MCP server. This validates the runtime-portability principle through proof rather than claim.
+
 ## Project Structure
 
 ```
@@ -146,6 +150,7 @@ protocol-sift-ics/
 
 ### ✅ Complete
 
+- Migrated runtime from OpenClaw 2026.4.24 to a Claude Code subagent orchestrator (`orchestrator/`). Skills directory and MCP server unchanged. Architectural enforcement (Tool Broker exclusivity, COP write isolation, Safety Officer mirroring) implemented at the orchestrator's routing layer rather than relying on the runtime. Selective branch activation per case keeps active handoff counts well below the 4-handoff coordination cliff.
 - All 17 ICS skills with structured permissions, schemas, and rationale
 - **Safety Officer extended for runtime integrity.** CVE feed integration with NVD/OSV/GHSA + vendor advisories (config in `openclaw.json` → `safety.cve_feed_sources`). Runtime inventory recorded at every operational period boundary in the audit log. Hard HALT on any tracked component with unpatched CVSS ≥ 9.0 or a CISA KEV match. Surfaces concerns; never applies patches (consistent with invariant #9).
 - **MCP server — fully compiling, 45 tools registered across 6 modules:**

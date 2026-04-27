@@ -1,0 +1,25 @@
+{
+  "name": "protocol-sift-orchestrator",
+  "version": "0.1.0",
+  "description": "Claude Code subagent orchestrator for the Protocol SIFT ICS swarm. Loads SKILL.md manifests, enforces architectural invariants at the routing layer, and walks the operational period loop.",
+  "type": "module",
+  "main": "dist/src/index.js",
+  "bin": {
+    "protocol-sift": "dist/src/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/src/index.js",
+    "test": "node --test dist/test/*.test.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.40.0",
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "yaml": "^2.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.5.0"
+  },
+  "license": "Apache-2.0"
+}
