@@ -85,16 +85,43 @@ protocol-sift-ics/
 ├── ARCHITECTURE.md             Trust boundaries, full ASCII diagram, end-to-end finding trace
 ├── SUBMISSION_CHECKLIST.md     Hackathon requirement → artifact mapping (live status doc)
 ├── DEPLOYMENT_MODES.md         Three inference modes (cloud_direct / cloud_managed / local), compliance posture, roadmap
+├── DEPLOYMENT_NOTES.md         Why OpenClaw was replaced, what the orchestrator implements, invariant cross-walk
 ├── CLAUDE.md                   This file
 ├── install.sh                  SIFT Workstation bootstrap (with architectural-violation check)
-├── config/openclaw.json        Model tiering + inference_mode + MCP server registration + injection defense config
+├── config/openclaw.json        Legacy — superseded by orchestrator/. Kept for reference; not loaded.
 │
-├── skills/                     17 OpenClaw skills (SKILL.md manifests)
+├── scripts/                    Operator harness around the orchestrator
+│   ├── preflight.mjs           Pre-flight checks (API key, MCP build, ro mount, manifest, vol, openclaw)
+│   ├── build-directive.mjs     Build the IC's input JSON from /mnt/evidence/manifest.json
+│   └── run-incident.sh         Pre-flight + directive build + dispatch wrapper
+│
+├── skills/                     19 SKILL.md manifests (was "17" — added since)
 │   ├── command-staff/          IC, Legal, Safety, Liaison
 │   ├── operations/             Ops Chief + Triage/Forensics/Memory/Network/Malware
 │   ├── planning/               Chief + Situation/Timeline/Documentation
 │   ├── logistics/              Chief + Tool Broker + Evidence Store
 │   └── finance-admin/          Audit Log + Token Budget
+│
+├── orchestrator/               Claude Code subagent runtime (replaces OpenClaw)
+│   ├── README.md
+│   ├── package.json / tsconfig.json
+│   ├── src/
+│   │   ├── index.ts                        CLI entry: --directive --evidence-mount --case-dir [--resume-from] [--dry-run]
+│   │   ├── skill_loader.ts                 Parses SKILL.md frontmatter (mcp_tools nests under permissions)
+│   │   ├── routing.ts                      Tool Broker exclusivity, COP write isolation, allowlist + delegation graph
+│   │   ├── operational_period.ts           Period loop, selective branch activation, 4-period hard cap
+│   │   ├── subagent.ts                     Anthropic SDK call per skill; temperature=0; submit_tool_request synthetic tool
+│   │   ├── mcp_client.ts                   stdio JSON-RPC driver for the MCP server
+│   │   ├── directive_loader.ts             YAML/JSON directive parser
+│   │   ├── persistence/
+│   │   │   ├── audit_log.ts                Append-only JSONL with SHA-256 hash chain + replay verification
+│   │   │   ├── cop_store.ts                One JSON file per period; routes every write through router
+│   │   │   ├── period_state.ts             IC reasoning, active branch list, rollups (drives --resume-from)
+│   │   │   └── inter_skill_messages.ts     Routing log of every delegation/tool request
+│   │   └── safety/safety_mirror.ts         Synchronous Safety Officer review; 200ms timeout (clear/flag/halt)
+│   └── test/
+│       ├── routing.test.ts                 8 tests — Tool Broker, COP, allowlist, delegation
+│       └── runtime_routing.test.ts         RR-001..RR-006 — orchestrator-side spoliation vectors
 │
 └── mcp-server/                 Custom typed-function MCP server (45 tools)
     ├── README.md               Server philosophy
@@ -150,8 +177,15 @@ protocol-sift-ics/
 
 ### ✅ Complete
 
-- Migrated runtime from OpenClaw 2026.4.24 to a Claude Code subagent orchestrator (`orchestrator/`). Skills directory and MCP server unchanged. Architectural enforcement (Tool Broker exclusivity, COP write isolation, Safety Officer mirroring) implemented at the orchestrator's routing layer rather than relying on the runtime. Selective branch activation per case keeps active handoff counts well below the 4-handoff coordination cliff.
-- All 17 ICS skills with structured permissions, schemas, and rationale
+- **Runtime migrated from OpenClaw 2026.4.24 to a Claude Code subagent orchestrator (`orchestrator/`).** Skills directory and MCP server unchanged. Architectural enforcement (Tool Broker exclusivity, COP write isolation, Safety Officer mirroring) implemented at the orchestrator's routing layer in code, not in subagent prompts. Selective branch activation per case keeps active handoff counts well below the 4-handoff coordination cliff. **14/14 orchestrator tests pass** (8 routing + 6 RR-001..RR-006 runtime-routing). See `DEPLOYMENT_NOTES.md` for migration rationale and the invariant cross-walk.
+- **Five real bugs found and fixed in the shipped MCP server during first boot:**
+  - `tsconfig.json` produced `dist/src/index.js` (rootDir=".") but `package.json` and `config/openclaw.json` pointed at `dist/index.js`. Updated both pointers.
+  - `index.ts` CallTool handler gated `isError` on `result.status === "success"`, but tool handlers return raw shapes and throw on error — `status` was never set, so every successful call was reported `isError: true` and the post-exec hash check was silently skipped. Replaced with try/catch-driven flow.
+  - `HashRegistry.computeHash` used `fs.readFile`, which throws `ERR_FS_FILE_TOO_LARGE` for files >2 GiB. SRL-2018 dumps are 5–9 GB. Switched to streaming `pipeline(createReadStream(), createHash("sha256"))`.
+  - `index.ts` never registered evidence — `MountManager` and `HashRegistry` were permanently empty by design. Added a manifest loader (env var `EVIDENCE_MANIFEST`, default `${EVIDENCE_MOUNT}/manifest.json`) that registers each entry at startup.
+  - Disk-snapshot misclassification: `base-file-snapshot5.img` is a VMware-style saved memory state (no MBR signature, vol3 banner returns `ntkrnlmp.pdb`), not a disk image. Manifest builder reclassified `snapshot*` → `memory`.
+- **SRL-2018 case wired up end-to-end.** Source data (`HACKATHON-2026/.../SRL-2018`) extracted to `/cases/SRL-2018`, bind-mounted `ro,nodev,noexec,noatime` at `/mnt/evidence`. Manifest at `/mnt/evidence/manifest.json` enumerates all 7 evidence pieces with SHA-256, type, host, OS. Pre-flight + dry-run end-to-end passes; selective activation correctly chose triage + memory branches and stood down forensics + network + malware (case is memory-only Windows). Audit chain verified across 6 entries on a real run.
+- 19 ICS SKILL.md manifests with structured permissions, schemas, and rationale (skill_loader counts 19; earlier doc copies said "17" — discrepancy is doc accuracy, not missing skills)
 - **Safety Officer extended for runtime integrity.** CVE feed integration with NVD/OSV/GHSA + vendor advisories (config in `openclaw.json` → `safety.cve_feed_sources`). Runtime inventory recorded at every operational period boundary in the audit log. Hard HALT on any tracked component with unpatched CVSS ≥ 9.0 or a CISA KEV match. Surfaces concerns; never applies patches (consistent with invariant #9).
 - **MCP server — fully compiling, 45 tools registered across 6 modules:**
   - **Memory** (7 tools): vol_info, vol_pslist, vol_pstree, vol_psscan, vol_cmdline, vol_malfind, vol_netscan — Volatility 3 wrapper with allowlist + arg validation + output spillover
@@ -173,9 +207,10 @@ protocol-sift-ics/
 
 ### 🟡 In progress / partially done
 
-- **Accuracy harness fixtures** — case definitions exist, fixture evidence files do not. Each `test-cases/*/fixture/README.md` has a generation guide. Cases 001 and 006 are the cheapest to build (single host, disk only). Case 007 (Velociraptor multi-host) requires a Mac and Windows VM each — the highest-realism demo material.
-- **Real swarm execution** — design is complete; no actual run has occurred yet. Needed to produce real audit logs and a real final incident report for the demo.
-- **Velociraptor MCP module** — typed functions and parsers complete; needs an end-to-end smoke test against a real Offline Collector zip.
+- **Live LLM invocation inside `OperationalPeriodLoop.runPeriod`.** The orchestrator's seam is in place: `--dry-run` exercises every routing, persistence, audit-chain, and selective-activation code path. The remaining work is wiring branch subagent invocations through `AnthropicSubagentRunner`, capturing `submit_tool_request` emissions, dispatching to the Tool Broker subagent, and aggregating findings into rollups. Throws an explicit error today rather than silently no-op.
+- **Accuracy harness fixtures** — case definitions exist, synthetic fixture evidence files do not. Cases 001 (single-host ransomware disk) and 006 (clean baseline) are the cheapest to build. Case 007 (Velociraptor multi-host) requires a Mac and Windows VM each. Note: SRL-2018 case data is **real evidence** wired in via the manifest, not a synthetic accuracy fixture.
+- **Velociraptor MCP module** — typed functions and parsers complete; still needs an end-to-end smoke test against a real Offline Collector zip.
+- **Spoliation runner integration of RR-001..RR-006.** Attack catalogue at `mcp-server/test/spoliation/attack-vectors/runtime-routing.ts` documents the vectors and points at `orchestrator/test/runtime_routing.test.ts` (where they actually execute and pass). Wiring the spoliation runner to import + report on these orchestrator-side checks is pending.
 
 ### ⬜ Not started
 
@@ -188,17 +223,15 @@ protocol-sift-ics/
 
 If you're a fresh Claude Code session asking "what should I do," walk this list:
 
-1. **Generate fixture evidence for accuracy case 001 or 006** (the easy ones). 001 is a single-host ransomware disk image; 006 is a clean baseline (no incident at all). Both can be produced in a few hours in a Win10 VM. See `mcp-server/test/accuracy/test-cases/001-ransomware-disk-only/fixture/README.md` and `006-clean-baseline/fixture/README.md` for guidance.
+1. **Wire the live LLM invocation path inside `orchestrator/src/operational_period.ts`.** The seam exists; `--dry-run` proves every other code path. The work is: for each active branch this period, call `AnthropicSubagentRunner.invoke` with the branch's SKILL.md as system prompt; collect `submit_tool_request` tool-use blocks; for each, run the Safety Officer mirror, then dispatch to the Tool Broker subagent (which has the real MCP tools); return the structured result back to the branch as a `tool_result` content block; loop until the branch returns text-only (no more tool calls); aggregate the final text into a `RollupSummary`. Then route the rollups to the Situation Unit subagent for COP integration. Set `ANTHROPIC_API_KEY` and run against `/cases/SRL-2018/manifest.json` for the first real swarm execution.
 
-2. **Once a fixture exists, drive a real swarm run against it.** This is the FIRST time the architecture meets reality. Expect things to break. Capture the audit log, the final report, and any error traces.
+2. **Record the demo video** using the SRL-2018 run as the basis. Show the IC's selective-activation reasoning (memory-only case → triage + memory active, others stand down), a branch submitting a typed tool request, the Safety Officer mirror clearing it, the Tool Broker invoking vol3 through the MCP server, and at least one self-correction. Hackathon rules forbid slides — must be live terminal.
 
-3. **Record the demo video** using the real run as the basis. Show the IC reasoning, a branch executing through the Tool Broker, and at least one self-correction (e.g., IC re-tasking a branch after the Situation Unit flags a contradiction). Hackathon rules forbid slides — must be live terminal.
+3. **Write the Devpost description.** First paragraph: the ICS pitch. Body: what it does, how built, challenges (the OpenClaw schema mismatch is a great story — the architecture survived a runtime swap with zero skill or MCP changes, validating runtime-portability invariant #15). Learnings, what's next. Don't bury the differentiator.
 
-4. **Write the Devpost description.** The first paragraph should be the ICS pitch (above). The body covers what it does, how built, challenges, learnings, what's next. Don't bury the differentiator.
+4. **Apache 2.0 LICENSE file at repo root + Devpost registration**, then submit before **Jun 15, 2026 11:45 PM EDT**.
 
-5. **Push to GitHub** with Apache 2.0 license file at the repo root, public visibility, README with setup instructions (we have this).
-
-6. **Register on Devpost** and submit before **Jun 15, 2026 11:45 PM EDT**.
+5. **(Optional polish)** Build accuracy fixtures for cases 001/006 to add an automated correctness benchmark on top of the SRL-2018 real-evidence run.
 
 ## Conventions
 
@@ -268,7 +301,7 @@ From `SUBMISSION_CHECKLIST.md`:
 
 - **Apache 2.0 or MIT license** required, detectable at the top of the GitHub repo
 - **Demo video ≤5 minutes**, live terminal, audio narration, ≥1 self-correction sequence
-- **Submission must use Claude Code or OpenClaw** as the primary agentic framework — the multi-agent ICS structure is built on top via OpenClaw skills
+- **Submission must use Claude Code or OpenClaw** as the primary agentic framework — the orchestrator (`orchestrator/`) hosts the ICS hierarchy as Claude Code subagents driven by the Anthropic SDK. OpenClaw was evaluated and rejected (schema mismatch, see `DEPLOYMENT_NOTES.md`)
 - **Linux/SIFT Workstation** is the mandatory platform
 - **All 8 submission components required** — missing any one = elimination
 - **Substantially new work** — done during Apr 15 – Jun 15, 2026
@@ -284,4 +317,4 @@ If you're a Claude Code session and the user asks you something about this proje
 
 ## Last Updated
 
-April 25, 2026 — updated by Claude Opus 4.6. If you're reading this and the date is much later, the project may have evolved beyond what this file describes. Check `SUBMISSION_CHECKLIST.md` for current status.
+April 27, 2026 — updated by Claude Opus 4.7. Captures the OpenClaw → Claude Code subagent orchestrator migration, the five MCP server bugs found and fixed during first real boot, and the SRL-2018 case wiring. If you're reading this and the date is much later, check `git log` and `SUBMISSION_CHECKLIST.md` for state since.
