@@ -34,8 +34,46 @@ export interface InvocationOutput {
   usage: { input: number; output: number };
 }
 
+export interface ToolCallRecord {
+  id: string;
+  name: string;
+  input: Record<string, unknown>;
+  output: string;
+  isError: boolean;
+}
+
+export interface ConversationInput {
+  skill: SkillConfig;
+  userMessage: string;
+  tools: Anthropic.Tool[];
+  /** Per-turn output cap. Default 4096. */
+  maxTokens?: number;
+  /** Hard cap on tool-use turns. Default 8. */
+  maxTurns?: number;
+  /** Dispatcher invoked for every tool_use block the model emits. Returns
+   *  the string the orchestrator wants to surface back as tool_result. */
+  onToolUse: (use: { id: string; name: string; input: Record<string, unknown> }) => Promise<{
+    output: string;
+    isError?: boolean;
+  }>;
+}
+
+export interface ConversationOutput {
+  /** Final assistant text after the model stopped emitting tool_use blocks. */
+  finalText: string;
+  /** Stop reason of the last turn. */
+  stopReason: string;
+  /** All tool calls dispatched during the conversation, in order. */
+  toolCalls: ToolCallRecord[];
+  /** Number of model turns (1 = one-shot, 2+ = had tool-use rounds). */
+  turns: number;
+  /** Aggregate usage across turns. */
+  usage: { input: number; output: number };
+}
+
 export interface SubagentRunner {
   invoke(input: InvocationInput): Promise<InvocationOutput>;
+  converse(input: ConversationInput): Promise<ConversationOutput>;
 }
 
 export class AnthropicSubagentRunner implements SubagentRunner {
@@ -70,6 +108,115 @@ export class AnthropicSubagentRunner implements SubagentRunner {
       toolUses,
       stopReason: resp.stop_reason ?? "unknown",
       usage: { input: resp.usage.input_tokens, output: resp.usage.output_tokens },
+    };
+  }
+
+  async converse(input: ConversationInput): Promise<ConversationOutput> {
+    const model = TIER_TO_MODEL[input.skill.modelTier];
+    const maxTurns = input.maxTurns ?? 8;
+    const maxTokens = input.maxTokens ?? 4096;
+
+    const messages: Anthropic.MessageParam[] = [
+      { role: "user", content: input.userMessage },
+    ];
+    const toolCalls: ToolCallRecord[] = [];
+    let totalInput = 0;
+    let totalOutput = 0;
+    let lastText = "";
+    let stopReason = "unknown";
+    let turns = 0;
+
+    for (let t = 0; t < maxTurns; t++) {
+      turns++;
+      const resp = await this.client.messages.create({
+        model,
+        max_tokens: maxTokens,
+        temperature: 0,
+        system: input.skill.systemPrompt,
+        tools: input.tools,
+        messages,
+      });
+      totalInput += resp.usage.input_tokens;
+      totalOutput += resp.usage.output_tokens;
+      stopReason = resp.stop_reason ?? "unknown";
+
+      lastText = resp.content
+        .filter((b): b is Anthropic.TextBlock => b.type === "text")
+        .map((b) => b.text)
+        .join("\n");
+
+      const toolUses = resp.content.filter(
+        (b): b is Anthropic.ToolUseBlock => b.type === "tool_use"
+      );
+
+      // Echo the assistant turn back into the conversation.
+      messages.push({ role: "assistant", content: resp.content });
+
+      if (stopReason !== "tool_use" || toolUses.length === 0) {
+        // Branch returned text-only; we're done.
+        break;
+      }
+
+      const toolResults: Anthropic.ToolResultBlockParam[] = [];
+      for (const use of toolUses) {
+        const result = await input.onToolUse({
+          id: use.id,
+          name: use.name,
+          input: (use.input ?? {}) as Record<string, unknown>,
+        });
+        toolCalls.push({
+          id: use.id,
+          name: use.name,
+          input: (use.input ?? {}) as Record<string, unknown>,
+          output: result.output,
+          isError: Boolean(result.isError),
+        });
+        toolResults.push({
+          type: "tool_result",
+          tool_use_id: use.id,
+          content: result.output,
+          is_error: Boolean(result.isError),
+        });
+      }
+      messages.push({ role: "user", content: toolResults });
+    }
+
+    // If we exhausted maxTurns while the model still wanted to call tools,
+    // do one more turn with tools removed so the model is forced to emit
+    // its final text rollup. Without this, max-turn exits leave finalText
+    // empty and downstream rollup parsing finds nothing.
+    if (stopReason === "tool_use") {
+      messages.push({
+        role: "user",
+        content:
+          "Tool budget exhausted for this activation. Do not request additional tools. " +
+          "Emit your final structured rollup now using ONLY information already captured " +
+          "in the tool results above. Findings without a tool_execution_id from this " +
+          "conversation MUST NOT be included.",
+      });
+      const finalize = await this.client.messages.create({
+        model,
+        max_tokens: maxTokens,
+        temperature: 0,
+        system: input.skill.systemPrompt,
+        messages,
+      });
+      totalInput += finalize.usage.input_tokens;
+      totalOutput += finalize.usage.output_tokens;
+      stopReason = finalize.stop_reason ?? stopReason;
+      lastText = finalize.content
+        .filter((b): b is Anthropic.TextBlock => b.type === "text")
+        .map((b) => b.text)
+        .join("\n");
+      turns++;
+    }
+
+    return {
+      finalText: lastText,
+      stopReason,
+      toolCalls,
+      turns,
+      usage: { input: totalInput, output: totalOutput },
     };
   }
 }

@@ -12,21 +12,35 @@ permissions:
     - logistics/tool-broker
   mcp_tools:
     via_broker_only: true
+    # Aligned with the 45 tools the MCP server actually registers. Names that
+    # appeared in earlier drafts (list_evidence, get_system_info, etc.) were
+    # aspirational and have no server-side implementation.
     allowlist:
-      - list_evidence
-      - hash_evidence
-      - get_file_metadata
-      - list_users
-      - list_installed_programs
-      - get_system_info
-      - scan_for_iocs
-      - quick_timeline_sample
-      - prefetch_summary
-      - amcache_summary
-      - shimcache_summary
-      - memory_process_list
-      - pcap_protocol_summary
-      - yara_quick_scan
+      # Memory triage
+      - vol_info
+      - vol_pslist
+      - vol_psscan
+      - vol_pstree
+      # Disk triage
+      - parse_prefetch_summary
+      - parse_event_logs
+      - get_run_keys
+      - get_services
+      - get_scheduled_tasks
+      - extract_mft_timeline
+      # Sample triage
+      - hash_sample
+      - file_type_identify
+      - packer_detect
+      - yara_scan
+      # Network triage
+      - pcap_summary
+      - zeek_conn_log
+      - zeek_dns_log
+      # Velociraptor / cross-OS triage
+      - parse_collection
+      - vr_list_users
+      - vr_extract_persistence
 ---
 
 # Role

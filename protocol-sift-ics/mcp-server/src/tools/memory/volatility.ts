@@ -21,7 +21,7 @@
 
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { writeFile, stat } from "node:fs/promises";
+import { writeFile, stat, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 
@@ -316,9 +316,10 @@ export async function runVolatilityPlugin<RowType = Record<string, unknown>>(
   let artifactRef: VolatilityResult["artifactRef"];
 
   if (rows.length > ctx.config.inlineRowLimit) {
+    const artifactDir = join(ctx.pathGuard.getWorkingDir(), "vol_artifacts");
+    await mkdir(artifactDir, { recursive: true });
     const artifactPath = join(
-      ctx.pathGuard.getWorkingDir(),
-      "vol_artifacts",
+      artifactDir,
       `${executionId}_${args.plugin.replace(/\./g, "_")}.json`
     );
     const canonical = ctx.pathGuard.validatePath(artifactPath, true);

@@ -22,9 +22,11 @@ import { registerNetworkTools } from "./tools/network/index.js";
 import { registerMalwareTools } from "./tools/malware/index.js";
 import { registerVelociraptorTools } from "./tools/velociraptor/index.js";
 import { registerRuntimeTools } from "./tools/runtime/index.js";
+import { registerCustodyTools } from "./tools/custody/index.js";
 
 import { MountManager } from "./evidence/mount_manager.js";
 import { HashRegistry } from "./evidence/hash_registry.js";
+import { CustodyChainLog } from "./evidence/custody_chain.js";
 import { PathGuard } from "./safety/path_guard.js";
 import { ReadOnlyGuard } from "./safety/readonly_guard.js";
 
@@ -68,6 +70,11 @@ const hashRegistry = new HashRegistry({
   registryPath: `${EVIDENCE_MOUNT}/.hash_registry.json`,
 });
 
+// Custody chain log lives in the working dir (writable). PathGuard allows
+// writes only inside WORKING_DIR; the custody log is one of the few things
+// that legitimately needs to be appended to during an incident.
+const custodyChain = await CustodyChainLog.open(join(WORKING_DIR, "custody_chain.jsonl"));
+
 // ────────────────────────────────────────────────────────────────────
 // Tool Registry
 // ────────────────────────────────────────────────────────────────────
@@ -103,6 +110,14 @@ registerNetworkTools(toolRegistry, { pathGuard, readOnlyGuard, mountManager, has
 registerMalwareTools(toolRegistry, { pathGuard, readOnlyGuard, mountManager, hashRegistry });
 registerVelociraptorTools(toolRegistry, { pathGuard, readOnlyGuard, mountManager, hashRegistry });
 registerRuntimeTools(toolRegistry, { pathGuard, readOnlyGuard, mountManager, hashRegistry });
+registerCustodyTools(toolRegistry, {
+  pathGuard,
+  readOnlyGuard,
+  mountManager,
+  hashRegistry,
+  custodyChain,
+  workingDir: WORKING_DIR,
+});
 
 // ────────────────────────────────────────────────────────────────────
 // Server setup

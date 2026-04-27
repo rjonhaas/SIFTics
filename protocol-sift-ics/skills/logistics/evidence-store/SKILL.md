@@ -12,7 +12,10 @@ permissions:
     - working_dirs
   invoke:
     - filesystem_ops   # restricted to mount, hash, chmod — never write to evidence
-  mcp_tools: []
+  mcp_tools:
+    via_broker_only: true
+    allowlist:
+      - prepare_working_copy
 ---
 
 # Role

@@ -14,6 +14,9 @@ permissions:
     - logistics/tool-broker
   mcp_tools:
     via_broker_only: true
+    # Allowlist trimmed to tools the MCP server actually exposes. Items the
+    # playbook below references but that aren't wired (suricata_alerts,
+    # ja3_fingerprint, *_reputation_check, geolocate_ip) are roadmap.
     allowlist:
       - pcap_summary
       - pcap_flow_extract
@@ -22,15 +25,9 @@ permissions:
       - zeek_http_log
       - zeek_ssl_log
       - zeek_files_log
-      - suricata_alerts
       - beacon_detection
       - dns_tunneling_detection
       - extract_files_from_pcap
-      - ja3_fingerprint
-      - ja3s_fingerprint
-      - domain_reputation_check
-      - ip_reputation_check
-      - geolocate_ip
 ---
 
 # Role

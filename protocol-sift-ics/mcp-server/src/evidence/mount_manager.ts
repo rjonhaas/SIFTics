@@ -31,8 +31,12 @@ export interface MountManagerConfig {
 interface EvidenceEntry {
   /** Opaque ID assigned at registration (e.g. "EVD-001") */
   id: string;
-  /** Absolute path under the evidence mount */
+  /** Absolute path under the evidence mount — original, never analyzed directly */
   mountPath: string;
+  /** Path to the analyst's working copy (mode 444) once Evidence Store has
+   *  prepared it. Resolvers prefer this over mountPath. Per the chain-of-custody
+   *  workflow, all analysis runs on the working copy; the original is sealed. */
+  workingCopyPath?: string;
   /** Type of evidence: disk image, memory dump, PCAP, etc. */
   type: "disk" | "memory" | "pcap" | "logs" | "velociraptor" | "other";
   /** ISO timestamp when registered */
@@ -74,58 +78,72 @@ export class MountManager implements MemoryImageResolver, VelociraptorCollection
   }
 
   /**
-   * Resolve an evidence ID to its absolute filesystem path.
+   * Resolve an evidence ID to its absolute filesystem path. Prefers the
+   * Evidence Store-prepared working copy over the original mount path.
    * Used by disk/network/malware tools.
    */
   resolveEvidencePath(evidenceId: string): string {
-    const entry = this.evidence.get(evidenceId);
-    if (!entry) {
-      throw new Error(
-        `MountManager: unknown evidence ID "${evidenceId}". ` +
-        `Registered: ${Array.from(this.evidence.keys()).join(", ") || "(none)"}`
-      );
-    }
-    return entry.mountPath;
+    const entry = this.requireEntry(evidenceId, "evidence");
+    return entry.workingCopyPath ?? entry.mountPath;
+  }
+
+  /** Always returns the path to the original on the read-only mount, regardless
+   *  of whether a working copy exists. Used by the Evidence Store custody tool
+   *  when computing the original's hash. */
+  resolveOriginalPath(evidenceId: string): string {
+    return this.requireEntry(evidenceId, "evidence").mountPath;
+  }
+
+  /** Set the working copy path for an evidence entry (called by the
+   *  prepare_working_copy custody tool after a verified copy is made). */
+  setWorkingCopyPath(evidenceId: string, workingCopyPath: string): void {
+    const entry = this.requireEntry(evidenceId, "evidence");
+    entry.workingCopyPath = workingCopyPath;
+  }
+
+  hasWorkingCopy(evidenceId: string): boolean {
+    return Boolean(this.evidence.get(evidenceId)?.workingCopyPath);
   }
 
   /**
    * MemoryImageResolver implementation — used by the Volatility wrapper.
-   * Validates that the referenced evidence is a memory dump.
+   * Returns the working copy when present; falls back to the original mount
+   * path otherwise (which will fail ReadOnlyGuard's mode check unless the
+   * source files happen to already be 444 — by design, this surfaces missing
+   * custody preparation as an error rather than silently analyzing originals).
    */
   async resolveMemoryPath(memoryId: string): Promise<string> {
-    const entry = this.evidence.get(memoryId);
-    if (!entry) {
-      throw new Error(
-        `MountManager: unknown memory ID "${memoryId}". ` +
-        `Registered: ${Array.from(this.evidence.keys()).join(", ") || "(none)"}`
-      );
-    }
+    const entry = this.requireEntry(memoryId, "memory");
     if (entry.type !== "memory") {
       throw new Error(
         `MountManager: evidence "${memoryId}" is type "${entry.type}", not "memory"`
       );
     }
-    return entry.mountPath;
+    return entry.workingCopyPath ?? entry.mountPath;
   }
 
   /**
    * VelociraptorCollectionResolver implementation — used by the VR parsers.
-   * Validates the referenced evidence is a Velociraptor collection.
    */
   async resolveCollectionPath(collectionId: string): Promise<string> {
-    const entry = this.evidence.get(collectionId);
-    if (!entry) {
-      throw new Error(
-        `MountManager: unknown collection ID "${collectionId}". ` +
-        `Registered: ${Array.from(this.evidence.keys()).join(", ") || "(none)"}`
-      );
-    }
+    const entry = this.requireEntry(collectionId, "collection");
     if (entry.type !== "velociraptor") {
       throw new Error(
         `MountManager: evidence "${collectionId}" is type "${entry.type}", not "velociraptor"`
       );
     }
-    return entry.mountPath;
+    return entry.workingCopyPath ?? entry.mountPath;
+  }
+
+  private requireEntry(id: string, kind: string): EvidenceEntry {
+    const entry = this.evidence.get(id);
+    if (!entry) {
+      throw new Error(
+        `MountManager: unknown ${kind} ID "${id}". ` +
+        `Registered: ${Array.from(this.evidence.keys()).join(", ") || "(none)"}`
+      );
+    }
+    return entry;
   }
 
   /**

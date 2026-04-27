@@ -14,31 +14,20 @@ permissions:
     - logistics/tool-broker
   mcp_tools:
     via_broker_only: true
+    # Allowlist tracks the Volatility 3 plugins with typed MCP wrappers today.
+    # Plugins discussed in the Analytical Playbook below but not on this list
+    # (vol_handles/dlllist/ldrmodules/hollowfind/netstat/filescan/dumpfiles/
+    # hashdump/lsadump/cachedump/svcscan/driverscan/modules/modscan/ssdt/
+    # callbacks/yarascan/timeliner) describe intended scope and are roadmap.
+    # Do NOT submit a tool request for a plugin not on this list.
     allowlist:
+      - vol_info
       - vol_pslist
       - vol_pstree
       - vol_psscan
       - vol_cmdline
-      - vol_handles
-      - vol_dlllist
-      - vol_ldrmodules
       - vol_malfind
-      - vol_hollowfind
       - vol_netscan
-      - vol_netstat
-      - vol_filescan
-      - vol_dumpfiles
-      - vol_hashdump
-      - vol_lsadump
-      - vol_cachedump
-      - vol_svcscan
-      - vol_driverscan
-      - vol_modules
-      - vol_modscan
-      - vol_ssdt
-      - vol_callbacks
-      - vol_yarascan
-      - vol_timeliner
 ---
 
 # Role

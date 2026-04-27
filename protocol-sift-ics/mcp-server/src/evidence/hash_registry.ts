@@ -55,6 +55,20 @@ export class HashRegistry {
     return entry;
   }
 
+  /** Register a file whose hash has already been computed by the caller —
+   *  used by the custody-chain workflow which streams a hash during the
+   *  copy/verify cycle and would otherwise repeat work. */
+  register(filePath: string, sha256: string, sizeBytes: number): HashEntry {
+    const entry: HashEntry = {
+      path: filePath,
+      sha256,
+      sizeBytes,
+      registeredAt: new Date().toISOString(),
+    };
+    this.entries.set(filePath, entry);
+    return entry;
+  }
+
   /**
    * Register all files under a directory (recursive).
    * Used at evidence mount time to baseline the entire image.

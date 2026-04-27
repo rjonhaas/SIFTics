@@ -14,29 +14,23 @@ permissions:
     - logistics/tool-broker
   mcp_tools:
     via_broker_only: true
+    # Allowlist tracks tools the MCP server actually exposes today. Items
+    # discussed in the playbook below but not listed (parse_logfile,
+    # get_shellbags, parse_amcache/shimcache_detailed, parse_lnk_files,
+    # parse_jumplists, parse_browser_*, parse_srum/bam, parse_recyclebin,
+    # extract_file_by_path) are roadmap.
     allowlist:
       - extract_mft_timeline
       - parse_usn_journal
-      - parse_logfile
       - extract_registry_hive
       - get_run_keys
       - get_services
       - get_scheduled_tasks
-      - get_shellbags
+      - parse_prefetch_summary
       - parse_prefetch_detailed
-      - parse_amcache_detailed
-      - parse_shimcache_detailed
-      - parse_lnk_files
-      - parse_jumplists
       - parse_event_logs
-      - parse_browser_history
-      - parse_browser_downloads
-      - parse_srum
-      - parse_bam
-      - parse_recyclebin
-      - extract_file_by_path
-      - hash_file
-      - yara_scan_file
+      - hash_sample
+      - yara_scan
       # Velociraptor Offline Collector parsers (cross-OS triage)
       - parse_collection
       - vr_extract_unified_log
