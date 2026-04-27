@@ -135,34 +135,31 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     // 1. Validate any path-like parameters stay within the allowed boundaries
     pathGuard.validateArguments(args ?? {});
 
-    // 2. Execute the tool
+    // 2. Execute the tool — handlers throw on error, return data on success
     const result = await handler.execute(args ?? {});
 
     // 3. Post-execution hash verification — evidence hash unchanged
-    if (result.status === "success") {
-      const hashCheckPassed = await hashRegistry.verifyAllMounted();
-      if (!hashCheckPassed) {
-        // Critical: evidence was modified during tool execution
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({
-                status: "error",
-                error: "EVIDENCE_HASH_MISMATCH",
-                message: "Evidence hash changed during tool execution. This should never happen. Halting.",
-                executionId: result.executionId,
-              }),
-            },
-          ],
-          isError: true,
-        };
-      }
+    const hashCheckPassed = await hashRegistry.verifyAllMounted();
+    if (!hashCheckPassed) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              status: "error",
+              error: "EVIDENCE_HASH_MISMATCH",
+              message: "Evidence hash changed during tool execution. This should never happen. Halting.",
+              executionId: (result as { executionId?: string }).executionId,
+            }),
+          },
+        ],
+        isError: true,
+      };
     }
 
     return {
       content: [{ type: "text", text: JSON.stringify(result) }],
-      isError: result.status !== "success",
+      isError: false,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

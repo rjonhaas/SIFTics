@@ -128,7 +128,7 @@
   "mcp_servers": {
     "sift": {
       "command": "node",
-      "args": ["./mcp-server/dist/index.js"],
+      "args": ["./mcp-server/dist/src/index.js"],
       "env": {
         "EVIDENCE_MOUNT": "/mnt/evidence",
         "WORKING_DIR": "/working",
