@@ -1,0 +1,75 @@
+{
+  "incident_id": "SZECHUAN-2020-09",
+  "as_of_period": 4,
+  "evidence_inventory": [
+    { "id": "EVID-001", "type": "disk_image", "host": "DC01", "sha256": "a1b2c3d4e5f6071829304a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d", "size_bytes": 53687091200 },
+    { "id": "EVID-002", "type": "memory_capture", "host": "DC01", "sha256": "b2c3d4e5f60718293a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f", "size_bytes": 8589934592 },
+    { "id": "EVID-003", "type": "pcap", "host": "perimeter-tap", "sha256": "c3d4e5f60718293a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a", "size_bytes": 4294967296 },
+    { "id": "EVID-004", "type": "disk_image", "host": "DESKTOP-SDN1RPT", "sha256": "d4e5f60718293a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b", "size_bytes": 53687091200 }
+  ],
+  "established_facts": [
+    {
+      "fact": "Attacker authenticated to DC01 over RDP at 04:21 UTC from 203.0.113.74 using svc-backup credentials",
+      "established_in_period": 1,
+      "supporting_findings": ["FND-001", "FND-002", "FND-003"],
+      "confidence_tier": "confirmed",
+      "cross_source_corroboration": [
+        { "source": "EVID-001 disk · Security.evtx", "finding": "FND-001" },
+        { "source": "EVID-001 disk · NTUSER + Amcache", "finding": "FND-002" },
+        { "source": "EVID-003 pcap · Zeek conn.log", "finding": "FND-003" }
+      ]
+    },
+    {
+      "fact": "update.exe at C:\\Windows\\Temp\\update.exe is the same binary running as PID 3284",
+      "established_in_period": 3,
+      "supporting_findings": ["FND-004", "FND-005"],
+      "confidence_tier": "confirmed",
+      "cross_source_corroboration": [
+        { "source": "EVID-002 memory · vol3 pslist", "finding": "FND-004" },
+        { "source": "EVID-001 disk · MFT + Prefetch", "finding": "FND-005" }
+      ]
+    },
+    {
+      "fact": "LSASS was dumped via rundll32 + comsvcs.dll MiniDump",
+      "established_in_period": 2,
+      "supporting_findings": ["FND-007", "FND-008"],
+      "confidence_tier": "confirmed",
+      "cross_source_corroboration": [
+        { "source": "EVID-001 disk · MFT + Prefetch", "finding": "FND-007" },
+        { "source": "EVID-002 memory · vol3 cmdline", "finding": "FND-008" }
+      ]
+    },
+    {
+      "fact": "Lateral movement to DESKTOP-SDN1RPT occurred at 06:18 UTC over RDP",
+      "established_in_period": 3,
+      "supporting_findings": ["FND-009", "FND-010"],
+      "confidence_tier": "confirmed",
+      "cross_source_corroboration": [
+        { "source": "EVID-004 disk · RDP bcache", "finding": "FND-009" },
+        { "source": "EVID-004 disk · Security.evtx", "finding": "FND-010" }
+      ]
+    },
+    {
+      "fact": "203.0.113.74 is attacker infrastructure used both for initial RDP and for C2",
+      "established_in_period": 4,
+      "supporting_findings": ["FND-003", "FND-012", "FND-013"],
+      "confidence_tier": "confirmed",
+      "cross_source_corroboration": [
+        { "source": "EVID-003 pcap · conn.log", "finding": "FND-003" },
+        { "source": "EVID-003 pcap · ssl.log + JA3", "finding": "FND-012" },
+        { "source": "EVID-003 pcap · dns.log", "finding": "FND-013" }
+      ]
+    }
+  ],
+  "open_questions": [
+    "How was svc-backup's credential originally compromised? No phishing or password-spray artifact yet identified.",
+    "Were any other accounts harvested from the LSASS dump but not yet used?"
+  ],
+  "contradictions_resolved": [
+    {
+      "description": "Memory PID 3284 image base did not initially match the SHA256 of update.exe on disk.",
+      "resolution": "Forensics re-tasked in period 3. The attacker renamed the binary in place after first execution; comparing the in-memory image to the original on-disk creation event resolved the discrepancy.",
+      "in_period": 3
+    }
+  ]
+}

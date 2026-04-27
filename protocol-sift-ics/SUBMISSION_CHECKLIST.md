@@ -103,9 +103,29 @@ Built. `mcp-server/src/tools/memory/` contains the Volatility 3 wrapper with: 7 
 - This becomes the content of the Demo Video AND the Dataset Documentation
 
 ### 4. Demo Video
-- ≤5 minutes, live terminal, audio narration
-- MUST show at least one self-correction sequence — the IC re-tasking a branch after a gap or contradiction is the cleanest way to demonstrate this
-- No slides. No marketing footage.
+
+## Demo Video Storyline (5 minutes)
+
+Setup: SANS SIFT Workstation, terminal in primary view, browser tab ready in background.
+
+| Time | Content |
+|---|---|
+| 0:00 - 0:20 | Establish scene. `ls cases/szechuan/` shows disk image, memory capture, PCAP. Narrator: "These are the case files SANS provided. SIFTics is about to receive them and produce an investigation." |
+| 0:20 - 0:45 | Operator invokes `node orchestrator/dist/index.js --directive=cases/szechuan/directive.yaml --case-dir=cases/szechuan`. Terminal shows the IC subagent activating. IC reasons about evidence inventory: "I see a disk image, a memory capture, and a PCAP. I'll activate Forensics, Memory, and Network branches. Triage runs broad first-pass. Malware stands down — no flagged executables yet." |
+| 0:45 - 2:15 | Branches working. Terminal output streams. Forensics enumerates persistence. Memory finds processes. Network correlates beaconing. Each branch reports findings up to its Section Chief. Section Chiefs roll up to IC. Situation Unit integrates into COP. |
+| 2:15 - 3:00 | Self-correction sequence. Situation Unit detects contradiction: Memory Branch reported PID 3284 as the C2 process. Forensics found Prefetch evidence for `update.exe` not matching the in-memory binary. Situation Unit raises this to IC. IC re-tasks Forensics: "Verify whether the Prefetch entry corresponds to the same binary as PID 3284's image base." Forensics confirms: yes, attacker renamed it. Resolution committed to COP. |
+| 3:00 - 3:30 | Final report generation. IC closes operational period 3. Documentation Unit produces final_report.json. Terminal shows "Swarm run complete. Final report at cases/szechuan/final_report.json." |
+| 3:30 - 4:30 | Cut to browser. Story view loaded. Walk through: executive summary (3 seconds), attack narrative (15 seconds, scroll through phases), timeline (10 seconds, point out cross-host events), cross-source correlation panel (15 seconds, highlight where memory + disk + network all confirm the same fact). |
+| 4:30 - 4:50 | Audit explorer demonstration. Type FND-014 into the trace input. Tree expands showing: finding → tool execution (vol_pslist with specific args) → inter-skill message → operational period objective → IC reasoning. Each node shows hash chain verification. |
+| 4:50 - 5:00 | Close. Narrator: "Hierarchical multi-agent ICS architecture. Architectural enforcement at the routing layer, not in prompts. Runtime-portable design with skills and MCP server as the durable artifacts. Story view as the deliverable surface. We didn't build AI agents — we built an Incident Command System." |
+
+Recording notes:
+
+- Use OBS Studio. 1080p source. 60fps.
+- Audio narration. Clean mic. No music.
+- Pause briefly before approving any irreversible action requests during the run, demonstrating human-in-loop discipline.
+- Show real timestamps. Do not edit the terminal output. Real swarm execution duration in this case should be 8-15 minutes; the demo video uses time-lapse on the 0:45-2:15 segment.
+- Story view should be loaded in the browser from the actual swarm run, not from stub data.
 
 ### 5. Written Project Description (Devpost story format)
 - What it does

@@ -204,6 +204,7 @@ protocol-sift-ics/
 - install.sh with pre-flight architectural-violation check
 - Hackathon rules archived at top of `SUBMISSION_CHECKLIST.md`
 - GitHub repo pushed to https://github.com/rjonhaas/SIFTics.git
+- Story view front end at `story-view/`. Static React page that renders the swarm's structured JSON outputs (final_report.json, findings.json, cop.json, audit_log.jsonl) into a six-section narrative. Sections: executive summary, attack narrative with MITRE phases, timeline, cross-source correlation panel, IOC list with provenance, audit explorer with `trace_finding(FND-N)`. The deliverable surface complementary to live-execution view. Built on React + Tailwind + Recharts. No backend, no auth, no browser storage.
 
 ### 🟡 In progress / partially done
 

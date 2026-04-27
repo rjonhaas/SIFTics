@@ -1,0 +1,11 @@
+node_modules/
+dist/
+analysis/
+*.log
+*.tsbuildinfo
+.DS_Store
+
+# tsc strays (build is now noEmit-only, but guard against accidents)
+src/**/*.js
+src/**/*.d.ts
+!src/vite-env.d.ts
