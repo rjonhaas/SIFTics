@@ -10,8 +10,10 @@
  */
 
 import { createHash } from "node:crypto";
-import { readFile, stat, readdir } from "node:fs/promises";
+import { createReadStream } from "node:fs";
+import { stat, readdir } from "node:fs/promises";
 import { join } from "node:path";
+import { pipeline } from "node:stream/promises";
 
 export interface HashRegistryConfig {
   registryPath: string;
@@ -144,7 +146,10 @@ export class HashRegistry {
   }
 
   private async computeHash(filePath: string): Promise<string> {
-    const content = await readFile(filePath);
-    return createHash("sha256").update(content).digest("hex");
+    // Stream the file — fs.readFile would throw ERR_FS_FILE_TOO_LARGE for >2 GiB
+    // (memory dumps and disk images routinely exceed that).
+    const hash = createHash("sha256");
+    await pipeline(createReadStream(filePath), hash);
+    return hash.digest("hex");
   }
 }

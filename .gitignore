@@ -8,3 +8,7 @@ protocol-sift-ics/mcp-server/dist/
 
 # Node deps (lockfile is committed; modules are not)
 **/node_modules/
+
+# Per-incident artifacts written by scripts/run-incident.sh
+protocol-sift-ics/.directive-*.json
+protocol-sift-ics/.preflight-*.json

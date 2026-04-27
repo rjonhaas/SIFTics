@@ -28,6 +28,9 @@ import { HashRegistry } from "./evidence/hash_registry.js";
 import { PathGuard } from "./safety/path_guard.js";
 import { ReadOnlyGuard } from "./safety/readonly_guard.js";
 
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+
 // ────────────────────────────────────────────────────────────────────
 // Environment
 // ────────────────────────────────────────────────────────────────────
@@ -35,6 +38,7 @@ import { ReadOnlyGuard } from "./safety/readonly_guard.js";
 const EVIDENCE_MOUNT = process.env.EVIDENCE_MOUNT ?? "/mnt/evidence";
 const WORKING_DIR = process.env.WORKING_DIR ?? "/working";
 const READ_ONLY_ENFORCE = process.env.READ_ONLY_ENFORCE !== "false";
+const EVIDENCE_MANIFEST = process.env.EVIDENCE_MANIFEST ?? join(EVIDENCE_MOUNT, "manifest.json");
 
 if (!READ_ONLY_ENFORCE) {
   console.error("FATAL: READ_ONLY_ENFORCE must be true for production use");
@@ -174,7 +178,34 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 // Start
 // ────────────────────────────────────────────────────────────────────
 
+interface ManifestEntry {
+  path: string;
+  type: "disk" | "memory" | "pcap" | "logs" | "velociraptor" | "other";
+  host?: string;
+  description?: string;
+}
+
+async function loadEvidenceManifest(): Promise<void> {
+  let raw: string;
+  try {
+    raw = await readFile(EVIDENCE_MANIFEST, "utf8");
+  } catch {
+    console.error(`No evidence manifest at ${EVIDENCE_MANIFEST} — starting empty`);
+    return;
+  }
+  const parsed = JSON.parse(raw) as { evidence: ManifestEntry[] };
+  for (const entry of parsed.evidence) {
+    const full = join(EVIDENCE_MOUNT, entry.path);
+    const id = mountManager.registerEvidence(entry.path, entry.type);
+    await hashRegistry.registerFile(full);
+    const hostTag = entry.host ? ` host=${entry.host}` : "";
+    console.error(`Registered ${id}: ${entry.path} (type=${entry.type}${hostTag})`);
+  }
+  console.error(`Manifest loaded: ${parsed.evidence.length} evidence entries`);
+}
+
 async function main() {
+  await loadEvidenceManifest();
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error(`protocol-sift MCP server running. Evidence mount: ${EVIDENCE_MOUNT} (read-only)`);
