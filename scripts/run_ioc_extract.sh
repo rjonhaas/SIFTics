@@ -68,9 +68,13 @@ Reads all CSV files under ANALYSIS_DIR and extracts IOCs from every cell.
 
 import csv
 import datetime
+import json
 import os
 import re
 import sys
+import time
+import urllib.error
+import urllib.request
 from collections import defaultdict
 from urllib.parse import urlparse
 
@@ -243,6 +247,33 @@ def extract_iocs_from_cell(cell: str, machine: str, src_file: str):
         if not is_analysis_tool_path(v):
             record('email', v, machine, src_file, context)
 
+# ── VirusTotal lookup ─────────────────────────────────────────────────────────
+
+VT_API_KEY = os.environ.get("VT_API_KEY", "")
+VT_DELAY   = float(os.environ.get("VT_DELAY", "15"))  # seconds between requests (public=15, premium=1)
+VT_LIMIT   = int(os.environ.get("VT_LIMIT", "20"))    # max hashes to query per run
+
+def vt_lookup(hash_val: str) -> dict:
+    url = f"https://www.virustotal.com/api/v3/files/{hash_val}"
+    req = urllib.request.Request(url, headers={"x-apikey": VT_API_KEY})
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read().decode())
+            attrs = data.get("data", {}).get("attributes", {})
+            stats = attrs.get("last_analysis_stats", {})
+            malicious  = stats.get("malicious", 0)
+            suspicious = stats.get("suspicious", 0)
+            total      = sum(stats.values()) if stats else 0
+            name       = attrs.get("meaningful_name", "") or ""
+            verdict    = "MALICIOUS" if malicious > 0 else ("SUSPICIOUS" if suspicious > 0 else "CLEAN")
+            return {"verdict": verdict, "malicious": malicious,
+                    "suspicious": suspicious, "total": total, "name": name}
+    except urllib.error.HTTPError as e:
+        verdict = "NOT_FOUND" if e.code == 404 else f"HTTP_{e.code}"
+        return {"verdict": verdict, "malicious": 0, "suspicious": 0, "total": 0, "name": ""}
+    except Exception as e:
+        return {"verdict": f"ERROR", "malicious": 0, "suspicious": 0, "total": 0, "name": str(e)[:40]}
+
 # ── discover all CSVs ─────────────────────────────────────────────────────────
 
 csv_files = []
@@ -349,6 +380,15 @@ def top_iocs_for_type(ioc_type, n=10):
     entries.sort(key=lambda x: -x[1]['count'])
     return entries[:n]
 
+def least_iocs_for_type(ioc_type, n=10):
+    entries = [
+        (ioc_value, entry)
+        for (t, ioc_value), entry in sorted_iocs
+        if t == ioc_type
+    ]
+    entries.sort(key=lambda x: x[1]['count'])
+    return entries[:n]
+
 lines = []
 lines.append("IOC Extraction Summary — jackofallhacks")
 lines.append("=" * 40)
@@ -373,7 +413,7 @@ for ioc_type in TYPE_ORDER:
 
 lines.append("")
 
-# TOP IPs
+# TOP / LEAST IPs
 top_ips = top_iocs_for_type('ipv4', 10)
 if top_ips:
     lines.append("TOP IPs BY FREQUENCY:")
@@ -381,8 +421,15 @@ if top_ips:
         machines_str = ','.join(sorted(entry['machines'])) or '-'
         lines.append(f"  {v:<20}  (count={entry['count']}, machines={machines_str})")
     lines.append("")
+least_ips = least_iocs_for_type('ipv4', 10)
+if least_ips:
+    lines.append("LEAST FREQUENT IPs:")
+    for v, entry in least_ips:
+        machines_str = ','.join(sorted(entry['machines'])) or '-'
+        lines.append(f"  {v:<20}  (count={entry['count']}, machines={machines_str})")
+    lines.append("")
 
-# TOP URLs
+# TOP / LEAST URLs
 top_urls = top_iocs_for_type('url', 10)
 if top_urls:
     lines.append("TOP URLs BY FREQUENCY:")
@@ -390,8 +437,15 @@ if top_urls:
         machines_str = ','.join(sorted(entry['machines'])) or '-'
         lines.append(f"  {v[:80]:<80}  (count={entry['count']}, machines={machines_str})")
     lines.append("")
+least_urls = least_iocs_for_type('url', 10)
+if least_urls:
+    lines.append("LEAST FREQUENT URLs:")
+    for v, entry in least_urls:
+        machines_str = ','.join(sorted(entry['machines'])) or '-'
+        lines.append(f"  {v[:80]:<80}  (count={entry['count']}, machines={machines_str})")
+    lines.append("")
 
-# TOP Domains
+# TOP / LEAST Domains
 top_domains = top_iocs_for_type('domain', 10)
 if top_domains:
     lines.append("TOP DOMAINS BY FREQUENCY:")
@@ -399,8 +453,15 @@ if top_domains:
         machines_str = ','.join(sorted(entry['machines'])) or '-'
         lines.append(f"  {v:<40}  (count={entry['count']}, machines={machines_str})")
     lines.append("")
+least_domains = least_iocs_for_type('domain', 10)
+if least_domains:
+    lines.append("LEAST FREQUENT DOMAINS:")
+    for v, entry in least_domains:
+        machines_str = ','.join(sorted(entry['machines'])) or '-'
+        lines.append(f"  {v:<40}  (count={entry['count']}, machines={machines_str})")
+    lines.append("")
 
-# TOP Hashes (sha256, then sha1, then md5)
+# TOP / LEAST Hashes + VT for SHA256
 for hash_type in ('sha256', 'sha1', 'md5'):
     top_hashes = top_iocs_for_type(hash_type, 5)
     if top_hashes:
@@ -409,8 +470,33 @@ for hash_type in ('sha256', 'sha1', 'md5'):
             machines_str = ','.join(sorted(entry['machines'])) or '-'
             lines.append(f"  {v}  (count={entry['count']}, machines={machines_str})")
         lines.append("")
+    least_hashes = least_iocs_for_type(hash_type, 5)
+    if least_hashes:
+        lines.append(f"LEAST FREQUENT {hash_type.upper()} HASHES:")
+        for v, entry in least_hashes:
+            machines_str = ','.join(sorted(entry['machines'])) or '-'
+            lines.append(f"  {v}  (count={entry['count']}, machines={machines_str})")
+        lines.append("")
+    if hash_type == 'sha256':
+        all_sha256 = [
+            (v, e) for (t, v), e in sorted_iocs if t == 'sha256'
+        ]
+        all_sha256.sort(key=lambda x: -x[1]['count'])
+        if VT_API_KEY and all_sha256:
+            lines.append(f"VIRUSTOTAL SHA256 LOOKUPS (top {min(VT_LIMIT, len(all_sha256))}):")
+            for v, entry in all_sha256[:VT_LIMIT]:
+                result = vt_lookup(v)
+                machines_str = ','.join(sorted(entry['machines'])) or '-'
+                det = f"{result['malicious']}/{result['total']}" if result['total'] else "-/-"
+                name_str = f"  [{result['name']}]" if result['name'] else ""
+                lines.append(f"  {v}  [{result['verdict']}] {det}{name_str}  (machines={machines_str})")
+                time.sleep(VT_DELAY)
+            lines.append("")
+        elif all_sha256:
+            lines.append("VIRUSTOTAL SHA256 LOOKUPS: set VT_API_KEY env var to enable")
+            lines.append("")
 
-# TOP Emails
+# TOP / LEAST Emails
 top_emails = top_iocs_for_type('email', 10)
 if top_emails:
     lines.append("TOP EMAIL ADDRESSES BY FREQUENCY:")
@@ -418,12 +504,26 @@ if top_emails:
         machines_str = ','.join(sorted(entry['machines'])) or '-'
         lines.append(f"  {v:<50}  (count={entry['count']}, machines={machines_str})")
     lines.append("")
+least_emails = least_iocs_for_type('email', 10)
+if least_emails:
+    lines.append("LEAST FREQUENT EMAIL ADDRESSES:")
+    for v, entry in least_emails:
+        machines_str = ','.join(sorted(entry['machines'])) or '-'
+        lines.append(f"  {v:<50}  (count={entry['count']}, machines={machines_str})")
+    lines.append("")
 
-# TOP Windows paths
+# TOP / LEAST Windows paths
 top_paths = top_iocs_for_type('filepath_windows', 10)
 if top_paths:
     lines.append("TOP WINDOWS FILE PATHS BY FREQUENCY:")
     for v, entry in top_paths:
+        machines_str = ','.join(sorted(entry['machines'])) or '-'
+        lines.append(f"  {v[:80]:<80}  (count={entry['count']}, machines={machines_str})")
+    lines.append("")
+least_paths = least_iocs_for_type('filepath_windows', 10)
+if least_paths:
+    lines.append("LEAST FREQUENT WINDOWS FILE PATHS:")
+    for v, entry in least_paths:
         machines_str = ','.join(sorted(entry['machines'])) or '-'
         lines.append(f"  {v[:80]:<80}  (count={entry['count']}, machines={machines_str})")
     lines.append("")
