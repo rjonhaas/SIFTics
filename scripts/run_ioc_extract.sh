@@ -482,6 +482,15 @@ for hash_type in ('sha256', 'sha1', 'md5'):
             (v, e) for (t, v), e in sorted_iocs if t == 'sha256'
         ]
         all_sha256.sort(key=lambda x: -x[1]['count'])
+        if not VT_API_KEY and all_sha256:
+            try:
+                answer = input("\nWould you like to input a VirusTotal API key? [y/N]: ").strip().lower()
+                if answer in ('y', 'yes'):
+                    entered = input("Enter VirusTotal API key: ").strip()
+                    if entered:
+                        VT_API_KEY = entered
+            except (EOFError, KeyboardInterrupt):
+                pass
         if VT_API_KEY and all_sha256:
             lines.append(f"VIRUSTOTAL SHA256 LOOKUPS (top {min(VT_LIMIT, len(all_sha256))}):")
             for v, entry in all_sha256[:VT_LIMIT]:
@@ -493,7 +502,7 @@ for hash_type in ('sha256', 'sha1', 'md5'):
                 time.sleep(VT_DELAY)
             lines.append("")
         elif all_sha256:
-            lines.append("VIRUSTOTAL SHA256 LOOKUPS: set VT_API_KEY env var to enable")
+            lines.append("VIRUSTOTAL SHA256 LOOKUPS: n/a")
             lines.append("")
 
 # TOP / LEAST Emails
