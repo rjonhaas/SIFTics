@@ -96,6 +96,8 @@ Read files in this priority order. Use the Explore agent for large directories. 
 | Per-machine `AntiForensics/` CSVs | Log clearing, VSS deletion, Defender tampering, tools |
 | Per-machine `Artifacts/` CSVs | LNK, Jump Lists, Recycle Bin, Prefetch |
 | Per-machine `Registry/` CSVs | Autoruns, ShimCache, Amcache, ShellBags |
+| Per-machine `Registry/ShellBags/<USER>/*.csv` | Folder browsing (File Explorer) — `FirstInteracted`, `LastInteracted`, `AbsolutePath` per user |
+| Per-machine `Browser/*_Downloads.csv` | Tools/files the attacker downloaded via browser — `StartTime_UTC`, `TargetPath`, `SourceURL`, `State` |
 
 ### Read if present
 | File | Condition |
@@ -119,6 +121,31 @@ For each file read, record:
 - Source file path
 - Key fields extracted (timestamps, usernames, IPs, hashes, paths, event IDs)
 - Row counts where relevant
+
+### Attacker Activity Reconstruction
+
+After harvesting process creation and browser artefacts, reconstruct the attacker's on-host activity in two categories:
+
+**Attacker tool staging (browser downloads):**
+- Read all `<MACHINE>/Browser/*_Downloads.csv` files. Flag rows where `TargetPath` or `SourceURL` contains tools inconsistent with the machine's role: network scanners (Advanced IP Scanner, Nmap, Angry IP), exploitation frameworks (Mimikatz, Cobalt Strike, Metasploit), remote admin tools (AnyDesk, PsExec), archiving tools used for exfiltration staging.
+- Record `StartTime_UTC` (download time), `TargetPath`, `SourceURL`, `TotalBytes`, and `State` (Complete/Cancelled).
+- Cross-reference the download `TargetPath` with Prefetch (`Artifacts/Prefetch/`) and Amcache/ShimCache (`Registry/`) to establish the **download-to-first-execution gap** — a key indicator of attacker operational tempo.
+
+**File Explorer browsing (ShellBags):**
+- Read `Registry/ShellBags/<USER>/*.csv` for every user on every machine. Extract `AbsolutePath`, `FirstInteracted`, `LastInteracted`, `ShellType`.
+- Flag paths that match attacker-relevant locations:
+  - Network shares on other machines (`\\<DC>\SYSVOL`, `\\<HOST>\C$`, `\\<HOST>\admin$`)
+  - Staging directories (`Desktop`, `Downloads`, `%TEMP%`, `ProgramData`)
+  - Sensitive server paths (SYSVOL, NETLOGON, backup directories, database folders)
+- The `FirstInteracted` timestamp = when the folder was first opened in File Explorer. This can establish "attacker saw ransomware binary / staging directory" even when no file was executed from that location.
+- ShellBags persist after file deletion and across reboots — they are high-value evidence of browsing activity that may not appear anywhere else.
+- `UsrClass.dat` ShellBags (Explorer windows) are typically more complete than `NTUSER.DAT` ShellBags (open/save dialogs) — read both; prefer `UsrClass` for Explorer activity.
+
+**Reconnaissance commands (post-exploitation):**
+- Extract from Sysmon EID 1 or Security EID 4688 all process creation events where the parent chain leads to the attacker's entry point (webshell `w3wp.exe`, RDP session, lateral movement process).
+- Enumerate common recon commands: `whoami`, `hostname`, `ipconfig`, `tasklist`, `netstat`, `nltest /dclist:`, `net group`, `net user`, `systeminfo`, `arp -a`, `nslookup`, `ping`, `dsquery`, `wmic`.
+- Where IIS log `sc-bytes` is available, rank commands by response size — the largest response is the command that returned the most data to the attacker (highest intelligence value).
+- Document the full sequence chronologically in Section 5A of the report.
 
 ### Web Server / Initial Access Analysis (Phase 13)
 
@@ -171,11 +198,11 @@ Load `~/.claude/skills/investigation-report/template.md`. Fill each section usin
 
 ### Section ordering by case type
 
-**Ransomware:** Executive Summary → Environment → Encryption Timeline → Anti-Forensics → Persistence → IOCs → Recommendations
+**Ransomware:** Executive Summary → Environment → Incident Timeline → Initial Access (Web Server Triage) → Attacker Tooling & Reconnaissance → Lateral Movement → Anti-Forensics → Ransomware Indicators → IOCs → Recommendations
 
-**APT / Targeted Intrusion:** Executive Summary → Environment → Attack Timeline → Initial Access (Web Server Triage) → C2 Infrastructure → Credential Access → Lateral Movement → Anti-Forensics → IOCs → Recommendations
+**APT / Targeted Intrusion:** Executive Summary → Environment → Attack Timeline → Initial Access (Web Server Triage) → Attacker Tooling & Reconnaissance → C2 Infrastructure → Credential Access → Lateral Movement → Anti-Forensics → IOCs → Recommendations
 
-**Insider Threat:** Executive Summary → Environment → User Activity Timeline → Data Staging → Browser Artefacts → Anti-Forensics → IOCs → Recommendations
+**Insider Threat:** Executive Summary → Environment → User Activity Timeline → Attacker Tooling & Reconnaissance → Data Staging → Browser Artefacts → Anti-Forensics → IOCs → Recommendations
 
 **All others:** Follow template default order.
 
@@ -224,7 +251,9 @@ Write the completed report to `<case_root>/reports/investigation_report.md`. If 
 | Anti-Forensics | `antiforensics_timeline.csv` has data |
 | Credential Access | `credaccess_timeline.csv` has data |
 | Privilege Escalation & Lateral Movement | `hunting_timeline.csv` has data |
+| Attacker Tooling & Reconnaissance | Browser `*_Downloads.csv` has data OR Sysmon/4688 events show recon commands in attacker process chain |
 | Browser & User Behaviour | Browser CSVs exist with data |
+| File Explorer Browsing (ShellBags) | `Registry/ShellBags/<USER>/*.csv` has rows with attacker-relevant paths |
 | IIS / Web Server Activity | IIS machine KAPE collection present |
 | Ransomware & Exfiltration Indicators | Any `<MACHINE>/Ransomware/` CSV exists with data (Phase 12) |
 | Ransomware Encryption Timeline | MFT shows mass file modification + VSS deletion |

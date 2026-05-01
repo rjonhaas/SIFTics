@@ -181,6 +181,75 @@ Note: event IDs 4656/4663 (LSASS/SAM/NTDS), crash dumps, DCSync indicators, Kerb
 ---
 
 <!-- ═══════════════════════════════════════════════════ -->
+<!-- CONDITIONAL: include if browser *_Downloads.csv    -->
+<!--             has data OR Sysmon/4688 shows recon    -->
+<!--             commands in attacker process chain      -->
+<!-- ═══════════════════════════════════════════════════ -->
+
+## 5A. Attacker Tooling & Reconnaissance
+
+<!--
+Covers tools the attacker downloaded and ran, and the recon commands they issued.
+Distinct from Section 11 (browser history) — this section focuses specifically on
+attacker-controlled activity: tool staging, execution, and intelligence gathering.
+-->
+
+### Tools Downloaded
+
+<!--
+Source: per-machine Browser/*_Downloads.csv
+Flag any download inconsistent with the machine's role (network scanners, exploitation
+frameworks, remote admin tools, archiving utilities used for exfiltration staging).
+State = Complete means file was fully received.
+-->
+
+| Time (UTC) | Machine | User | Filename | Source URL | Size (bytes) | State | Assessment |
+|------------|---------|------|----------|-----------|-------------|-------|-----------|
+| | | | | | | | |
+
+### Tool Execution
+
+<!--
+Source: Artifacts/Prefetch/*.csv, Registry/Amcache/*.csv, Registry/ShimCache/*.csv
+Cross-reference download timestamp against first-execution timestamp to show the
+download-to-use gap. Flag tools that executed on machines other than where downloaded
+(indicates lateral tool transfer).
+-->
+
+| Tool | Machine | First Downloaded (UTC) | First Executed (UTC) | Run Count | Gap | Source |
+|------|---------|----------------------|---------------------|-----------|-----|--------|
+| | | | | | | |
+
+### Reconnaissance Commands
+
+<!--
+Source: Sysmon EID 1 / Security EID 4688 — filter to processes in the attacker's chain
+(w3wp.exe → cmd.exe → child, or RDP session parent). Include process image name,
+full command line, parent, and where available the response byte size from IIS sc-bytes.
+Rank by response size to show which command returned the most intelligence to the attacker.
+-->
+
+| Time (UTC) | Machine | User | Command | Parent Process | Response / Output Size | Source |
+|------------|---------|------|---------|----------------|----------------------|--------|
+| | | | | | | |
+
+### File Explorer Browsing (ShellBags)
+
+<!--
+Source: Registry/ShellBags/<USER>/*.csv — UsrClass.dat (Explorer windows) preferred.
+List paths the attacker browsed: network shares, SYSVOL, staging directories, sensitive folders.
+FirstInteracted = first time folder was opened in File Explorer.
+LastInteracted  = most recent access.
+These entries persist after file deletion — high value for proving "attacker saw this folder."
+-->
+
+| First Viewed (UTC) | Last Viewed (UTC) | Machine | User | Path | Shell Type | Source |
+|-------------------|------------------|---------|------|------|-----------|--------|
+| | | | | | | |
+
+---
+
+<!-- ═══════════════════════════════════════════════════ -->
 <!-- CONDITIONAL: include if hunting_timeline.csv       -->
 <!--             has data                               -->
 <!-- ═══════════════════════════════════════════════════ -->
@@ -375,13 +444,50 @@ Note: process list, network connections, injected code, credentials in memory.
 
 <!--
 Source: per-machine Browser/ CSVs
-Highlight: downloads, searches, external domains visited, MotW/Zone.Identifier hits
-Flag any searches that are inconsistent with the user's role (e.g. attacker research, exfil tooling)
+Sub-sections cover downloads, folder browsing, and web history separately
+so each can be reviewed independently during report review.
 -->
 
-| Time (UTC) | Machine | User | Activity | Detail | Source |
-|------------|---------|------|----------|--------|--------|
-| | | | | | |
+### A. Browser Downloads
+
+<!--
+Source: <MACHINE>/Browser/*_Downloads.csv
+List all downloads. Assessment column: TOOL (reconnaissance/exploitation/staging utility),
+BENIGN (legitimate software), UNKNOWN. Flag incomplete (Cancelled/InProgress) downloads —
+they may indicate interrupted exfiltration or failed tool staging.
+-->
+
+| Time (UTC) | Machine | User | Filename | Source URL | Size (bytes) | State | Assessment |
+|------------|---------|------|----------|-----------|-------------|-------|-----------|
+| | | | | | | | |
+
+### B. File Explorer Browsing (ShellBags)
+
+<!--
+Source: <MACHINE>/Registry/ShellBags/<USER>/*.csv
+UsrClass.dat entries = Explorer window browsing (preferred).
+NTUSER.DAT entries = Open/Save dialog browsing.
+Flag: network shares on other hosts, SYSVOL/NETLOGON, Downloads/Temp/Desktop staging paths,
+sensitive server directories (database, backup, financial, HR folders).
+FirstInteracted = folder first opened. LastInteracted = most recent open.
+These records persist after the folder contents are deleted.
+-->
+
+| First Viewed (UTC) | Last Viewed (UTC) | Machine | User | Path | Shell Type | Source |
+|-------------------|------------------|---------|------|------|-----------|--------|
+| | | | | | | |
+
+### C. Web History & Searches
+
+<!--
+Source: <MACHINE>/Browser/*_History.csv
+Highlight: searches inconsistent with the account's role, visits to tool download sites,
+external domains visited during the incident window, MotW/Zone.Identifier hits.
+-->
+
+| Time (UTC) | Machine | User | Browser | Activity | URL / Search Term | Source |
+|------------|---------|------|---------|----------|------------------|--------|
+| | | | | | | |
 
 ---
 
