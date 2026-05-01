@@ -305,6 +305,10 @@ for fpath in csv_files:
     if os.path.abspath(fpath) == os.path.abspath(IOC_CSV):
         continue
 
+    fsize_mb = os.path.getsize(fpath) / 1_048_576
+    idx = files_processed + files_skipped + 1
+    print(f"  [scan {idx}/{len(csv_files)}] {src_file} ({fsize_mb:.1f} MB)", flush=True)
+
     try:
         with open(fpath, 'r', encoding='utf-8-sig', errors='replace') as fh:
             # Quick binary sniff — skip files with high density of null bytes
