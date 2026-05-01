@@ -103,6 +103,7 @@ PHASES=(
     "Phase 9 — IOC Extract   |${SCRIPT_DIR}/run_ioc_extract.sh|.|ioc_master.csv"
     "Phase 10— C2 Beacon     |${SCRIPT_DIR}/run_c2_beacon.sh|Execution/IIS|c2_beacon.csv"
     "Phase 11— Browser       |${SCRIPT_DIR}/run_browser.sh|Browser|*.csv"
+    "Phase 12— Ransomware    |${SCRIPT_DIR}/run_ransomware.sh|Ransomware|*.csv"
 )
 
 # ─── main loop ───────────────────────────────────────────────────────────────

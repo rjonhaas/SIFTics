@@ -173,11 +173,64 @@ Summarise by category, then timeline the most significant events.
 ---
 
 <!-- ═══════════════════════════════════════════════════ -->
+<!-- CONDITIONAL: include if any <MACHINE>/Ransomware/  -->
+<!--             CSV exists with data                   -->
+<!-- ═══════════════════════════════════════════════════ -->
+
+## 8. Ransomware & Exfiltration Indicators
+
+<!--
+Source: ransomware_summary.txt + per-machine Ransomware/ CSVs (Phase 12)
+Three sub-sections — only include rows that exist in the output files.
+If ransom_notes count = 0 across all machines, omit sub-section B.
+If suspicious_extensions count = 0, omit sub-section C.
+-->
+
+### A. Archive Files (Exfiltration Staging)
+
+<!--
+Source: <MACHINE>/Ransomware/<MACHINE>_<DRIVE>_archives.csv
+Flag archives in unusual paths (Temp, AppData, ProgramData, Desktop, user home)
+or with anomalous timestamps (created during incident window).
+-->
+
+| Machine | Path | Filename | Extension | Size | Created (UTC) | Modified (UTC) |
+|---------|------|----------|-----------|------|--------------|----------------|
+| | | | | | | |
+
+### B. Ransom Note Candidates
+
+<!--
+Source: <MACHINE>/Ransomware/<MACHINE>_<DRIVE>_ransom_notes.csv
+List all hits. Even one ransom note is HIGH severity.
+Note the directory — ransom notes dropped in every folder indicate full encryption.
+-->
+
+| Machine | Path | Filename | Size | Created (UTC) |
+|---------|------|----------|------|--------------|
+| | | | | |
+
+### C. Suspicious / Encrypted File Extensions
+
+<!--
+Source: <MACHINE>/Ransomware/<MACHINE>_<DRIVE>_suspicious_extensions.csv
+KNOWN_RANSOMWARE_EXT = confirmed ransomware family extension (HIGH)
+BULK_UNKNOWN = ≥20 files with an extension not in the known-benign list (MEDIUM)
+Note first/last modified timestamps — a tight window indicates mass encryption event.
+-->
+
+| Machine | Extension | Count | Assessment | First Modified (UTC) | Last Modified (UTC) |
+|---------|-----------|-------|-----------|---------------------|---------------------|
+| | | | | | |
+
+---
+
+<!-- ═══════════════════════════════════════════════════ -->
 <!-- CONDITIONAL: include if memory dump present under  -->
 <!--             case root                              -->
 <!-- ═══════════════════════════════════════════════════ -->
 
-## 8. Memory Analysis
+## 10. Memory Analysis
 
 <!--
 Source: Volatility 3 / Memory Baseliner output (if run)
@@ -195,7 +248,7 @@ Note: process list, network connections, injected code, credentials in memory.
 <!--             with data                              -->
 <!-- ═══════════════════════════════════════════════════ -->
 
-## 9. Browser & User Behaviour
+## 11. Browser & User Behaviour
 
 <!--
 Source: per-machine Browser/ CSVs
@@ -213,7 +266,7 @@ Flag any searches that are inconsistent with the user's role (e.g. attacker rese
 <!-- MANDATORY                                          -->
 <!-- ═══════════════════════════════════════════════════ -->
 
-## 10. Indicators of Compromise
+## 12. Indicators of Compromise
 
 <!--
 Source: ioc_summary.txt, ioc_master.csv, per-machine CSVs
@@ -264,7 +317,7 @@ unless it appears in an anomalous context.
 <!-- MANDATORY                                          -->
 <!-- ═══════════════════════════════════════════════════ -->
 
-## 11. Conclusions
+## 13. Conclusions
 
 <!--
 3–6 bullet points. Each must be directly supported by at least one artefact cited above.
@@ -280,7 +333,7 @@ Format: bold claim → supporting evidence reference.
 <!-- MANDATORY                                          -->
 <!-- ═══════════════════════════════════════════════════ -->
 
-## 12. Recommended Next Steps
+## 14. Recommended Next Steps
 
 <!--
 Actionable items only. Each item should be specific (name the tool, file, or account).
@@ -303,7 +356,7 @@ Format as a checklist. Group into: Immediate (hours), Short-term (days), Ongoing
 <!--             missing                                -->
 <!-- ═══════════════════════════════════════════════════ -->
 
-## 13. Workflow Coverage
+## 15. Workflow Coverage
 
 <!--
 List any phases that did not run or produced no output.
