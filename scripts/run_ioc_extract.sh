@@ -292,7 +292,7 @@ for root, dirs, files in os.walk(ANALYSIS_DIR):
             csv_files.append(os.path.join(root, fname))
 
 csv_files.sort()
-print(f"[ioc_extractor] Found {len(csv_files)} CSV file(s) under {ANALYSIS_DIR}")
+print(f"[ioc_extractor] Found {len(csv_files)} CSV file(s) under {ANALYSIS_DIR}", flush=True)
 
 files_processed = 0
 files_skipped   = 0
@@ -312,7 +312,7 @@ for fpath in csv_files:
             null_ratio = sample.count('\x00') / max(len(sample), 1)
             if null_ratio > 0.10:
                 files_skipped += 1
-                print(f"  [SKIP-binary] {fpath}")
+                print(f"  [SKIP-binary] {fpath}", flush=True)
                 continue
             fh.seek(0)
 
@@ -322,18 +322,18 @@ for fpath in csv_files:
                     for cell in row:
                         extract_iocs_from_cell(cell, machine, src_file)
             except csv.Error as csv_err:
-                print(f"  [WARN-csv] {fpath}: {csv_err}")
+                print(f"  [WARN-csv] {fpath}: {csv_err}", flush=True)
                 files_skipped += 1
                 continue
 
         files_processed += 1
 
     except (OSError, UnicodeDecodeError) as e:
-        print(f"  [WARN-open] {fpath}: {e}")
+        print(f"  [WARN-open] {fpath}: {e}", flush=True)
         files_skipped += 1
         continue
 
-print(f"[ioc_extractor] Processed: {files_processed}  Skipped: {files_skipped}")
+print(f"[ioc_extractor] Processed: {files_processed}  Skipped: {files_skipped}", flush=True)
 
 # ── write ioc_master.csv ──────────────────────────────────────────────────────
 
@@ -370,7 +370,7 @@ with open(IOC_CSV, 'w', newline='', encoding='utf-8') as out_fh:
         ])
 
 total_unique = len(sorted_iocs)
-print(f"[ioc_extractor] Wrote {total_unique} unique IOCs → {IOC_CSV}")
+print(f"[ioc_extractor] Wrote {total_unique} unique IOCs → {IOC_CSV}", flush=True)
 
 # ── per-type counts ───────────────────────────────────────────────────────────
 
@@ -492,14 +492,17 @@ for hash_type in ('sha256', 'sha1', 'md5'):
         ]
         all_sha256.sort(key=lambda x: -x[1]['count'])
         if VT_API_KEY and all_sha256:
-            lines.append(f"VIRUSTOTAL SHA256 LOOKUPS (top {min(VT_LIMIT, len(all_sha256))}):")
-            for v, entry in all_sha256[:VT_LIMIT]:
+            vt_batch = all_sha256[:VT_LIMIT]
+            lines.append(f"VIRUSTOTAL SHA256 LOOKUPS (top {len(vt_batch)}):")
+            for i, (v, entry) in enumerate(vt_batch, 1):
+                print(f"  [VT {i}/{len(vt_batch)}] querying {v[:16]}…", flush=True)
                 result = vt_lookup(v)
                 machines_str = ','.join(sorted(entry['machines'])) or '-'
                 det = f"{result['malicious']}/{result['total']}" if result['total'] else "-/-"
                 name_str = f"  [{result['name']}]" if result['name'] else ""
                 lines.append(f"  {v}  [{result['verdict']}] {det}{name_str}  (machines={machines_str})")
-                time.sleep(VT_DELAY)
+                if i < len(vt_batch):
+                    time.sleep(VT_DELAY)
             lines.append("")
         elif all_sha256:
             lines.append("VIRUSTOTAL SHA256 LOOKUPS: n/a")
@@ -545,8 +548,8 @@ summary_text = '\n'.join(lines)
 with open(IOC_SUMMARY, 'w', encoding='utf-8') as sf:
     sf.write(summary_text + '\n')
 
-print(f"[ioc_extractor] Summary written → {IOC_SUMMARY}")
-print(summary_text)
+print(f"[ioc_extractor] Summary written → {IOC_SUMMARY}", flush=True)
+print(summary_text, flush=True)
 PYEOF
 
 # ─── VT API key prompt ───────────────────────────────────────────────────────
