@@ -353,12 +353,23 @@ with open(summary_csv, 'w', newline='', encoding='utf-8') as f:
                     ext_first_ts.get(ext,''), ext_last_ts.get(ext,''), cat])
 print(f"  [sum  ] {len(ext_counts):,} distinct extensions → {os.path.basename(summary_csv)}", flush=True)
 
+# ── earliest timestamp across all findings ────────────────────────────────────
+
+all_ts = []
+for r in archives + ransom_notes:
+    if r.get('created_utc'):  all_ts.append(r['created_utc'])
+    if r.get('modified_utc'): all_ts.append(r['modified_utc'])
+for ext in suspicious:
+    if ext.get('first_modified'): all_ts.append(ext['first_modified'])
+
+earliest_ts = min(all_ts) if all_ts else ''
+
 # ── print machine result summary ──────────────────────────────────────────────
 
-print(f"  [done ] archives={len(archives)}  notes={len(ransom_notes)}  suspicious_exts={len(suspicious)}", flush=True)
+print(f"  [done ] archives={len(archives)}  notes={len(ransom_notes)}  suspicious_exts={len(suspicious)}  earliest={earliest_ts}", flush=True)
 
 # write machine result as single line for bash to capture
-print(f"RESULT:{MACHINE}:{len(archives)}:{len(ransom_notes)}:{len(suspicious)}", flush=True)
+print(f"RESULT:{MACHINE}:{len(archives)}:{len(ransom_notes)}:{len(suspicious)}:{earliest_ts}", flush=True)
 
 PYEOF
 
@@ -383,11 +394,13 @@ for drive_root in "${DRIVE_ROOTS[@]}"; do
 
     if csv_has_data "${out_dir}" "${machine}_${drive}_archives.csv"; then
         status "SKIP" "Output already exists — delete ${out_dir} to re-run"
-        # capture existing result counts for summary
         a_count=$(awk -F',' 'NR>1{c++}END{print c+0}' "${out_dir}/${machine}_${drive}_archives.csv" 2>/dev/null || echo 0)
         n_count=$(awk -F',' 'NR>1{c++}END{print c+0}' "${out_dir}/${machine}_${drive}_ransom_notes.csv" 2>/dev/null || echo 0)
         s_count=$(awk -F',' 'NR>1{c++}END{print c+0}' "${out_dir}/${machine}_${drive}_suspicious_extensions.csv" 2>/dev/null || echo 0)
-        MACHINE_RESULTS["${machine}"]="${a_count}:${n_count}:${s_count}"
+        # earliest timestamp from existing CSVs (created_utc col = field 7)
+        e_ts=$(tail -n +2 "${out_dir}/${machine}_${drive}_archives.csv" "${out_dir}/${machine}_${drive}_ransom_notes.csv" 2>/dev/null \
+            | awk -F',' '{print $7}' | grep -v '^$' | sort | head -1)
+        MACHINE_RESULTS["${machine}"]="${a_count}:${n_count}:${s_count}:${e_ts}"
         continue
     fi
 
@@ -398,17 +411,17 @@ for drive_root in "${DRIVE_ROOTS[@]}"; do
         | grep "^RESULT:" | tail -1) || true
 
     if [[ -n "${result_line}" ]]; then
-        # RESULT:<MACHINE>:<archives>:<notes>:<suspicious>
-        IFS=':' read -r _ _ a_count n_count s_count <<< "${result_line}"
-        MACHINE_RESULTS["${machine}"]="${a_count}:${n_count}:${s_count}"
+        # RESULT:<MACHINE>:<archives>:<notes>:<suspicious>:<earliest_ts>
+        IFS=':' read -r _ _ a_count n_count s_count e_ts <<< "${result_line}"
+        MACHINE_RESULTS["${machine}"]="${a_count}:${n_count}:${s_count}:${e_ts}"
         log_cmd "${machine}" "run_ransomware.py" \
             "python3 ${TMPPY} ${mft_csv} ${out_dir} ${machine} ${drive}" \
             "Archive inventory, ransom note detection, encrypted extension analysis from MFT" \
             "${out_dir}/" \
-            "archives=${a_count} notes=${n_count} suspicious_exts=${s_count}"
+            "archives=${a_count} notes=${n_count} suspicious_exts=${s_count} earliest=${e_ts}"
     else
         status "ERROR" "Python analyser produced no result line"
-        MACHINE_RESULTS["${machine}"]="ERR:ERR:ERR"
+        MACHINE_RESULTS["${machine}"]="ERR:ERR:ERR:"
     fi
 done
 
@@ -421,23 +434,33 @@ section "Summary"
     echo "============================================================"
     echo "Generated : $(date -u)"
     echo ""
-    printf "  %-8s  %-12s  %-12s  %-18s\n" "Machine" "Archives" "Ransom Notes" "Suspicious Exts"
-    echo "  ──────────────────────────────────────────────────────"
+    printf "  %-8s  %-10s  %-12s  %-16s  %-26s\n" "Machine" "Archives" "Ransom Notes" "Suspicious Exts" "Earliest Indicator (UTC)"
+    echo "  ─────────────────────────────────────────────────────────────────────────────"
 
-    total_archives=0; total_notes=0; total_susp=0
+    total_archives=0; total_notes=0; total_susp=0; overall_earliest=""
     for drive_root in "${DRIVE_ROOTS[@]}"; do
         machine=$(echo "${drive_root}" | grep -oP '[^/]+(?=_Kape)')
         if [[ -n "${MACHINE_RESULTS[${machine}]:-}" ]]; then
-            IFS=':' read -r a n s <<< "${MACHINE_RESULTS[${machine}]}"
-            printf "  %-8s  %-12s  %-12s  %-18s\n" "${machine}" "${a}" "${n}" "${s}"
+            IFS=':' read -r a n s e_ts <<< "${MACHINE_RESULTS[${machine}]}"
+            printf "  %-8s  %-10s  %-12s  %-16s  %-26s\n" "${machine}" "${a}" "${n}" "${s}" "${e_ts}"
             [[ "${a}" =~ ^[0-9]+$ ]] && total_archives=$(( total_archives + a )) || true
             [[ "${n}" =~ ^[0-9]+$ ]] && total_notes=$(( total_notes + n ))       || true
             [[ "${s}" =~ ^[0-9]+$ ]] && total_susp=$(( total_susp + s ))         || true
+            if [[ -n "${e_ts}" ]]; then
+                if [[ -z "${overall_earliest}" ]] || [[ "${e_ts}" < "${overall_earliest}" ]]; then
+                    overall_earliest="${e_ts}"
+                    overall_earliest_machine="${machine}"
+                fi
+            fi
         fi
     done
 
-    echo "  ──────────────────────────────────────────────────────"
-    printf "  %-8s  %-12s  %-12s  %-18s\n" "TOTAL" "${total_archives}" "${total_notes}" "${total_susp}"
+    echo "  ─────────────────────────────────────────────────────────────────────────────"
+    printf "  %-8s  %-10s  %-12s  %-16s\n" "TOTAL" "${total_archives}" "${total_notes}" "${total_susp}"
+    if [[ -n "${overall_earliest:-}" ]]; then
+        echo ""
+        echo "  First indicator : ${overall_earliest} UTC on ${overall_earliest_machine}"
+    fi
     echo ""
 
     if [[ ${total_notes} -gt 0 ]]; then
