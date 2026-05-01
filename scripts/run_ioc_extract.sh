@@ -68,13 +68,9 @@ Reads all CSV files under ANALYSIS_DIR and extracts IOCs from every cell.
 
 import csv
 import datetime
-import json
 import os
 import re
 import sys
-import time
-import urllib.error
-import urllib.request
 from collections import defaultdict
 from urllib.parse import urlparse
 
@@ -246,42 +242,6 @@ def extract_iocs_from_cell(cell: str, machine: str, src_file: str):
         v = m.group(0).lower()
         if not is_analysis_tool_path(v):
             record('email', v, machine, src_file, context)
-
-# ── VirusTotal lookup ─────────────────────────────────────────────────────────
-
-VT_API_KEY = os.environ.get("VT_API_KEY", "")
-VT_DELAY   = float(os.environ.get("VT_DELAY", "15"))  # seconds between requests (public=15, premium=1)
-VT_LIMIT   = int(os.environ.get("VT_LIMIT", "20"))    # max hashes to query per run
-
-VT_MAX_RETRIES = 3
-
-def vt_lookup(hash_val: str) -> dict:
-    url = f"https://www.virustotal.com/api/v3/files/{hash_val}"
-    req = urllib.request.Request(url, headers={"x-apikey": VT_API_KEY})
-    for attempt in range(1, VT_MAX_RETRIES + 1):
-        try:
-            with urllib.request.urlopen(req, timeout=15) as resp:
-                data = json.loads(resp.read().decode())
-                attrs = data.get("data", {}).get("attributes", {})
-                stats = attrs.get("last_analysis_stats", {})
-                malicious  = stats.get("malicious", 0)
-                suspicious = stats.get("suspicious", 0)
-                total      = sum(stats.values()) if stats else 0
-                name       = attrs.get("meaningful_name", "") or ""
-                verdict    = "MALICIOUS" if malicious > 0 else ("SUSPICIOUS" if suspicious > 0 else "CLEAN")
-                return {"verdict": verdict, "malicious": malicious,
-                        "suspicious": suspicious, "total": total, "name": name}
-        except urllib.error.HTTPError as e:
-            if e.code == 429:
-                wait = int(e.headers.get("Retry-After", 60))
-                print(f"  [VT rate-limit] 429 on {hash_val[:16]}… — waiting {wait}s (attempt {attempt}/{VT_MAX_RETRIES})", flush=True)
-                time.sleep(wait)
-                continue
-            verdict = "NOT_FOUND" if e.code == 404 else f"HTTP_{e.code}"
-            return {"verdict": verdict, "malicious": 0, "suspicious": 0, "total": 0, "name": ""}
-        except Exception as e:
-            return {"verdict": "ERROR", "malicious": 0, "suspicious": 0, "total": 0, "name": str(e)[:40]}
-    return {"verdict": "RATE_LIMITED", "malicious": 0, "suspicious": 0, "total": 0, "name": ""}
 
 # ── discover all CSVs ─────────────────────────────────────────────────────────
 
@@ -474,7 +434,7 @@ if least_domains:
         lines.append(f"  {v:<40}  (count={entry['count']}, machines={machines_str})")
     lines.append("")
 
-# TOP / LEAST Hashes + VT for SHA256
+# TOP / LEAST Hashes
 for hash_type in ('sha256', 'sha1', 'md5'):
     top_hashes = top_iocs_for_type(hash_type, 5)
     if top_hashes:
@@ -490,27 +450,6 @@ for hash_type in ('sha256', 'sha1', 'md5'):
             machines_str = ','.join(sorted(entry['machines'])) or '-'
             lines.append(f"  {v}  (count={entry['count']}, machines={machines_str})")
         lines.append("")
-    if hash_type == 'sha256':
-        all_sha256 = [
-            (v, e) for (t, v), e in sorted_iocs if t == 'sha256'
-        ]
-        all_sha256.sort(key=lambda x: -x[1]['count'])
-        if VT_API_KEY and all_sha256:
-            vt_batch = all_sha256[:VT_LIMIT]
-            lines.append(f"VIRUSTOTAL SHA256 LOOKUPS (top {len(vt_batch)}):")
-            for i, (v, entry) in enumerate(vt_batch, 1):
-                print(f"  [VT {i}/{len(vt_batch)}] querying {v[:16]}…", flush=True)
-                result = vt_lookup(v)
-                machines_str = ','.join(sorted(entry['machines'])) or '-'
-                det = f"{result['malicious']}/{result['total']}" if result['total'] else "-/-"
-                name_str = f"  [{result['name']}]" if result['name'] else ""
-                lines.append(f"  {v}  [{result['verdict']}] {det}{name_str}  (machines={machines_str})")
-                if i < len(vt_batch):
-                    time.sleep(VT_DELAY)
-            lines.append("")
-        elif all_sha256:
-            lines.append("VIRUSTOTAL SHA256 LOOKUPS: n/a")
-            lines.append("")
 
 # TOP / LEAST Emails
 top_emails = top_iocs_for_type('email', 10)
@@ -555,18 +494,6 @@ with open(IOC_SUMMARY, 'w', encoding='utf-8') as sf:
 print(f"[ioc_extractor] Summary written → {IOC_SUMMARY}", flush=True)
 print(summary_text, flush=True)
 PYEOF
-
-# ─── VT API key prompt ───────────────────────────────────────────────────────
-
-if [[ -z "${VT_API_KEY:-}" ]]; then
-    printf "\nWould you like to input a VirusTotal API key? [y/N]: " >/dev/tty
-    read -r _vt_answer </dev/tty
-    if [[ "${_vt_answer,,}" =~ ^y ]]; then
-        printf "Enter VirusTotal API key: " >/dev/tty
-        read -r VT_API_KEY </dev/tty
-        export VT_API_KEY
-    fi
-fi
 
 # ─── run ─────────────────────────────────────────────────────────────────────
 
