@@ -104,6 +104,10 @@ Read files in this priority order. Use the Explore agent for large directories. 
 | `<MACHINE>/Browser/` CSVs | Browser phase ran |
 | `<MACHINE>/Hunting/` CSVs | Hunting phase ran |
 | `ioc_master.csv` (top 100 rows) | IOC phase ran |
+| `ransomware_summary.txt` | Phase 12 ran |
+| `<MACHINE>/Ransomware/*_ransom_notes.csv` | Phase 12 ran — per machine |
+| `<MACHINE>/Ransomware/*_archives.csv` | Phase 12 ran — per machine |
+| `<MACHINE>/Ransomware/*_suspicious_extensions.csv` | Phase 12 ran — per machine |
 
 ### Harvest format
 For each file read, record:
@@ -126,6 +130,21 @@ Load `~/.claude/skills/investigation-report/template.md`. Fill each section usin
 **Insider Threat:** Executive Summary → Environment → User Activity Timeline → Data Staging → Browser Artefacts → Anti-Forensics → IOCs → Recommendations
 
 **All others:** Follow template default order.
+
+### Ransomware case — encryption timing analysis
+
+When the case type is Ransomware and Phase 12 output exists, distinguish two timestamps that investigators often conflate:
+
+**1. First ransom note observed** — read directly from `ransomware_summary.txt` ("First indicator" line). This is a scripted, reliable value: the earliest timestamp of a ransom note filename appearing in 3+ distinct parent directories (the scatter pattern that proves ransomware ran). Use this as the confirmed lower bound on attacker presence.
+
+**2. Estimated first file encrypted** — derived by the LLM from `*_suspicious_extensions.csv`:
+- Read all rows with `assessment = BULK_UNKNOWN` across all machines.
+- Filter to rows where `first_modified` falls within the incident window (use `ransomware_summary.txt` "First indicator" as the upper bound; work backwards).
+- The earliest `first_modified` among those rows — provided it is within approximately 24 hours before the ransom note drop — is the estimated encryption start.
+- If the earliest BULK_UNKNOWN `first_modified` is months before the ransom note, it likely represents pre-existing unknown files, not encrypted data. In that case, state "encryption start could not be isolated from pre-existing unknown extensions" and fall back to the ransom note timestamp as the best available lower bound.
+- Qualify the estimate explicitly: "estimated encryption start" rather than "first file encrypted."
+
+Include both timestamps in report Section 8D. The gap between them (typically seconds to minutes for fast encryptors, up to hours for slow/targeted ones) can indicate the encryptor type.
 
 ### Writing rules
 - Lead each timeline section with the **earliest artefact timestamp**, not the most dramatic finding
@@ -159,5 +178,6 @@ Write the completed report to `<case_root>/reports/investigation_report.md`. If 
 | Privilege Escalation & Lateral Movement | `hunting_timeline.csv` has data |
 | Browser & User Behaviour | Browser CSVs exist with data |
 | IIS / Web Server Activity | IIS machine KAPE collection present |
+| Ransomware & Exfiltration Indicators | Any `<MACHINE>/Ransomware/` CSV exists with data (Phase 12) |
 | Ransomware Encryption Timeline | MFT shows mass file modification + VSS deletion |
 | Workflow Coverage Gaps | Any phase output is missing |

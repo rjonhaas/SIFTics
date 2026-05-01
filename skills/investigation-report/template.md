@@ -223,6 +223,42 @@ Note first/last modified timestamps — a tight window indicates mass encryption
 |---------|-----------|-------|-----------|---------------------|---------------------|
 | | | | | | |
 
+### D. Encryption Timing Estimate
+
+<!--
+This sub-section is an LLM-derived analytical finding — it is NOT a direct script output.
+
+Two timestamps must be clearly distinguished:
+
+  "First ransom note observed"   — scripted, from ransomware_summary.txt "First indicator" line.
+                                   Reliable: scatter pattern (same filename in 3+ directories).
+
+  "Estimated encryption start"   — derived here by the LLM from suspicious_extensions.csv.
+                                   Methodology:
+                                     1. Read all BULK_UNKNOWN rows from every machine's
+                                        *_suspicious_extensions.csv.
+                                     2. Filter to rows where first_modified is within the incident
+                                        window (i.e., within ~24 h before the ransom note timestamp).
+                                     3. The earliest such first_modified is the estimated start.
+                                     4. If the earliest BULK_UNKNOWN first_modified is months before
+                                        the note drop, it likely represents pre-existing unknown files,
+                                        not encrypted data — state the estimate cannot be isolated and
+                                        fall back to the ransom note timestamp as the lower bound.
+
+Always qualify: write "estimated" — do not state it as a confirmed fact.
+The gap between encryption start and note drop indicates encryptor speed
+(seconds–minutes = fast bulk encryptor; hours = slow/targeted).
+
+Omit this sub-section entirely if Phase 12 did not run.
+-->
+
+| | |
+|---|---|
+| **First ransom note observed** | <!-- from ransomware_summary.txt --> UTC on <!-- machine --> |
+| **Estimated encryption start** | <!-- earliest BULK_UNKNOWN first_modified within incident window --> UTC on <!-- machine --> |
+| **Note drop lag** | <!-- gap between the two timestamps --> |
+| **Basis** | <!-- cite specific extension(s) and file count that anchor the estimate --> |
+
 ---
 
 <!-- ═══════════════════════════════════════════════════ -->

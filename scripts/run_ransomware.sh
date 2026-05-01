@@ -382,16 +382,34 @@ with open(summary_csv, 'w', newline='', encoding='utf-8') as f:
                     ext_first_ts.get(ext,''), ext_last_ts.get(ext,''), cat])
 print(f"  [sum  ] {len(ext_counts):,} distinct extensions → {os.path.basename(summary_csv)}", flush=True)
 
-# ── earliest timestamp across all findings ────────────────────────────────────
+# ── earliest timestamp — definitive indicators only ───────────────────────────
+# Only trust timestamps from sources that are unambiguously ransomware-related:
+#   1. Ransom notes where the SAME filename appears in 3+ distinct parent dirs
+#      (scatter pattern: ransomware drops a note into every encrypted folder)
+#   2. Known ransomware file extensions (confirmed family signatures)
+# Excludes: one-off readme.txt from old software, bulk-unknown extension noise.
 
-all_ts = []
-for r in archives + ransom_notes:
-    if valid_ts(r.get('created_utc',  '')): all_ts.append(r['created_utc'])
-    if valid_ts(r.get('modified_utc', '')): all_ts.append(r['modified_utc'])
-for ext in suspicious:
-    if valid_ts(ext.get('first_modified', '')): all_ts.append(ext['first_modified'])
+note_parents  = defaultdict(set)
+note_ts       = defaultdict(list)
+for r in ransom_notes:
+    parent = r['path'].rsplit('\\', 1)[0] if '\\' in r['path'] else ''
+    note_parents[r['filename']].add(parent)
+    for ts_field in ('created_utc', 'modified_utc'):
+        if valid_ts(r.get(ts_field, '')):
+            note_ts[r['filename']].append(r[ts_field])
 
-earliest_ts = min(all_ts) if all_ts else ''
+definitive_ts = []
+
+for fname, parents in note_parents.items():
+    if len(parents) >= 3:
+        definitive_ts.extend(note_ts[fname])
+
+for ext_row in suspicious:
+    if ext_row['known_ransomware'] == 'YES':
+        if valid_ts(ext_row.get('first_modified', '')):
+            definitive_ts.append(ext_row['first_modified'])
+
+earliest_ts = min(definitive_ts) if definitive_ts else ''
 
 # ── print machine result summary ──────────────────────────────────────────────
 
@@ -426,9 +444,19 @@ for drive_root in "${DRIVE_ROOTS[@]}"; do
         a_count=$(awk -F',' 'NR>1{c++}END{print c+0}' "${out_dir}/${machine}_${drive}_archives.csv" 2>/dev/null || echo 0)
         n_count=$(awk -F',' 'NR>1{c++}END{print c+0}' "${out_dir}/${machine}_${drive}_ransom_notes.csv" 2>/dev/null || echo 0)
         s_count=$(awk -F',' 'NR>1{c++}END{print c+0}' "${out_dir}/${machine}_${drive}_suspicious_extensions.csv" 2>/dev/null || echo 0)
-        # earliest timestamp from existing CSVs (created_utc col = field 7)
-        e_ts=$(tail -n +2 "${out_dir}/${machine}_${drive}_archives.csv" "${out_dir}/${machine}_${drive}_ransom_notes.csv" 2>/dev/null \
-            | awk -F',' '{print $7}' | grep -v '^$' | sort | head -1)
+        # earliest timestamp — scatter-pattern ransom notes (same filename in 3+ dirs)
+        # ransom_notes CSV: machine,drive,filename,extension,size_bytes,path,created_utc,modified_utc
+        # suspicious_extensions CSV: machine,drive,extension,file_count,total_bytes,first_modified,last_modified,known_ransomware,assessment
+        e_ts=$(awk -F',' 'NR>1 && $7>"2010-01-01"{cnt[$3]++; if(!mn[$3]||$7<mn[$3])mn[$3]=$7}
+                          END{for(f in cnt)if(cnt[f]>=3&&mn[f]!="")print mn[f]}' \
+            "${out_dir}/${machine}_${drive}_ransom_notes.csv" 2>/dev/null | sort | head -1)
+        e_ts_ransom=$(awk -F',' 'NR>1 && $8=="YES" && $6>"2010-01-01"{print $6}' \
+            "${out_dir}/${machine}_${drive}_suspicious_extensions.csv" 2>/dev/null | sort | head -1)
+        if [[ -n "${e_ts_ransom}" ]]; then
+            if [[ -z "${e_ts}" ]] || [[ "${e_ts_ransom}" < "${e_ts}" ]]; then
+                e_ts="${e_ts_ransom}"
+            fi
+        fi
         MACHINE_RESULTS["${machine}"]="${a_count}:${n_count}:${s_count}:${e_ts}"
         continue
     fi
