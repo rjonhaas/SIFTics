@@ -195,6 +195,34 @@ def is_ransom_note(filename: str) -> bool:
     return False
 
 
+# ── helpers ───────────────────────────────────────────────────────────────────
+
+NTFS_NULL_TS = '2001-01-01 00:00:00'  # zeroed 64-bit FILETIME written by MFTECmd
+TS_FLOOR     = '2010-01-01'           # reject anything older as a sentinel/corrupt value
+
+def valid_ts(ts: str) -> bool:
+    if not ts:
+        return False
+    if ts.startswith(NTFS_NULL_TS):
+        return False
+    if ts < TS_FLOOR:
+        return False
+    return True
+
+# paths that are almost certainly benign regardless of filename/extension
+SYSTEM_PATH_PREFIXES = (
+    '\\windows\\',
+    '\\program files\\',
+    '\\program files (x86)\\',
+    '\\programdata\\microsoft\\',
+    '\\programdata\\packages\\',
+)
+
+def is_system_path(path: str) -> bool:
+    p = path.lower().replace('/', '\\')
+    return any(p.startswith(pfx) or ('\\' + pfx.lstrip('\\')) in p
+               for pfx in SYSTEM_PATH_PREFIXES)
+
 # ── read MFT CSV ──────────────────────────────────────────────────────────────
 
 print(f"  [read] {os.path.basename(MFT_CSV)} ({os.path.getsize(MFT_CSV)/1_048_576:.1f} MB)", flush=True)
@@ -231,9 +259,10 @@ try:
                 size = 0
 
             full_path = f"{parent}\\{filename}" if parent else filename
+            in_system = is_system_path(full_path)
 
-            # ── A: archive inventory ─────────────────────────────────────────
-            if extension in EXFIL_ARCHIVE_EXTENSIONS:
+            # ── A: archive inventory (skip system paths) ──────────────────────
+            if extension in EXFIL_ARCHIVE_EXTENSIONS and not in_system:
                 archives.append({
                     'machine': MACHINE,
                     'drive': DRIVE,
@@ -245,8 +274,8 @@ try:
                     'modified_utc': modified,
                 })
 
-            # ── B: ransom note detection ─────────────────────────────────────
-            if is_ransom_note(filename):
+            # ── B: ransom note detection (skip system paths) ──────────────────
+            if is_ransom_note(filename) and not in_system:
                 ransom_notes.append({
                     'machine': MACHINE,
                     'drive': DRIVE,
@@ -258,11 +287,11 @@ try:
                     'modified_utc': modified,
                 })
 
-            # ── C: extension tracking ────────────────────────────────────────
+            # ── C: extension tracking (valid timestamps only) ─────────────────
             if extension:
                 ext_counts[extension] += 1
                 ext_sizes[extension]  += size
-                if modified:
+                if valid_ts(modified):
                     if extension not in ext_first_ts or modified < ext_first_ts[extension]:
                         ext_first_ts[extension] = modified
                     if extension not in ext_last_ts or modified > ext_last_ts[extension]:
@@ -357,10 +386,10 @@ print(f"  [sum  ] {len(ext_counts):,} distinct extensions → {os.path.basename(
 
 all_ts = []
 for r in archives + ransom_notes:
-    if r.get('created_utc'):  all_ts.append(r['created_utc'])
-    if r.get('modified_utc'): all_ts.append(r['modified_utc'])
+    if valid_ts(r.get('created_utc',  '')): all_ts.append(r['created_utc'])
+    if valid_ts(r.get('modified_utc', '')): all_ts.append(r['modified_utc'])
 for ext in suspicious:
-    if ext.get('first_modified'): all_ts.append(ext['first_modified'])
+    if valid_ts(ext.get('first_modified', '')): all_ts.append(ext['first_modified'])
 
 earliest_ts = min(all_ts) if all_ts else ''
 
