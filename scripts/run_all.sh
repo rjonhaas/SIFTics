@@ -18,6 +18,8 @@
 # Phase 9 — run_ioc_extract.sh   IOC extraction (IPs/URLs/hashes/paths) across all analysis CSVs
 # Phase 10— run_c2_beacon.sh     C2 beacon detection via IIS log interval analysis
 # Phase 11— run_browser.sh       Zone.Identifier/MotW, Chrome/Edge/Firefox history, IE legacy
+# Phase 12— run_ransomware.sh    Ransom notes, suspicious extensions, archive staging
+# Phase 13— run_webserver.sh     IIS log injection detection, LOLBIN downloads, operator sessions, webshell inventory
 
 set -uo pipefail
 
@@ -104,6 +106,7 @@ PHASES=(
     "Phase 10— C2 Beacon     |${SCRIPT_DIR}/run_c2_beacon.sh|Execution/IIS|c2_beacon.csv"
     "Phase 11— Browser       |${SCRIPT_DIR}/run_browser.sh|Browser|*.csv"
     "Phase 12— Ransomware    |${SCRIPT_DIR}/run_ransomware.sh|Ransomware|*.csv"
+    "Phase 13— Web Server   |${SCRIPT_DIR}/run_webserver.sh|WebServer|injection_attempts.csv"
 )
 
 # ─── main loop ───────────────────────────────────────────────────────────────

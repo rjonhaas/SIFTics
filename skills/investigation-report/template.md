@@ -76,6 +76,70 @@ For each event row: source file must be noted either inline or in a footnote.
 ---
 
 <!-- ═══════════════════════════════════════════════════ -->
+<!-- CONDITIONAL: include if webserver_summary.txt      -->
+<!--             exists with data (Phase 13)            -->
+<!-- ═══════════════════════════════════════════════════ -->
+
+## 3A. Initial Access — Web Server Triage
+
+<!--
+Source: webserver_summary.txt + per-machine WebServer/ CSVs (Phase 13)
+Describes how the attacker gained their initial foothold — typically via exploitation
+of a public-facing web application (IIS, Apache) leading to webshell deployment.
+-->
+
+### Webshell Inventory
+
+<!--
+Source: <MACHINE>/WebServer/webshell_inventory.csv
+List files created/modified in the web root during the incident window.
+Even one webshell in wwwroot is HIGH severity.
+-->
+
+| Machine | Path | Filename | Size | Created (UTC) | Modified (UTC) | Assessment |
+|---------|------|----------|------|--------------|----------------|-----------|
+| | | | | | | |
+
+### Exploitation Activity (OS Command Injection)
+
+<!--
+Source: <MACHINE>/WebServer/injection_attempts.csv
+List GET/POST requests containing URL-decoded shell commands or download cradles.
+Classify each by outcome (HTTP 200 + non-trivial response = likely executed).
+-->
+
+| Time (UTC) | Source IP | Method | URI | Decoded Payload | Status | Source |
+|------------|-----------|--------|-----|-----------------|--------|--------|
+| | | | | | | |
+
+### LOLBIN Downloads via Web Server
+
+<!--
+Source: <MACHINE>/WebServer/lolbin_downloads.csv
+Document files pulled from attacker-controlled infrastructure via certutil, bitsadmin,
+PowerShell WebClient, or similar. Cross-reference dest path with webshell_inventory.csv
+to confirm staged payload delivery.
+-->
+
+| Time (UTC) | Machine | LOLBIN | Source URL | Destination Path | Source |
+|------------|---------|--------|-----------|-----------------|--------|
+| | | | | | |
+
+### Operator Sessions
+
+<!--
+Source: <MACHINE>/WebServer/operator_sessions.csv
+Group by source IP + User-Agent. Distinguish interactive operator phases (browser UA,
+irregular intervals, recon URIs) from automated tool phases (curl/custom UA, fixed URIs).
+-->
+
+| Source IP | User Agent | Request Count | Session Start (UTC) | Session End (UTC) | Phase |
+|-----------|-----------|--------------|--------------------|--------------------|-------|
+| | | | | | |
+
+---
+
+<!-- ═══════════════════════════════════════════════════ -->
 <!-- CONDITIONAL: include if c2_beacon.csv exists       -->
 <!--             with ≥1 data row                       -->
 <!-- ═══════════════════════════════════════════════════ -->
@@ -139,6 +203,29 @@ Summarise event counts per machine per category, then call out the most signific
 | Time (UTC) | Machine | Event ID | Detail | Source |
 |------------|---------|----------|--------|--------|
 | | | | | |
+
+**Execution chain (process tree):**
+
+<!--
+Reconstruct from Security EID 4688 + Sysmon EID 1. Show the full parent-child chain for
+any significant remote/lateral execution event. Use freeform text — do not force into a table.
+Format: indented block with timestamps.
+
+Example:
+  2026-03-08 22:09:42 svchost.exe -k netsvcs -p -s Schedule  [PID 1864, EID 4688 / Sysmon 1]
+    └─ 2026-03-08 22:09:46 cmd.exe /c \\DC02\SYSVOL\sysAV.bat  [PID 7320, Security EID 4688]
+         └─ 2026-03-08 22:09:46 \\DC02\SYSVOL\IamBatman.exe encrypt C:\  [PID 4444, Security EID 4688]
+
+Notes:
+- SYSVOL-delivered binaries never touch local disk: no Prefetch/ShimCache hit expected.
+- Sysmon EID 1 captures parent CommandLine; Security EID 4688 captures parent image name only.
+- Transient scheduled tasks (create → fire → delete < 2 s): confirm via TaskScheduler/Operational
+  EIDs 106/129/141 alongside Security EIDs 4698/4699.
+-->
+
+```
+[paste execution chain here]
+```
 
 ---
 
@@ -345,6 +432,18 @@ unless it appears in an anomalous context.
 
 | Path | Size | Action | Time (UTC) | Machine |
 |------|------|--------|-----------|---------|
+| | | | | |
+
+### LOLBIN Downloads
+
+<!--
+Source: <MACHINE>/WebServer/lolbin_downloads.csv (Phase 13)
+Include only if Phase 13 ran. Lists files pulled from attacker-controlled infrastructure
+via living-off-the-land binaries (certutil, bitsadmin, powershell, curl, etc.).
+-->
+
+| Time (UTC) | Machine | LOLBIN | Source URL | Destination Path |
+|------------|---------|--------|-----------|-----------------|
 | | | | | |
 
 ---

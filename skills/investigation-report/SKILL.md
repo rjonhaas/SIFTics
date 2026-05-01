@@ -108,12 +108,60 @@ Read files in this priority order. Use the Explore agent for large directories. 
 | `<MACHINE>/Ransomware/*_ransom_notes.csv` | Phase 12 ran — per machine |
 | `<MACHINE>/Ransomware/*_archives.csv` | Phase 12 ran — per machine |
 | `<MACHINE>/Ransomware/*_suspicious_extensions.csv` | Phase 12 ran — per machine |
+| `<MACHINE>/WebServer/injection_attempts.csv` | Phase 13 ran |
+| `<MACHINE>/WebServer/lolbin_downloads.csv` | Phase 13 ran |
+| `<MACHINE>/WebServer/operator_sessions.csv` | Phase 13 ran |
+| `<MACHINE>/WebServer/webshell_inventory.csv` | Phase 13 ran |
+| `webserver_summary.txt` | Phase 13 ran |
 
 ### Harvest format
 For each file read, record:
 - Source file path
 - Key fields extracted (timestamps, usernames, IPs, hashes, paths, event IDs)
 - Row counts where relevant
+
+### Web Server / Initial Access Analysis (Phase 13)
+
+When Phase 13 output is present (`webserver_summary.txt`), apply these additional guidelines:
+
+**Webshell identification:**
+- A webshell is a file created in the web root (`wwwroot`, `inetpub`, web application paths) with process-execution capability.
+- Two-parameter authentication pattern: auth key (`p=`) + command (`cmd=`) — common in custom shells.
+- Standard code signatures: `cmd.exe`, `powershell.exe`, or `System.Diagnostics.Process` inside `.aspx`/`.php`/`.jsp` files.
+- Check `<MACHINE>/WebServer/webshell_inventory.csv` for files created in the web root during the incident window.
+- Runtime signal: `w3wp.exe` spawning unexpected child processes (cmd.exe, powershell.exe, certutil.exe).
+
+**OS Command Injection (CWE-78):**
+- GET parameters passed to a shell without sanitisation appear in IIS W3C logs as URL-encoded payloads.
+- Common vulnerable parameters: `url=` (download cradle), `cmd=` (execution).
+- `injection_attempts.csv` contains URL-decoded payloads — read all rows to reconstruct the exploitation sequence.
+- Classify by HTTP response code and response size: `200` with non-trivial body = likely executed.
+
+**LOLBIN download cradles:**
+- `certutil.exe -urlcache -f <url> <dest>`: arbitrary file download; common AV bypass.
+- `bitsadmin /transfer`: background download, survives reboots.
+- `powershell.exe -ep bypass -c (New-Object Net.WebClient).DownloadFile(...)`: PowerShell download.
+- `lolbin_downloads.csv` records these events — cross-reference dest path with `webshell_inventory.csv` to confirm delivery.
+
+**Operator vs automated traffic:**
+- Interactive operator: browser User-Agent, irregular inter-request intervals, recon-style URIs (directory listing, `/whoami`, error-probing).
+- Automated C2 / scanner: `curl`, `python-requests`, or custom UA; regular beacon intervals; fixed URI set.
+- Webshell interaction: tool UA (e.g. `curl/8.5.0`) + `cmd=` or `url=` parameters in GET or POST.
+- `operator_sessions.csv` groups by source IP + User-Agent + time window — use it to distinguish operator phases from automated phases.
+
+**Transient scheduled task pattern:**
+- Ransomware/lateral-movement scripts may create a task, fire it once, then delete it — total lifetime < 2 seconds.
+- Task name often matches the temp output file prefix (random alphanumeric string).
+- Event lifecycle: EID 4698 (task registered) → TaskScheduler/Operational EID 129 (task launched) → EID 4699 (Security, task deleted) → TaskScheduler/Operational EID 141 (task runner deleted).
+- Parent of spawned process: `svchost.exe -k netsvcs -p -s Schedule` (Task Scheduler service host).
+- Sysmon EID 1 captures full parent command line where Security EID 4688 `ProcessCommandLine` auditing is absent.
+- If TaskScheduler/Operational.evtx was not in the initial parse, re-run EvtxECmd against it explicitly — it is a separate log from Security.evtx.
+
+**Process tree reconstruction:**
+- Build the chain bottom-up: start from the suspicious leaf process, find its PID as `ParentPID` in prior creation events.
+- Sysmon EID 1 is authoritative for parent command line; Security EID 4688 only captures the parent image name unless `ProcessCommandLine` auditing is enabled.
+- SYSVOL-delivered binaries (`\Device\Mup\<DC>\SYSVOL\...`): the binary never touches local disk — expect no Prefetch or ShimCache hit. Confirm via EID 4688 or Sysmon EID 1 `CommandLine` field.
+- Document the tree as a freeform block in Section 6 of the report (see template).
 
 ---
 
@@ -125,7 +173,7 @@ Load `~/.claude/skills/investigation-report/template.md`. Fill each section usin
 
 **Ransomware:** Executive Summary → Environment → Encryption Timeline → Anti-Forensics → Persistence → IOCs → Recommendations
 
-**APT / Targeted Intrusion:** Executive Summary → Environment → Attack Timeline → C2 Infrastructure → Credential Access → Lateral Movement → Anti-Forensics → IOCs → Recommendations
+**APT / Targeted Intrusion:** Executive Summary → Environment → Attack Timeline → Initial Access (Web Server Triage) → C2 Infrastructure → Credential Access → Lateral Movement → Anti-Forensics → IOCs → Recommendations
 
 **Insider Threat:** Executive Summary → Environment → User Activity Timeline → Data Staging → Browser Artefacts → Anti-Forensics → IOCs → Recommendations
 
@@ -180,4 +228,5 @@ Write the completed report to `<case_root>/reports/investigation_report.md`. If 
 | IIS / Web Server Activity | IIS machine KAPE collection present |
 | Ransomware & Exfiltration Indicators | Any `<MACHINE>/Ransomware/` CSV exists with data (Phase 12) |
 | Ransomware Encryption Timeline | MFT shows mass file modification + VSS deletion |
+| Initial Access — Web Server Triage | `webserver_summary.txt` exists with data (Phase 13) |
 | Workflow Coverage Gaps | Any phase output is missing |
