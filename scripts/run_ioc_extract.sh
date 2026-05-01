@@ -253,26 +253,35 @@ VT_API_KEY = os.environ.get("VT_API_KEY", "")
 VT_DELAY   = float(os.environ.get("VT_DELAY", "15"))  # seconds between requests (public=15, premium=1)
 VT_LIMIT   = int(os.environ.get("VT_LIMIT", "20"))    # max hashes to query per run
 
+VT_MAX_RETRIES = 3
+
 def vt_lookup(hash_val: str) -> dict:
     url = f"https://www.virustotal.com/api/v3/files/{hash_val}"
     req = urllib.request.Request(url, headers={"x-apikey": VT_API_KEY})
-    try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            data = json.loads(resp.read().decode())
-            attrs = data.get("data", {}).get("attributes", {})
-            stats = attrs.get("last_analysis_stats", {})
-            malicious  = stats.get("malicious", 0)
-            suspicious = stats.get("suspicious", 0)
-            total      = sum(stats.values()) if stats else 0
-            name       = attrs.get("meaningful_name", "") or ""
-            verdict    = "MALICIOUS" if malicious > 0 else ("SUSPICIOUS" if suspicious > 0 else "CLEAN")
-            return {"verdict": verdict, "malicious": malicious,
-                    "suspicious": suspicious, "total": total, "name": name}
-    except urllib.error.HTTPError as e:
-        verdict = "NOT_FOUND" if e.code == 404 else f"HTTP_{e.code}"
-        return {"verdict": verdict, "malicious": 0, "suspicious": 0, "total": 0, "name": ""}
-    except Exception as e:
-        return {"verdict": f"ERROR", "malicious": 0, "suspicious": 0, "total": 0, "name": str(e)[:40]}
+    for attempt in range(1, VT_MAX_RETRIES + 1):
+        try:
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                data = json.loads(resp.read().decode())
+                attrs = data.get("data", {}).get("attributes", {})
+                stats = attrs.get("last_analysis_stats", {})
+                malicious  = stats.get("malicious", 0)
+                suspicious = stats.get("suspicious", 0)
+                total      = sum(stats.values()) if stats else 0
+                name       = attrs.get("meaningful_name", "") or ""
+                verdict    = "MALICIOUS" if malicious > 0 else ("SUSPICIOUS" if suspicious > 0 else "CLEAN")
+                return {"verdict": verdict, "malicious": malicious,
+                        "suspicious": suspicious, "total": total, "name": name}
+        except urllib.error.HTTPError as e:
+            if e.code == 429:
+                wait = int(e.headers.get("Retry-After", 60))
+                print(f"  [VT rate-limit] 429 on {hash_val[:16]}… — waiting {wait}s (attempt {attempt}/{VT_MAX_RETRIES})", flush=True)
+                time.sleep(wait)
+                continue
+            verdict = "NOT_FOUND" if e.code == 404 else f"HTTP_{e.code}"
+            return {"verdict": verdict, "malicious": 0, "suspicious": 0, "total": 0, "name": ""}
+        except Exception as e:
+            return {"verdict": "ERROR", "malicious": 0, "suspicious": 0, "total": 0, "name": str(e)[:40]}
+    return {"verdict": "RATE_LIMITED", "malicious": 0, "suspicious": 0, "total": 0, "name": ""}
 
 # ── discover all CSVs ─────────────────────────────────────────────────────────
 
