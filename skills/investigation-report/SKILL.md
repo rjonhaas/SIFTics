@@ -190,6 +190,28 @@ When Phase 13 output is present (`webserver_summary.txt`), apply these additiona
 - SYSVOL-delivered binaries (`\Device\Mup\<DC>\SYSVOL\...`): the binary never touches local disk — expect no Prefetch or ShimCache hit. Confirm via EID 4688 or Sysmon EID 1 `CommandLine` field.
 - Document the tree as a freeform block in Section 6 of the report (see template).
 
+**RDP lateral movement — session reconnect vs new logon:**
+
+This is one of the most commonly missed lateral movement patterns. When an attacker uses stolen credentials to access a machine where the legitimate user already has a *disconnected* RDP session, Windows reconnects them into that existing session rather than creating a new one. The event signature is completely different from a fresh login:
+
+| Scenario | Events generated | Log source |
+|---|---|---|
+| Fresh RDP login | EID 21 (session logon) + EID 22 (shell started) | LocalSessionManager/Operational |
+| Reconnect to disconnected session | **EID 25 only** (session reconnection succeeded) | LocalSessionManager/Operational |
+| Any inbound TCP on port 3389 | EID 261 (listener received connection) | RemoteConnectionManager/Operational |
+| Successful auth (network level) | EID 1149 (network connection established) | RemoteConnectionManager/Operational |
+
+**Detection methodology:**
+1. Parse `Microsoft-Windows-TerminalServices-LocalSessionManager%4Operational.evtx` with EvtxECmd — do not rely on Security.evtx alone for RDP; type-10 logon events (EID 4624) are only generated for new sessions, not reconnects.
+2. Look for EID 25 events outside normal business hours or from accounts not expected to be active on that machine. The `UserName` field identifies the account; `Address` field is `LOCAL` for same-network connections (not the attacker's external IP).
+3. Cross-reference with `RemoteConnectionManager%4Operational.evtx` EID 261 clusters — a burst of EID 261 events with no following EID 1149 = failed authentication attempts (credential spray). The first EID 25 after such a cluster = first successful lateral move.
+4. The `Address: LOCAL` value in EID 25 does NOT mean the session originated from the local console — it means the connection came from within the same network segment. Always cross-reference with EID 261 source IPs and Security EID 4624 `IpAddress` fields to confirm the originating host.
+5. Attacker operational tempo signal: measure the gap between the first EID 261 cluster (credential attempts) and the first EID 25 (success) — this indicates how long it took to identify the correct credential pair.
+
+**Log files to parse explicitly (not covered by standard Phase 3 event log parse):**
+- `Microsoft-Windows-TerminalServices-LocalSessionManager%4Operational.evtx`
+- `Microsoft-Windows-TerminalServices-RemoteConnectionManager%4Operational.evtx`
+
 ---
 
 ## Phase 4 — Report Generation
