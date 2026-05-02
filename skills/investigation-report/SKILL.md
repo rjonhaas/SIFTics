@@ -96,9 +96,26 @@ Read files in this priority order. Use the Explore agent for large directories. 
 | Per-machine `Execution/` CSVs | Scheduled tasks, PS history, IIS logs, HTTPERR |
 | Per-machine `AntiForensics/` CSVs | Log clearing, VSS deletion, Defender tampering, tools |
 | Per-machine `Artifacts/` CSVs | LNK, Jump Lists, Recycle Bin, Prefetch |
-| Per-machine `Registry/` CSVs | Autoruns, ShimCache, Amcache, ShellBags |
+| Per-machine `Registry/Autoruns/*.csv` | Attacker-installed run keys — populate Section 9A |
+| Per-machine `Registry/Services/*.csv` | Attacker-installed services — populate Section 9C |
+| Per-machine `Execution/ScheduledTasks/*.csv` | Attacker-scheduled tasks — populate Section 9B |
+| Per-machine `Registry/` CSVs | ShimCache, Amcache, ShellBags |
 | Per-machine `Registry/ShellBags/<USER>/*.csv` | Folder browsing (File Explorer) — `FirstInteracted`, `LastInteracted`, `AbsolutePath` per user |
 | Per-machine `Browser/*_Downloads.csv` | Tools/files the attacker downloaded via browser — `StartTime_UTC`, `TargetPath`, `SourceURL`, `State` |
+| `./analysis/evidence_hashes.txt` | Chain of custody — SHA256 for all evidence files (Section 2A) |
+
+### Scope-of-Compromise Reconstruction
+
+Before writing Section 2, classify every machine in the evidence inventory using only harvested data:
+
+| Status | Criteria |
+|--------|----------|
+| **CONFIRMED COMPROMISED** | ≥1 of: attacker account logon (EID 4624/4648), webshell execution (`w3wp.exe` child), lateral movement destination (remote execution event where this machine = target), credential theft event, attacker-installed persistence, anti-forensics activity |
+| **POSSIBLE COMPROMISE** | Lateral movement artifact points *to* this machine (EID 4624 from known-attacker source IP) but no execution or persistence confirmed on this machine yet |
+| **NOT ANALYZED** | Machine is in evidence inventory but no analysis workflow has run yet (e.g., KAPE present but no output in analysis dir) |
+| **CONFIRMED CLEAN** | Analysis ran, no attacker indicators found. Only use this if analysis was complete — do not default to "clean" when not analyzed |
+
+Document the scope table in Section 2. If a machine is POSSIBLE COMPROMISE, add it to Recommended Next Steps (Section 15) as a scope expansion candidate.
 
 ### Read if present
 | File | Condition |
@@ -116,6 +133,10 @@ Read files in this priority order. Use the Explore agent for large directories. 
 | `<MACHINE>/WebServer/operator_sessions.csv` | Phase 13 ran |
 | `<MACHINE>/WebServer/webshell_inventory.csv` | Phase 13 ran |
 | `webserver_summary.txt` | Phase 13 ran |
+| `./analysis/cloud/guardduty_high_severity.csv` | Cloud-forensics skill ran (GuardDuty) |
+| `./analysis/cloud/cloudtrail_key_events.csv` | Cloud-forensics skill ran (CloudTrail) |
+| `./analysis/cloud/iam_changes.csv` | Cloud-forensics skill ran (IAM) |
+| `./analysis/cloud/s3_exfil.csv` | Cloud-forensics skill ran (S3) |
 
 ### Harvest format
 For each file read, record:
@@ -308,11 +329,11 @@ Ordering is driven by your Phase 3 classification scores, not by a single rigid 
 
 **Step 1 — Lead with the primary type's section order:**
 
-| Primary Type | Sections after Environment |
+| Primary Type | Sections after Environment / Evidence Integrity |
 |---|---|
-| Ransomware | Timeline → Initial Access → Attacker Tooling & Recon → Lateral Movement → Anti-Forensics → Ransomware Indicators → IOCs → Recommendations |
-| APT / Targeted Intrusion | Timeline → Initial Access → Attacker Tooling & Recon → C2 Infrastructure → Credential Access → Lateral Movement → Anti-Forensics → IOCs → Recommendations |
-| Insider Threat | Timeline → Attacker Tooling & Recon → Data Staging → Browser Artefacts → Anti-Forensics → IOCs → Recommendations |
+| Ransomware | Timeline → Initial Access → Attacker Tooling & Recon → Persistence → Lateral Movement → Anti-Forensics → Memory (if present) → Cloud (if present) → Ransomware Indicators → IOCs → Recommendations |
+| APT / Targeted Intrusion | Timeline → Initial Access → Attacker Tooling & Recon → C2 Infrastructure → Credential Access → Persistence → Lateral Movement → Anti-Forensics → Memory (if present) → Cloud (if present) → IOCs → Recommendations |
+| Insider Threat | Timeline → Attacker Tooling & Recon → Data Staging → Persistence → Browser Artefacts → Anti-Forensics → Cloud (if present) → IOCs → Recommendations |
 | General IR / mixed | Follow template default order |
 
 **Step 2 — Append secondary-type sections that aren't already included:**
@@ -380,26 +401,28 @@ Write the completed report to `<case_root>/reports/investigation_report.md`. If 
 ## Mandatory report sections (always present)
 
 1. Executive Summary
-2. Environment (machines, roles, users, subnet, **Temporal Integrity per machine**)
+2. Environment (machines, roles, users, subnet, **Scope of Compromise table**, **Temporal Integrity per machine**)
+2A. Evidence Integrity (chain of custody — SHA256 hashes of all evidence files)
 3. Attack / Incident Timeline (chronological, UTC; skew notations applied where applicable)
-4. Indicators of Compromise (tables: IPs, hashes, domains, accounts, artefacts)
-5. Conclusions
-6. Recommended Next Steps
+13. Indicators of Compromise (tables: IPs, hashes, domains, accounts, artefacts)
+14. Conclusions
+15. Recommended Next Steps
 
 ## Conditional report sections
 
 | Section | Include when |
 |---------|-------------|
-| C2 Infrastructure | `c2_beacon.csv` exists with ≥1 row |
-| Memory Analysis | Memory dump present under case root |
-| Anti-Forensics | `antiforensics_timeline.csv` has data |
-| Credential Access | `credaccess_timeline.csv` has data |
-| Privilege Escalation & Lateral Movement | `hunting_timeline.csv` has data |
-| Attacker Tooling & Reconnaissance | Browser `*_Downloads.csv` has data OR Sysmon/4688 events show recon commands in attacker process chain |
-| Browser & User Behaviour | Browser CSVs exist with data |
+| Initial Access — Web Server Triage (3A) | `webserver_summary.txt` exists with data (Phase 13) |
+| C2 Infrastructure (4) | `c2_beacon.csv` exists with ≥1 row |
+| Credential Access (5) | `credaccess_timeline.csv` has data |
+| Attacker Tooling & Reconnaissance (5A) | Browser `*_Downloads.csv` has data OR Sysmon/4688 events show recon commands in attacker process chain |
+| Privilege Escalation & Lateral Movement (6) | `hunting_timeline.csv` has data |
+| Anti-Forensics (7) | `antiforensics_timeline.csv` has data |
+| Ransomware & Exfiltration Indicators (8) | Any `<MACHINE>/Ransomware/` CSV exists with data (Phase 12) |
+| Persistence Mechanisms (9) | Any Registry/Autoruns, Execution/ScheduledTasks, or Registry/Services CSV has attacker-created entries |
+| Memory Analysis (10) | Memory dump present under case root |
+| Cloud Infrastructure (10A) | GuardDuty `.jsonl.gz` or CloudTrail `.json.gz` present under case root |
+| Browser & User Behaviour (11) | Browser CSVs exist with data |
 | File Explorer Browsing (ShellBags) | `Registry/ShellBags/<USER>/*.csv` has rows with attacker-relevant paths |
-| IIS / Web Server Activity | IIS machine KAPE collection present |
-| Ransomware & Exfiltration Indicators | Any `<MACHINE>/Ransomware/` CSV exists with data (Phase 12) |
 | Ransomware Encryption Timeline | MFT shows mass file modification + VSS deletion |
-| Initial Access — Web Server Triage | `webserver_summary.txt` exists with data (Phase 13) |
-| Workflow Coverage Gaps | Any phase output is missing |
+| Workflow Coverage Gaps (16) | Any phase output is missing |
