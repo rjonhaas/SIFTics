@@ -209,9 +209,9 @@ parallel only when all three conditions hold:
 | PCAP / pcapng / Zeek logs / netflow | `network-analysis` | C2 beaconing, exfiltration, credential exposure |
 | Suspicious binary or memory dump flagged | `malware-analysis` | Capability profile, C2 URLs, ATT&CK techniques |
 | Suspected malware — family/IOC match | `yara-hunting` | Confirm malicious classification, rule match |
-| Linux host image or logs | `linux-endpoint` | Auth logs, bash history, cron, systemd persistence |
-| Velociraptor collection (ZIP) | `linux-endpoint` | Hunt artifact parsing, process/network/persistence |
-| EDR export (CrowdStrike/S1/Defender ATP) | `linux-endpoint` | Process tree, network connections, file writes |
+| Linux host image or logs | `linux-host` | Auth logs, bash history, cron, systemd persistence |
+| Velociraptor collection (ZIP) | `edr-telemetry` | Hunt artifact parsing, process/network/persistence |
+| EDR export (CrowdStrike/S1/Defender ATP) | `edr-telemetry` | Process tree, network connections, file writes |
 | AWS CloudTrail / GuardDuty logs | `cloud-forensics` | IAM abuse, IMDS theft, S3 exfil |
 | Cross-source timeline needed | `plaso-timeline` | When EVTX + MFT + registry need unified timeline |
 | macOS endpoint involved | `macos-triage` | Unified log, FSEvents, quarantine DB |
