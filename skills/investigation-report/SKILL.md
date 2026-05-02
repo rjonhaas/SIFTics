@@ -1,7 +1,14 @@
 # SKILL: Investigation Report Generation
 
 ## When to invoke
-When the analyst requests an investigation report, case summary, or findings document after a triage workflow has run. The workflow output must exist before this skill runs — do not attempt to generate a report if analysis directories are empty.
+Invoked by the **Incident Commander skill** at case closure, after all operational periods are
+complete and the COP has been finalized. Do not invoke this skill directly to drive an
+investigation — the IC skill owns investigation sequencing and pivot decisions. Invoke this
+skill directly only if the IC skill was not used and workflow outputs already exist.
+
+This skill is the **Documentation Unit**: it consumes completed analysis outputs and a
+finalized COP and formats them into the written report. It does not decide what to analyze
+or in what order.
 
 ---
 
@@ -55,19 +62,23 @@ If a phase did not run (e.g., no `hunting_timeline.csv`), note it in the report 
 
 ---
 
-## Phase 2 — Pre-Harvest Signal Check
+## Phase 2 — COP Review
 
-Scan these files for the most obvious signals **before** the full harvest. This step guides
-harvest order only — **do not commit to a case type here.**
+If the Incident Commander skill was used, read the COP first:
 
-1. `ioc_summary.txt` — IOC volume and type distribution
-2. `antiforensics_timeline.csv` — first 20 rows (evidence destruction visible immediately?)
-3. `hunting_timeline.csv` — first and last 20 rows (lateral movement / PrivEsc events present?)
-4. Any `c2_beacon.csv` files — C2 beaconing present?
+```
+./analysis/cop.md
+```
 
-Note what you observe. Use it to decide which Phase 3 files to prioritise first (e.g., if VSS
-deletion is already visible, read ransomware-related files early in the harvest). Do not use
-this scan to set a classification or skip any Phase 3 reads.
+The COP contains the IC's classified findings (CONFIRMED / INFERRED / CONTRADICTED),
+active hypotheses, scope decisions, and any unresolved contradictions. Use it to:
+- Pre-populate the Confirmed and Inferred Findings sections of the report
+- Understand which machines are in scope and which are noted as possible expansions
+- Know which contradictions require explicit discussion in the report body
+- Identify which case type classification the IC reached (carry it into Phase 3 scoring)
+
+If no COP exists (IC skill was not used), proceed directly to Phase 3 and run the
+Case Type Classification subsection at the end before writing the report.
 
 ---
 
