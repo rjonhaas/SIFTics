@@ -112,6 +112,44 @@ For each file read, record:
 - Key fields extracted (timestamps, usernames, IPs, hashes, paths, event IDs)
 - Row counts where relevant
 
+### Temporal Integrity Check (per machine)
+
+Run this for every machine before writing any timeline findings. Document the results in the
+Environment section of the report. Do not assume clocks are correct.
+
+**Step 1 — Cross-source timestamp comparison:**
+Compare timestamps for the same event across different artefact types on the same host:
+- **Domain auth skew:** Find a logon session common to both the target machine (Security EID
+  4624) and the DC (Kerberos EID 4768/4769). The delta between the two timestamps is the
+  observed clock offset for that machine vs. the DC. Typical domain-joined machines: ±30 sec.
+- **Process creation cross-check:** For key attacker processes, compare Sysmon EID 1
+  `TimeCreated` against MFT `$STANDARD_INFO` `Created` or `LastModified` for the same executable.
+- **File write cross-check:** Compare Sysmon EID 11 or Security EID 4663 timestamps against
+  MFT `$STANDARD_INFO Created` for the same file path.
+
+**Step 2 — Flag timestomping:**
+Compare `$STANDARD_INFO Created` against `$FILE_NAME Created` for newly created files.
+If `$STANDARD_INFO Created` predates `$FILE_NAME Created` by >1 second, timestomping is
+likely — the attacker used SetFileTime to backdate the file. `$FILE_NAME` timestamps are
+updated by the kernel and are significantly harder to forge without a driver.
+Also check for System EID 4616 (system time changed) — an attacker may have shifted the
+clock before or after activity to confuse timeline reconstruction.
+
+**Step 3 — Document per machine:**
+Record one Temporal Integrity block for each machine in the report's Environment section:
+
+> **[MACHINE] — Temporal Integrity:** Clock offset vs. DC: [±N sec/min] (measured via
+> EID 4624 / EID 4768 on [date]). [Timestamps used as-is / All timestamps for this machine
+> shifted by N minutes in the report timeline.] [Timestomping suspected on: list files, if any.]
+> [EID 4616 clock-change event observed at HH:MM UTC, if present.]
+
+**Step 4 — Apply skew notation in timeline:**
+When skew is ≥2 minutes, append `(±N min)` to every timestamp from that machine in the
+chronological timeline. When skew is >10 minutes or when clock manipulation is suspected,
+add a section-level callout:
+> ⚠ Timestamps from [MACHINE] have an observed [N-minute] offset vs. the domain controller
+> and should be interpreted with that uncertainty in mind.
+
 ### Attacker Activity Reconstruction
 
 After harvesting process creation and browser artefacts, reconstruct the attacker's on-host activity in two categories:
@@ -292,10 +330,34 @@ When the case type is Ransomware and Phase 12 output exists, distinguish two tim
 
 Include both timestamps in report Section 8D. The gap between them (typically seconds to minutes for fast encryptors, up to hours for slow/targeted ones) can indicate the encryptor type.
 
+### Analytic Confidence Framework
+
+Every factual claim must carry a confidence level based on the number of **independent**
+corroborating artefact sources. "Independent" means different artefact *types* — two EVTX
+logs describing the same event count as one source, not two.
+
+| Level | Independent sources | Required language | Example |
+|-------|--------------------|--------------------|---------|
+| **High** | ≥4 artefact types agree | "The evidence establishes…" / state the fact directly | EID 4624 + Sysmon EID 1 + Prefetch hit + MFT entry all agree on execution time and path |
+| **Moderate** | 2–3 artefact types agree | "Evidence strongly suggests…" / "consistent with X" | Two log sources agree; no contradictory artefacts present |
+| **Low** | 1 source, or multiple sources of the same type | "A single artefact is consistent with…" / "cannot be confirmed from available evidence" | Only one log entry; no corroboration from a different artefact class |
+
+**Rules:**
+- Do not use High-confidence language for a finding supported by a single uncorroborated
+  log entry — that is Low confidence regardless of how clear the log looks.
+- Do not use Low-confidence language ("consistent with") for a finding corroborated by four
+  independent artefact types — that undersells the evidence and weakens the report.
+- When confidence is Low, state explicitly what additional evidence would elevate it
+  (e.g., "Memory analysis or endpoint telemetry would confirm whether X executed").
+- Contradictory artefacts — e.g., EVTX shows process A, Sysmon shows process B at the same
+  time — require explicit discussion. Do not silently prefer one source.
+- "Consistent with" as a blanket hedge throughout the report is incorrect usage of this
+  framework. Apply the right tier to each finding individually.
+
 ### Writing rules
 - Lead each timeline section with the **earliest artefact timestamp**, not the most dramatic finding
 - Use a table for any list of 3+ items (IPs, hashes, accounts, events)
-- Qualify uncertainty: "consistent with credential harvesting" not "credential harvesting occurred"
+- Apply the Analytic Confidence Framework above — do not default every finding to "consistent with"
 - Flag gaps: if a phase did not run, write `[WORKFLOW GAP: Phase N not run — <section> findings may be incomplete]`
 - Never pad. If a section has no findings, write "No artefacts recovered for this category" and move on
 
@@ -307,8 +369,8 @@ Write the completed report to `<case_root>/reports/investigation_report.md`. If 
 ## Mandatory report sections (always present)
 
 1. Executive Summary
-2. Environment (machines, roles, users, subnet)
-3. Attack / Incident Timeline (chronological, UTC)
+2. Environment (machines, roles, users, subnet, **Temporal Integrity per machine**)
+3. Attack / Incident Timeline (chronological, UTC; skew notations applied where applicable)
 4. Indicators of Compromise (tables: IPs, hashes, domains, accounts, artefacts)
 5. Conclusions
 6. Recommended Next Steps
