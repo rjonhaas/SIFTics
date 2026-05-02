@@ -221,10 +221,12 @@ grep -Ei "(https?://|ftp://|\\\\\\\\|cmd\.exe|powershell|regsvr|certutil)" \
 
 ```bash
 # Generate timeline of all memory artifacts
-# Plugin path is timeliner.Timeliner in Volatility 3. If this fails, try windows.timeliner.Timeliner.
-# The bare "timeliner" name is a Volatility 2 convention and will not work in Vol3.
-vol -f <image.img> timeliner.Timeliner --create-bodyfile > ./analysis/memory/mem_bodyfile.txt
-mactime -b ./analysis/memory/mem_bodyfile.txt -z UTC > ./analysis/memory/mem_timeline.txt
+# Plugin path is timeliner.Timeliner in Volatility 3.
+# If timeliner fails, check `vol --info | grep -i timeliner` to confirm the plugin name in this build.
+vol -f <image.img> timeliner.Timeliner --create-bodyfile
+# --create-bodyfile writes a .body file to the current directory; rename it:
+mv *.body ./analysis/memory/mem_bodyfile.body
+mactime -b ./analysis/memory/mem_bodyfile.body -z UTC > ./analysis/memory/mem_timeline.txt
 ```
 
 ---
@@ -263,9 +265,9 @@ python3 /opt/memory-baseliner/baseline.py \
   -o ./analysis/memory/svc_baseline.csv
 
 # Convert pipe-delimited output to true CSV
-sed -i 's/|/,/g' ./analysis/memory/proc_baseline.csv
-sed -i 's/|/,/g' ./analysis/memory/drv_baseline.csv
-sed -i 's/|/,/g' ./analysis/memory/svc_baseline.csv
+sed 's/|/,/g' ./analysis/memory/proc_baseline.csv > ./analysis/memory/proc_baseline_csv.csv
+sed 's/|/,/g' ./analysis/memory/drv_baseline.csv > ./analysis/memory/drv_baseline_csv.csv
+sed 's/|/,/g' ./analysis/memory/svc_baseline.csv > ./analysis/memory/svc_baseline_csv.csv
 ```
 
 > **IMPORTANT:** `--loadbaseline` is a standalone boolean flag. `--jsonbaseline <path>` is the

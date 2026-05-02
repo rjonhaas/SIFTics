@@ -27,7 +27,7 @@ exports (CrowdStrike, SentinelOne, Defender ATP), use the `edr-telemetry` skill 
 | passwd / shadow | `/etc/passwd`, `/etc/shadow` | User accounts, password hashes |
 | SSH | `~/.ssh/authorized_keys`, `~/.ssh/known_hosts` | Key-based auth, pivoted-to hosts |
 | Loaded modules | `/proc/modules`, `lsmod` output | Kernel rootkit check |
-| SUID/SGID | `find / -perm /6000` | Privilege escalation vectors |
+| SUID/SGID | `find $CASE_ROOT -perm /6000` | Privilege escalation vectors |
 
 ---
 
@@ -98,11 +98,11 @@ done | tee ./analysis/linux/history_gaps.txt
 
 # High-value command patterns in history
 grep -Eh \
-  '(wget|curl[ :]|nc |netcat|python.*-c|perl.*-e|ruby.*-e|chmod \+x|base64|' \
-  '/tmp/|/dev/shm|scp |ssh -|sudo|su -|useradd|usermod|groupadd|' \
-  'crontab|systemctl enable|/etc/passwd|/etc/shadow|' \
-  'iptables|ufw|nmap|masscan|ldapsearch|secretsdump|mimikatz|' \
-  'openssl.*-d|dd if=|mkfifo|mknod)' \
+  -e '(wget|curl[ :]|nc |netcat|python.*-c|perl.*-e|ruby.*-e|chmod \+x|base64)' \
+  -e '(/tmp/|/dev/shm|scp |ssh -|sudo|su -|useradd|usermod|groupadd)' \
+  -e '(crontab|systemctl enable|/etc/passwd|/etc/shadow)' \
+  -e '(iptables|ufw|nmap|masscan|ldapsearch|secretsdump|mimikatz)' \
+  -e '(openssl.*-d|dd if=|mkfifo|mknod)' \
   ./analysis/linux/bash_history_all.txt \
   | tee ./analysis/linux/bash_history_suspicious.txt
 
@@ -221,6 +221,8 @@ fi
 ---
 
 ## Escalation to IC (cross-skill pivots)
+
+Classify each escalated finding as CONFIRMED, INFERRED, or CONTRADICTED per the IC Finding Taxonomy (≥2 independent artefact types = CONFIRMED; 1–2 sources = INFERRED) before writing to the COP.
 
 | Finding | IC pivot |
 |---------|---------|

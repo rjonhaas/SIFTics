@@ -42,6 +42,7 @@ Run once at case start, before Period 1.
 Survey the case root and record every evidence source:
 
 ```bash
+# *.zip includes Velociraptor collection archives
 find /cases/<case_name> -maxdepth 3 \( \
   -name "*.raw" -o -name "*.mem" -o -name "*.dmp" -o -name "*.vmem" \
   -o -name "*.img" -o -name "*.E01" -o -name "*.ex01" \
@@ -49,7 +50,7 @@ find /cases/<case_name> -maxdepth 3 \( \
   -o -name "*.evtx" \
   -o -name "\$MFT" \
   -o -name "*.jsonl.gz" -o -name "*.json.gz" \
-  -o -name "*.zip" \  # *.zip includes Velociraptor collection archives
+  -o -name "*.zip" \
 \) | sort
 ```
 
@@ -61,6 +62,7 @@ relative to the suspected attack window (see 0B).
 Hash every original evidence file before any analysis touches it:
 
 ```bash
+mkdir -p ./analysis/
 # Hash all evidence files at case root (skip analysis/ and exports/ dirs)
 find /cases/<case_name> -not -path "*/analysis/*" -not -path "*/exports/*" \
   -not -path "*/reports/*" -type f \
@@ -84,6 +86,7 @@ runs first.
 | Disk image / KAPE | Time of collection | After cleanup = deleted artifacts | Prioritize USN, MFT, carved data |
 | PCAP | Duration | Overlaps attack = C2 visible | Run network analysis early |
 | CloudTrail logs | Log retention window | Wide coverage | Good for timeline anchoring |
+| Memory image | Before attack window | Predates attack | Run as baseline comparison only — after disk analysis; do not prioritize for live C2 state |
 
 **If memory capture timestamp falls inside the active attack window** (attacker was operating
 when snapshot was taken): memory-analysis runs before disk analysis. Live C2 connections,
@@ -205,7 +208,7 @@ Parallel eligible?:  [yes only if two independent unknowns confirmed — see gat
 
 **Parallel activation gate:** Default is sequential — one skill at a time. Run two skills in
 parallel only when all three conditions hold:
-1. Initial triage for the primary evidence type has completed and returned findings. For Windows KAPE collections: windows-artifacts initial pass. For Linux hosts: linux-host initial pass. For EDR/Velociraptor: edr-telemetry initial pass. For cloud: cloud-forensics initial pass. For macOS endpoints: macos-triage initial pass.
+1. Initial triage for the primary evidence type has completed and returned findings. For Windows KAPE collections: windows-artifacts initial pass. For Linux hosts: linux-host initial pass. For EDR/Velociraptor: edr-telemetry initial pass. For cloud: cloud-forensics initial pass. For macOS endpoints: macos-triage skill run (single-pass skill).
 2. Two critical unknowns are confirmed independent (answering one does not change how
    you answer the other).
 3. Neither is yara-hunting or malware analysis — those require a specific artifact identified
@@ -257,7 +260,7 @@ the operational period:
 
 | Finding | Pivot action |
 |---|---|
-| `malfind` produces PE dump with MZ header | Feed dump to `yara-hunting`; cross-check hash against disk artifacts in `windows-artifacts` ShimCache/Amcache |
+| `malfind` produces PE dump with MZ header | Feed dump to `yara-hunting`; cross-check hash against ShimCache/Amcache at `./exports/shimcache/` (domain skill) or `<MACHINE>/Registry/` (SIFTics scripts) |
 | Memory netscan reveals external C2 IP | Add to IOC master; check disk event logs for matching outbound connections (EVTX EID 5156 / Sysmon EID 3) |
 | Credential theft confirmed (LSASS, SAM) | Check all other machines in scope for same account's logon events — scope may need to expand |
 | Lateral movement to new host confirmed | Add new host to evidence inventory; open new objective for that machine next period |

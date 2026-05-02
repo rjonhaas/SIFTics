@@ -106,10 +106,8 @@ tshark -r <capture.pcap> -Y tls.handshake.type==1 \
 ### Step 5 — Beaconing detection
 
 ```bash
-# Connection intervals per destination IP (look for regular intervals = beaconing)
-tshark -r <capture.pcap> -T fields -e frame.time_epoch -e ip.dst \
-  | awk '{print $2, $1}' | sort | \
-python3 - <<'EOF' | tee ./analysis/network/beacon_candidates.txt
+# Write beacon detection script to temp file
+cat > /tmp/beacon_detect.py <<'PYEOF'
 import sys, statistics
 from collections import defaultdict
 
@@ -136,7 +134,15 @@ for ip, times in sorted(flows.items()):
         print(f"{ip:<18} {len(times):>11} {mean:>14.1f}s {sd:>8.1f}s {cv:>6.2f}  *** BEACON CANDIDATE")
     else:
         print(f"{ip:<18} {len(times):>11} {mean:>14.1f}s {sd:>8.1f}s {cv:>6.2f}")
-EOF
+PYEOF
+
+# Connection intervals per destination IP (look for regular intervals = beaconing)
+PCAP="<capture.pcap>"
+tshark -r "$PCAP" -T fields -e ip.dst -e frame.time_epoch \
+  -Y "tcp.flags.syn==1 && !tcp.flags.ack==1" \
+  | awk '{print $1, $2}' | sort \
+  | python3 /tmp/beacon_detect.py \
+  | tee ./analysis/network/beacon_candidates.txt
 ```
 
 ### Step 6 — Zeek full protocol analysis (if Zeek available)
@@ -194,8 +200,12 @@ tshark -r <capture.pcap> -Y "ftp.request.command == \"USER\" or ftp.request.comm
 tshark -r <capture.pcap> -Y "http.authorization" \
   -T fields -e frame.time -e ip.src -e ip.dst -e http.authorization \
   | while IFS=$'\t' read -r ts src dst auth; do
-      decoded=$(echo "$auth" | sed 's/Basic //' | base64 -d 2>/dev/null)
-      echo "$ts  $src→$dst  $auth  ($decoded)"
+      if [[ "$auth" == Basic\ * ]]; then
+          decoded=$(echo "$auth" | sed 's/Basic //' | base64 -d 2>/dev/null)
+          echo "$ts  $src→$dst  $auth  ($decoded)"
+      else
+          echo "$ts  $src→$dst  $auth  (non-Basic scheme — not decoded)"
+      fi
     done | tee ./analysis/network/http_basic_auth.txt
 
 # SMTP credentials
@@ -240,6 +250,8 @@ When a finding is detected, follow the thread before escalating to the IC:
 ---
 
 ## Escalation to IC (cross-skill pivots)
+
+Classify each escalated finding as CONFIRMED, INFERRED, or CONTRADICTED per the IC Finding Taxonomy (≥2 independent artefact types = CONFIRMED; 1–2 sources = INFERRED) before writing to the COP.
 
 These findings leave network-analysis and require another skill:
 

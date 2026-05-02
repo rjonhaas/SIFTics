@@ -79,6 +79,8 @@ for artifact in RunKey Autorun ScheduledTask Services CronJob SystemdUnit; do
     if [[ -n "$found" ]]; then
         echo "=== $artifact: $found ==="
         jq -r '.' "$found" 2>/dev/null | head -100
+    else
+        echo "No ${artifact} artifacts found in collection"
     fi
 done | tee ./analysis/velociraptor/persistence.txt
 
@@ -97,7 +99,9 @@ if [[ -n "$VR_MFT" ]]; then
     echo "File timeline rows: $(wc -l < ./analysis/velociraptor/file_timeline.csv)"
 
     # Files created/modified in attack window — adjust dates
-    jq -r 'select(.Created0x10 >= "2025-01-01") |
+    # Set INCIDENT_START to the beginning of the attack window (YYYY-MM-DD)
+    INCIDENT_START="${INCIDENT_START:-2025-01-01}"
+    jq -r --arg start "$INCIDENT_START" 'select(.Created0x10 >= $start) |
            [.Created0x10, .Modified0x10, .FullPath, .FileSize] | @csv' \
       "$VR_MFT" 2>/dev/null | tee ./analysis/velociraptor/file_timeline_incident.csv
 fi
@@ -226,7 +230,8 @@ echo "MDE external network: $(wc -l < ./analysis/edr/mde_network_external.csv)"
 ### Parent-Chain Builder (all vendors)
 
 ```bash
-# Works on CrowdStrike JSON Lines — adapt field names for other vendors
+# Adapt field names for non-CrowdStrike vendors — see Vendor Field Mapping table above.
+# Set EDR_EXPORT to the correct vendor export path before running.
 (python3 - "$EDR_EXPORT" <<'EOF'
 import json, sys
 from collections import defaultdict
@@ -324,6 +329,8 @@ EOF
 ---
 
 ## Escalation to IC (cross-skill pivots)
+
+Classify each escalated finding as CONFIRMED, INFERRED, or CONTRADICTED per the IC Finding Taxonomy (≥2 independent artefact types = CONFIRMED; 1–2 sources = INFERRED) before writing to the COP.
 
 | Finding | IC pivot |
 |---------|---------|

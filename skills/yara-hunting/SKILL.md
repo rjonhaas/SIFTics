@@ -162,7 +162,7 @@ yara -r /path/to/rules.yar ./exports/files/
 
 ### Scan with Match Detail (Show Matching Strings)
 ```bash
-yara -r -s /path/to/rules.yar ./exports/files/ 2>/dev/null | tee ./exports/yara_hits/hits.txt
+yara -r -s /path/to/rules.yar ./exports/files/ 2>/dev/null | tee ./exports/yara_hits/ioc_sweep_${CASE_ID}_$(date +%Y%m%d).txt
 ```
 
 ### Scan with Metadata Output

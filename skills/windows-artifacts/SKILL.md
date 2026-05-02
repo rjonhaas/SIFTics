@@ -455,6 +455,9 @@ grep -i "not verified" <hostname>-Autorunsc.csv
 # Find enabled entries only
 grep -i ",enabled," <hostname>-Autorunsc.csv
 
+# Verify column indices before running: head -1 <hostname>-Autorunsc.csv | tr ',' '\n' | nl
+# Column order may vary by Autorunsc version; $8=signer, $10=hash are common defaults.
+
 # Find entries with blank signer (column 8 in standard CSV)
 awk -F',' '$8 == ""' <hostname>-Autorunsc.csv
 
@@ -749,7 +752,7 @@ installer paths.
 
 **Ad-hoc query** (if re-running manually against a Sysmon CSV):
 ```bash
-python3 - <<'EOF'
+python3 - /path/to/Sysmon.csv <<'EOF'
 import csv, re, sys
 NOISE = {("tsthemes.exe","tstheme.exe"),("usoclient","usoclient.exe")}
 with open(sys.argv[1], encoding="utf-8-sig") as f:
@@ -765,7 +768,6 @@ with open(sys.argv[1], encoding="utf-8-sig") as f:
         if ib != ob and ob not in ("-","") and (ob,ib) not in NOISE:
             print(row.get("TimeCreated",""), img.group(1), "→", ob)
 EOF
-<path/to/Sysmon.csv>
 ```
 
 ---

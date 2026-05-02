@@ -88,7 +88,9 @@ Check which output subdirectories and files exist and contain data:
 **Phase 1 startup check — evidence_hashes.txt:** Check for `./analysis/evidence_hashes.txt`. If absent: run the Phase 0B hash command now before proceeding to Phase 2. Do not skip Section 2A — it is mandatory regardless of whether the IC skill ran:
 
 ```bash
-find . -not -path "*/analysis/*" -not -path "*/exports/*" \
+# CASE_ROOT should be set to the actual case root path
+CASE_ROOT=$(pwd)
+find "$CASE_ROOT" -not -path "*/analysis/*" -not -path "*/exports/*" \
   -not -path "*/reports/*" -type f \
   -exec sha256sum {} \; | tee ./analysis/evidence_hashes.txt
 ```
@@ -189,7 +191,7 @@ Document the scope table in Section 2. If a machine is POSSIBLE COMPROMISE, add 
 | `./analysis/cloud/ct_external_role_use.csv` | Cloud-forensics skill ran (IMDS / external role use) |
 | `./analysis/memory/svcscan.txt` | Memory dump analyzed with memory-analysis skill — populate Section 9C (Services) |
 | `$CASE/analysis/unified_logs/unified.jsonl` | macOS unified log — macOS endpoint summary |
-| `$CASE/analysis/persistence/` CSVs | macOS persistence (LaunchAgents, LaunchDaemons) |
+| `$CASE/analysis/autostart/` CSVs | macOS persistence (LaunchAgents, LaunchDaemons) |
 
 ### Harvest format
 For each file read, record:

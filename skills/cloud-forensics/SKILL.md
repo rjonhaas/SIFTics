@@ -26,7 +26,7 @@ GuardDuty findings arrive as `.jsonl.gz` (one JSON object per line, gzipped).
 gunzip -c <findings.jsonl.gz> > ./exports/cloud/guardduty.jsonl
 
 # Decompress all at once
-find . -name "*.jsonl.gz" -exec sh -c 'gunzip -c "$1" >> ./exports/cloud/guardduty.jsonl' _ {} \;
+find "$CASE_ROOT" -name "*.jsonl.gz" -exec sh -c 'gunzip -c "$1" >> ./exports/cloud/guardduty.jsonl' _ {} \;
 
 # List all finding types and counts (triage priority)
 jq -r '.type' ./exports/cloud/guardduty.jsonl | sort | uniq -c | sort -rn
@@ -77,16 +77,12 @@ python3 - <<'EOF'
 import json, sys
 out = open('./exports/cloud/cloudtrail.jsonl', 'w')
 with open('./exports/cloud/cloudtrail_all.json.raw') as f:
-    for line in f:
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            obj = json.loads(line)
-            for rec in obj.get('Records', [obj]):
-                out.write(json.dumps(rec) + '\n')
-        except json.JSONDecodeError:
-            pass
+    try:
+        data = json.load(f)
+        for rec in data.get('Records', [data]):
+            out.write(json.dumps(rec) + '\n')
+    except Exception as e:
+        sys.stderr.write(f"Error parsing {f.name}: {e}\n")
 out.close()
 print(f"Wrote {sum(1 for _ in open('./exports/cloud/cloudtrail.jsonl'))} events")
 EOF
@@ -174,7 +170,7 @@ jq 'select(.eventName == "CreateUser")' ./exports/cloud/cloudtrail.jsonl | \
           .requestParameters.userName] | @csv'
 
 # Policy attachment / inline policy writes (privilege escalation)
-jq 'select(.eventName | test("AttachUserPolicy|AttachRolePolicy|PutUserPolicy|PutRolePolicy"))' \
+jq 'select(.eventName | test("AttachUserPolicy|AttachRolePolicy|PutUserPolicy|PutRolePolicy|CreateLoginProfile|UpdateLoginProfile|AddUserToGroup|CreateRole"))' \
   ./exports/cloud/cloudtrail.jsonl | \
   jq -r '[.eventTime, .eventName, (.userIdentity.userName // "N/A"),
           .sourceIPAddress, (.requestParameters | tostring)] | @csv' \

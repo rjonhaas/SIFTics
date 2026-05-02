@@ -201,7 +201,6 @@ sudo ils -A /mnt/ewf/ewf1 > ./analysis/ils_unallocated.txt
 sudo ils -m /mnt/ewf/ewf1 > ./analysis/ils_bodyfile.txt
 
 # Extract raw unallocated blocks (for carving on tight storage budgets)
-sudo blkls /mnt/ewf/ewf1 > ./analysis/unallocated.raw
 # or targeted:
 sudo blkls -a /mnt/ewf/ewf1 > ./analysis/allocated.raw     # allocated blocks only
 sudo blkls -A /mnt/ewf/ewf1 > ./analysis/unallocated.raw   # unallocated blocks only
@@ -289,7 +288,7 @@ sudo icat /mnt/ewf/ewf1 0 > ./exports/mft/\$MFT
 
 # UsnJrnl (inode 11 on NTFS) — $J data stream contains the change journal
 sudo icat /mnt/ewf/ewf1 11-128-4 > ./exports/mft/\$J 2>/dev/null || \
-sudo icat /mnt/ewf/ewf1 11 > ./exports/mft/\$J
+  { echo "ERROR: Could not extract \$J data stream — verify attribute ID with: istat /mnt/ewf/ewf1 11"; }
 
 # Amcache
 sudo cp /mnt/windows_mount/Windows/AppCompat/Programs/Amcache.hve ./exports/registry/

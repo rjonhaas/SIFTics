@@ -206,7 +206,7 @@ strings "$TRIAGE/private/etc/localtime" | tail -3
 
 ```bash
 # Collection timestamp is encoded in the package dirname: YYYYMMDD_HHMMSS (local time)
-basename "$CASE"
+basename "$TRIAGE"
 
 # Hostname and any collection errors
 head -5 "$CASE/"*_Processing_Details.txt
@@ -404,9 +404,9 @@ After identifying a downloaded suspicious app, use the Unified Log to reconstruc
 **No `applicationQuit` after a spawn = process ran to completion (or reverse shell staying alive).**
 
 ```python
-import json, datetime
+import json, datetime, os
 
-UNIFIED = "analysis/unified_logs/unified.jsonl"
+UNIFIED = os.path.join(os.environ.get('CASE', '.'), 'analysis/unified_logs/unified.jsonl')
 APP_NAME = "<SuspiciousAppName>"   # e.g. "Scientific-Calculator"
 
 launches, blocks = [], []
@@ -514,6 +514,10 @@ for TCC_DB in \
   "$TRIAGE/Library/Application Support/com.apple.TCC/TCC.db" \
   "$TRIAGE/Users/$MAC_USER/Library/Application-Support/com.apple.TCC/TCC.db"; do
   echo "=== $TCC_DB ==="
+  if [[ ! -f "$TCC_DB" ]]; then
+    echo "NOT FOUND: $TCC_DB"
+    continue
+  fi
   sqlite3 -header "$TCC_DB" "
   SELECT
     service,

@@ -630,7 +630,7 @@ Flag: GetObject volume spike, DeleteObject (covering tracks), anomalous user-age
 ## 10B. macOS Endpoint Analysis
 
 <!--
-Source: macos-triage skill output under $CASE/analysis/
+Source: macos-triage skill output under ./analysis/
 Include this section when a macOS triage package was analyzed.
 If macos-triage skill has not run: write "[WORKFLOW GAP: macOS evidence present but
 macos-triage skill not yet run]" and leave section stub.
@@ -639,7 +639,7 @@ macos-triage skill not yet run]" and leave section stub.
 ### Persistence Mechanisms
 
 <!--
-Source: $CASE/analysis/persistence/launchagents.csv, launchdaemons.csv, loginitems.csv
+Source: ./analysis/autostart/launchagents.csv, launchdaemons.csv, loginitems.csv
 Flag: entries pointing outside /Library/Apple/, /System/Library/, /usr/
 -->
 
@@ -650,7 +650,7 @@ Flag: entries pointing outside /Library/Apple/, /System/Library/, /usr/
 ### Quarantine Events
 
 <!--
-Source: $CASE/analysis/quarantine/quarantine_events.csv
+Source: ./analysis/quarantine/quarantine_events.csv
 Flag: downloads during incident window, files with LSFileQuarantineAgentBundleIdentifier
 pointing to browsers, email clients, or scripting tools.
 -->
@@ -662,7 +662,7 @@ pointing to browsers, email clients, or scripting tools.
 ### Unified Log — Key Events
 
 <!--
-Source: $CASE/analysis/unified_logs/unified.jsonl (filtered summaries)
+Source: ./analysis/unified_logs/unified.jsonl (filtered summaries)
 Include only high-value events: process execution, network connections, auth events.
 -->
 
