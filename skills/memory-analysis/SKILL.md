@@ -221,7 +221,9 @@ grep -Ei "(https?://|ftp://|\\\\\\\\|cmd\.exe|powershell|regsvr|certutil)" \
 
 ```bash
 # Generate timeline of all memory artifacts
-vol -f <image.img> timeliner --create-bodyfile > ./analysis/memory/mem_bodyfile.txt
+# Plugin path is timeliner.Timeliner in Volatility 3. If this fails, try windows.timeliner.Timeliner.
+# The bare "timeliner" name is a Volatility 2 convention and will not work in Vol3.
+vol -f <image.img> timeliner.Timeliner --create-bodyfile > ./analysis/memory/mem_bodyfile.txt
 mactime -b ./analysis/memory/mem_bodyfile.txt -z UTC > ./analysis/memory/mem_timeline.txt
 ```
 

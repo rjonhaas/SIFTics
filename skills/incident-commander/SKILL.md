@@ -27,6 +27,12 @@ synthesizes findings across skills. Tool execution happens inside the domain ski
 
 ---
 
+## Deprecated Skills Note
+
+> **`linux-endpoint` is deprecated.** It was the predecessor to the `linux-host` + `edr-telemetry` split and should NOT be invoked. Route Linux host forensics to `linux-host` and Velociraptor/EDR collections to `edr-telemetry`.
+
+---
+
 ## Phase 0 — Case Initialization
 
 Run once at case start, before Period 1.
@@ -57,8 +63,10 @@ Hash every original evidence file before any analysis touches it:
 # Hash all evidence files at case root (skip analysis/ and exports/ dirs)
 find /cases/<case_name> -not -path "*/analysis/*" -not -path "*/exports/*" \
   -not -path "*/reports/*" -type f \
-  -exec sha256sum {} \; | tee /cases/<case_name>/analysis/evidence_hashes.txt
+  -exec sha256sum {} \; | tee ./analysis/evidence_hashes.txt
 ```
+
+> **Note:** Writing to `./analysis/` within the case working directory is permitted — only raw evidence files in the case root must not be modified.
 
 Record the hash file path in the COP. Every subsequent analysis session should verify
 that original evidence files still match these hashes before proceeding.
@@ -128,6 +136,10 @@ period.
 ## Completed Analysis Phases
 [Skills invoked and what they produced]
 
+## Outstanding Pivot Actions
+| ID | Finding | Source Skill | Target Skill | Status |
+|----|---------|-------------|--------------|--------|
+
 ## Next Actions (Period N+1)
 [Prioritized task list]
 ```
@@ -164,6 +176,8 @@ Period start
   ├─ 4. Read skill outputs — classify each finding as CONFIRMED / INFERRED / CONTRADICTED
   ├─ 5. Update COP
   ├─ 6. Check cross-skill pivot table — does any finding trigger another skill?
+  │      When a cross-skill pivot is triggered, add a row to the Outstanding Pivot Actions
+  │      table in the COP with Status=OPEN. Mark it RESOLVED when the target skill returns findings.
   ├─ 7. Decide: open next period, or close case?
   │
   └─ If closing: invoke investigation-report skill with COP path
@@ -190,7 +204,7 @@ Parallel eligible?:  [yes only if two independent unknowns confirmed — see gat
 
 **Parallel activation gate:** Default is sequential — one skill at a time. Run two skills in
 parallel only when all three conditions hold:
-1. Triage (windows-artifacts initial pass) has completed and returned findings.
+1. Initial triage for the primary evidence type has completed and returned findings. For Windows KAPE collections: windows-artifacts initial pass. For Linux hosts: linux-host initial pass. For EDR/Velociraptor: edr-telemetry initial pass. For cloud: cloud-forensics initial pass.
 2. Two critical unknowns are confirmed independent (answering one does not change how
    you answer the other).
 3. Neither is yara-hunting or malware analysis — those require a specific artifact identified
@@ -214,6 +228,7 @@ parallel only when all three conditions hold:
 | EDR export (CrowdStrike/S1/Defender ATP) | `edr-telemetry` | Process tree, network connections, file writes |
 | AWS CloudTrail / GuardDuty logs | `cloud-forensics` | IAM abuse, IMDS theft, S3 exfil |
 | Cross-source timeline needed | `plaso-timeline` | When EVTX + MFT + registry need unified timeline |
+| Raw disk image (no pre-extracted artifacts) | `sleuthkit` | File system triage, MFT recovery, file carving |
 | macOS endpoint involved | `macos-triage` | Unified log, FSEvents, quarantine DB |
 | All analysis complete, findings stable | `investigation-report` | Final documented report |
 
@@ -226,7 +241,11 @@ parallel only when all three conditions hold:
 | Suspicious binary identified by hash or path | `yara-hunting` — targeted, with specific file path |
 | Persistence found on disk, memory predates attack | `windows-artifacts` — full artifact sweep |
 | Lateral movement confirmed to new machine | Expand scope — add new machine to evidence inventory |
+| All disk + memory complete, multi-source timeline needed | `plaso-timeline` — unified cross-source timeline |
 | All disk + memory complete, gaps remain | Document as unresolved; do not loop indefinitely |
+| Active compromise on Linux host, no Windows evidence | `linux-host` — auth logs + bash history first, then `edr-telemetry` if Velociraptor available |
+| Cloud account compromise suspected | `cloud-forensics` — GuardDuty + CloudTrail first, then scope to affected services |
+| EDR-only evidence (no KAPE, no memory) | `edr-telemetry` — process tree + network connections; substitute for windows-artifacts triage |
 
 ---
 
@@ -243,10 +262,17 @@ the operational period:
 | Lateral movement to new host confirmed | Add new host to evidence inventory; open new objective for that machine next period |
 | Unquoted service path identified | Check MFT for file creation at candidate resolution paths within 24h of service install/start |
 | New external IP from any skill | Add to IOC master; pivot to `yara-hunting` if it appears as a C2 callback URL in strings |
-| Webshell confirmed (webshell_inventory.csv) | Check Sysmon EID 1 for `w3wp.exe` child processes on that machine; cross-ref lolbin_downloads.csv |
+| Webshell confirmed (`<MACHINE>/WebServer/webshell_inventory.csv`) | Check Sysmon EID 1 for `w3wp.exe` child processes on that machine; cross-ref `<MACHINE>/WebServer/lolbin_downloads.csv`. Note: these files are produced by Phase 13 (run_webserver.sh), not by a domain skill. |
 | Hash from any skill not previously seen | Run `yara-hunting` against it before reporting — may match known threat actor tooling |
 | `$STANDARD_INFO` predates `$FILE_NAME` by >1s | Flag timestomping in COP; check nearby MFT entries for same attacker session |
 | Cloud role abuse confirmed (IMDS theft) | Check CloudTrail for all API calls from stolen access key; expand cloud-forensics scope to all regions |
+| `ioc_master.csv` populated | (produced by Phase 9 run_ioc_extract.sh, not by a domain skill) — deduplicate against IOC master before reporting |
+| `lolbin_downloads.csv` present | (produced by Phase 13 run_webserver.sh, not by a domain skill) — cross-ref destination paths with webshell inventory |
+| EVTX + MFT + registry timestamps diverge for same event OR timeline spans >7 days with gaps | Invoke plaso-timeline to build unified super-timeline across all sources |
+| Unallocated space likely contains carved evidence | Invoke sleuthkit for file carving and MFT recovery |
+| LaunchAgent/LaunchDaemon created in non-system path | Pivot to macos-triage for persistence analysis |
+| Quarantine DB entry for suspicious download | Pivot to macos-triage; hash the file; consider yara-hunting |
+| Unified Log shows suspicious process execution | Pivot to macos-triage for process tree reconstruction |
 
 ---
 
@@ -277,15 +303,12 @@ Scope expands when a skill finds evidence of activity on machines not in the ori
 evidence inventory (lateral movement artifacts, remote logon events pointing to new hosts,
 cloud APIs called from new regions).
 
-When scope expansion is detected:
-1. Add new machines/sources to the COP under "Possible scope expansion."
-2. Do not automatically analyze them — flag for human operator decision.
-3. Note in the COP what evidence suggests they are in scope and what the risk of
-   not analyzing them is.
-4. If the operator confirms expansion: add to evidence inventory, re-run 0A–0C for
-   new sources, open a new objective next period.
+When scope expansion is detected, apply the following autonomous expansion rule:
+- If lateral movement artifacts point to a machine already in the evidence inventory (KAPE or image present), add it to scope and open a new objective next period.
+- If the machine has no evidence collected yet, add it to "Possible scope expansion" in the COP and document the risk of not analyzing it — but do not attempt to analyze it (no evidence to work with).
+- Do not pause to ask the operator.
 
-Scope does not expand automatically. The operator gates it.
+Record in the COP: what evidence suggests the new machine is in scope, what was decided (added / deferred), and why.
 
 ---
 
@@ -303,7 +326,7 @@ Close the case when one of the following is true:
 - [ ] All scope expansion decisions recorded (expanded or explicitly deferred)
 - [ ] Evidence hash file present at `./analysis/evidence_hashes.txt`
 - [ ] COP updated to final state with `Status: Closed — Period N`
-- [ ] Cross-skill pivots exhausted (no outstanding pivot actions)
+- [ ] Cross-skill pivots exhausted — Outstanding Pivot Actions table in COP has no OPEN rows
 
 Then invoke: `@~/.claude/skills/investigation-report/SKILL.md`
 

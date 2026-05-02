@@ -27,23 +27,70 @@ or in what order.
 Before writing anything, survey the analysis directory completely.
 
 ### 1A. Identify completed workflow phases
+
+**Script workflow background:** The phase completion signals (Phase 1–13) correspond to the SIFTics triage scripts:
+
+| Phase | Script | Primary Output |
+|-------|--------|----------------|
+| 1 | run_ntfs.sh | MFT and filesystem timeline artifacts |
+| 2 | run_registry.sh | `<MACHINE>/Registry/` CSVs |
+| 3 | run_eventlogs.sh | `<MACHINE>/EventLogs/` CSVs |
+| 4 | run_artifacts.sh | `<MACHINE>/Artifacts/` CSVs |
+| 5 | run_execution.sh | `<MACHINE>/Execution/` CSVs |
+| 6 | run_hunting.sh | `<MACHINE>/Hunting/` CSVs + `hunting_timeline.csv` |
+| 7 | run_credaccess.sh | `credaccess_timeline.csv` |
+| 8 | run_antiforensics.sh | `<MACHINE>/AntiForensics/` + `antiforensics_timeline.csv` |
+| 9 | run_ioc_extract.sh | `ioc_master.csv`, `ioc_summary.txt` |
+| 10 | run_c2_beacon.sh | `<MACHINE>/Execution/IIS/c2_beacon.csv` |
+| 11 | run_browser.sh | `<MACHINE>/Browser/` CSVs |
+| 12 | run_ransomware.sh | `<MACHINE>/Ransomware/` CSVs + `ransomware_summary.txt` |
+| 13 | run_webserver.sh | `<MACHINE>/WebServer/` CSVs + `webserver_summary.txt` |
+
+**Machine-namespaced paths:** The `<MACHINE>/` prefix in all paths refers to machine-named subdirectories under the case analysis root. For example: `/cases/jackofallhacks/analysis/DC01/Registry/`. List every machine present by enumerating these subdirectories.
+
+**Domain skill output paths:** If domain skills were run instead of (or in addition to) the scripts, their outputs land in the following paths:
+
+| Domain Skill | Output Directory |
+|---|---|
+| windows-artifacts | `./exports/evtx/parsed/`, `./exports/shimcache/`, `./exports/amcache/`, `./exports/registry/`, `./exports/mft/`, `./exports/shellbags/` |
+| memory-analysis | `./analysis/memory/`, `./exports/malfind/`, `./exports/dumpfiles/`, `./exports/memdump/` |
+| network-analysis | `./analysis/network/`, `./exports/network/` |
+| malware-analysis | `./analysis/malware/`, `./exports/malware/` |
+| yara-hunting | `./exports/yara_hits/`, `./exports/yara/case_rules/` |
+| cloud-forensics | `./analysis/cloud/`, `./exports/cloud/` |
+| linux-host | `./analysis/linux/`, `./exports/linux/` |
+| edr-telemetry | `./analysis/velociraptor/`, `./analysis/edr/` |
+| plaso-timeline | `./analysis/<CASE_ID>.plaso`, `./exports/<CASE_ID>_timeline.csv` |
+| sleuthkit | `./analysis/bodyfile.txt`, `./exports/files/`, `./exports/tsk_recover/` |
+| macos-triage | `$CASE/analysis/` (see macos-triage SKILL.md for subdirectory names) |
+
+When domain skills were the primary analysis path, substitute these paths wherever `<MACHINE>/` script paths are referenced in Phase 3.
+
 Check which output subdirectories and files exist and contain data:
 
 ```
 <analysis_root>/
-  ioc_master.csv              → Phase 9 complete
-  ioc_summary.txt             → Phase 9 complete
-  antiforensics_timeline.csv  → Phase 8 complete
-  hunting_timeline.csv        → Phase 6 complete
-  credaccess_timeline.csv     → Phase 7 complete
-  <MACHINE>/EventLogs/        → Phase 3 complete
-  <MACHINE>/Registry/         → Phase 2 complete
-  <MACHINE>/Artifacts/        → Phase 4 complete
-  <MACHINE>/Execution/        → Phase 5 complete
-  <MACHINE>/AntiForensics/    → Phase 8 complete
-  <MACHINE>/Hunting/          → Phase 6 complete
-  <MACHINE>/Browser/          → Phase 11 complete
-  <MACHINE>/Execution/IIS/c2_beacon.csv → Phase 10 complete
+  ioc_master.csv              → Phase 9 complete (run_ioc_extract.sh)
+  ioc_summary.txt             → Phase 9 complete (run_ioc_extract.sh)
+  antiforensics_timeline.csv  → Phase 8 complete (run_antiforensics.sh)
+  hunting_timeline.csv        → Phase 6 complete (run_hunting.sh)
+  credaccess_timeline.csv     → Phase 7 complete (run_credaccess.sh)
+  <MACHINE>/EventLogs/        → Phase 3 complete (run_eventlogs.sh)
+  <MACHINE>/Registry/         → Phase 2 complete (run_registry.sh)
+  <MACHINE>/Artifacts/        → Phase 4 complete (run_artifacts.sh)
+  <MACHINE>/Execution/        → Phase 5 complete (run_execution.sh)
+  <MACHINE>/AntiForensics/    → Phase 8 complete (run_antiforensics.sh)
+  <MACHINE>/Hunting/          → Phase 6 complete (run_hunting.sh)
+  <MACHINE>/Browser/          → Phase 11 complete (run_browser.sh)
+  <MACHINE>/Execution/IIS/c2_beacon.csv → Phase 10 complete (run_c2_beacon.sh)
+```
+
+**Phase 1 startup check — evidence_hashes.txt:** Check for `./analysis/evidence_hashes.txt`. If absent: run the Phase 0B hash command now before proceeding to Phase 2. Do not skip Section 2A — it is mandatory regardless of whether the IC skill ran:
+
+```bash
+find . -not -path "*/analysis/*" -not -path "*/exports/*" \
+  -not -path "*/reports/*" -type f \
+  -exec sha256sum {} \; | tee ./analysis/evidence_hashes.txt
 ```
 
 List every machine present. Note which phases are missing — this affects what sections can be written.
@@ -128,15 +175,17 @@ Document the scope table in Section 2. If a machine is POSSIBLE COMPROMISE, add 
 | `<MACHINE>/Ransomware/*_ransom_notes.csv` | Phase 12 ran — per machine |
 | `<MACHINE>/Ransomware/*_archives.csv` | Phase 12 ran — per machine |
 | `<MACHINE>/Ransomware/*_suspicious_extensions.csv` | Phase 12 ran — per machine |
-| `<MACHINE>/WebServer/injection_attempts.csv` | Phase 13 ran |
-| `<MACHINE>/WebServer/lolbin_downloads.csv` | Phase 13 ran |
-| `<MACHINE>/WebServer/operator_sessions.csv` | Phase 13 ran |
-| `<MACHINE>/WebServer/webshell_inventory.csv` | Phase 13 ran |
-| `webserver_summary.txt` | Phase 13 ran |
-| `./analysis/cloud/guardduty_high_severity.csv` | Cloud-forensics skill ran (GuardDuty) |
-| `./analysis/cloud/cloudtrail_key_events.csv` | Cloud-forensics skill ran (CloudTrail) |
-| `./analysis/cloud/iam_changes.csv` | Cloud-forensics skill ran (IAM) |
-| `./analysis/cloud/s3_exfil.csv` | Cloud-forensics skill ran (S3) |
+| `<MACHINE>/WebServer/injection_attempts.csv` | Phase 13 ran (run_webserver.sh) |
+| `<MACHINE>/WebServer/lolbin_downloads.csv` | Phase 13 ran (run_webserver.sh) — produced by script, not domain skill |
+| `<MACHINE>/WebServer/operator_sessions.csv` | Phase 13 ran (run_webserver.sh) |
+| `<MACHINE>/WebServer/webshell_inventory.csv` | Phase 13 ran (run_webserver.sh) — produced by script, not domain skill |
+| `webserver_summary.txt` | Phase 13 ran (run_webserver.sh) |
+| `./analysis/cloud/gd_high_severity.csv` | Cloud-forensics skill ran (GuardDuty high severity ≥7) |
+| `./analysis/cloud/ct_high_signal.csv` | Cloud-forensics skill ran (CloudTrail high-signal events) |
+| `./analysis/cloud/ct_policy_changes.csv` | Cloud-forensics skill ran (IAM policy changes) |
+| `./analysis/cloud/ct_s3_getobject.csv` | Cloud-forensics skill ran (S3 GetObject / exfil) |
+| `./analysis/cloud/ct_external_role_use.csv` | Cloud-forensics skill ran (IMDS / external role use) |
+| `./analysis/memory/svcscan.txt` | Memory dump analyzed with memory-analysis skill — populate Section 9C (Services) |
 
 ### Harvest format
 For each file read, record:
@@ -334,7 +383,7 @@ Ordering is driven by your Phase 3 classification scores, not by a single rigid 
 | Ransomware | Timeline → Initial Access → Attacker Tooling & Recon → Persistence → Lateral Movement → Anti-Forensics → Memory (if present) → Cloud (if present) → Ransomware Indicators → IOCs → Recommendations |
 | APT / Targeted Intrusion | Timeline → Initial Access → Attacker Tooling & Recon → C2 Infrastructure → Credential Access → Persistence → Lateral Movement → Anti-Forensics → Memory (if present) → Cloud (if present) → IOCs → Recommendations |
 | Insider Threat | Timeline → Attacker Tooling & Recon → Data Staging → Persistence → Browser Artefacts → Anti-Forensics → Cloud (if present) → IOCs → Recommendations |
-| General IR / mixed | Follow template default order |
+| General IR / mixed | Timeline → Initial Access (if present) → Credential Access → Persistence → Lateral Movement → Anti-Forensics → Memory (if present) → Cloud (if present) → Browser & User Behaviour → IOCs → Conclusions → Recommendations |
 
 **Step 2 — Append secondary-type sections that aren't already included:**
 For every type with ≥2 signals that is not the primary, include its characteristic sections
@@ -404,9 +453,9 @@ Write the completed report to `<case_root>/reports/investigation_report.md`. If 
 2. Environment (machines, roles, users, subnet, **Scope of Compromise table**, **Temporal Integrity per machine**)
 2A. Evidence Integrity (chain of custody — SHA256 hashes of all evidence files)
 3. Attack / Incident Timeline (chronological, UTC; skew notations applied where applicable)
-13. Indicators of Compromise (tables: IPs, hashes, domains, accounts, artefacts)
-14. Conclusions
-15. Recommended Next Steps
+12. Indicators of Compromise (tables: IPs, hashes, domains, accounts, artefacts)
+13. Conclusions
+14. Recommended Next Steps
 
 ## Conditional report sections
 
@@ -419,10 +468,10 @@ Write the completed report to `<case_root>/reports/investigation_report.md`. If 
 | Privilege Escalation & Lateral Movement (6) | `hunting_timeline.csv` has data |
 | Anti-Forensics (7) | `antiforensics_timeline.csv` has data |
 | Ransomware & Exfiltration Indicators (8) | Any `<MACHINE>/Ransomware/` CSV exists with data (Phase 12) |
-| Persistence Mechanisms (9) | Any Registry/Autoruns, Execution/ScheduledTasks, or Registry/Services CSV has attacker-created entries |
+| Persistence Mechanisms (9) | Any Registry/Autoruns, Execution/ScheduledTasks, or Registry/Services CSV has attacker-created entries OR `./analysis/memory/svcscan.txt` contains non-baseline service entries |
 | Memory Analysis (10) | Memory dump present under case root |
 | Cloud Infrastructure (10A) | GuardDuty `.jsonl.gz` or CloudTrail `.json.gz` present under case root |
 | Browser & User Behaviour (11) | Browser CSVs exist with data |
-| File Explorer Browsing (ShellBags) | `Registry/ShellBags/<USER>/*.csv` has rows with attacker-relevant paths |
-| Ransomware Encryption Timeline | MFT shows mass file modification + VSS deletion |
-| Workflow Coverage Gaps (16) | Any phase output is missing |
+| File Explorer Browsing / ShellBags (subsection of §5A and §11) | `Registry/ShellBags/<USER>/*.csv` has rows with attacker-relevant paths |
+| Ransomware Encryption Timeline (§8D subsection) | MFT shows mass file modification + VSS deletion |
+| Workflow Coverage Gaps (15) | Any phase output is missing |

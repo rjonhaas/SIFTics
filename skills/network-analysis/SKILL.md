@@ -248,7 +248,7 @@ These findings leave network-analysis and require another skill:
 |---------|---------|
 | Confirmed C2 IP or domain | Add to IOC master; IC cross-refs with memory-analysis netscan |
 | Extracted executable file | IC tasks malware-analysis with the file path |
-| Known-bad JA3 fingerprint | IC tasks yara-hunting against disk for binaries with matching network imports |
+| Known-bad JA3 fingerprint | IC adds JA3 hash to IOC master; look up against abuse.ch JA3 feeds for known malware family; if family identified, IC tasks yara-hunting for that family's file signatures on disk |
 | Credential in cleartext | IC updates COP under Credential Access findings |
 | New external IP not in IOC master | IC cross-refs against cloud-forensics CloudTrail if hybrid environment |
 

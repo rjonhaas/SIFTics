@@ -573,7 +573,7 @@ cloud-forensics skill not yet run]" and leave section stub.
 ### GuardDuty Findings
 
 <!--
-Source: ./analysis/cloud/guardduty_high_severity.csv (severity ≥7)
+Source: ./analysis/cloud/gd_high_severity.csv (severity ≥7)
 List all HIGH/CRITICAL findings. Note finding type, account, region, first/last seen.
 -->
 
@@ -584,7 +584,7 @@ List all HIGH/CRITICAL findings. Note finding type, account, region, first/last 
 ### CloudTrail — IAM Abuse
 
 <!--
-Source: ./analysis/cloud/iam_changes.csv
+Source: ./analysis/cloud/ct_policy_changes.csv
 Covers: CreateAccessKey, AttachUserPolicy, PutRolePolicy, CreateUser, AddUserToGroup,
         AssumedRole from non-AWS sourceIPAddress, GetCallerIdentity from external IP.
 -->
@@ -596,7 +596,7 @@ Covers: CreateAccessKey, AttachUserPolicy, PutRolePolicy, CreateUser, AddUserToG
 ### CloudTrail — IMDS / Credential Theft
 
 <!--
-Source: ./analysis/cloud/imds_theft.csv or equivalent
+Source: ./analysis/cloud/ct_external_role_use.csv
 Indicators: role assumption from external IPs, GetCallerIdentity from non-AWS IPs,
             API calls originating from a foreign region not used by this account.
 -->
@@ -608,7 +608,7 @@ Indicators: role assumption from external IPs, GetCallerIdentity from non-AWS IP
 ### S3 Exfiltration Indicators
 
 <!--
-Source: ./analysis/cloud/s3_exfil.csv
+Source: ./analysis/cloud/ct_s3_getobject.csv
 Flag: GetObject volume spike, DeleteObject (covering tracks), anomalous user-agent,
       bucket access from new external IP.
 -->
