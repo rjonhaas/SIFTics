@@ -49,6 +49,7 @@ find /cases/<case_name> -maxdepth 3 \( \
   -o -name "*.evtx" \
   -o -name "\$MFT" \
   -o -name "*.jsonl.gz" -o -name "*.json.gz" \
+  -o -name "*.zip" \  # *.zip includes Velociraptor collection archives
 \) | sort
 ```
 
@@ -204,7 +205,7 @@ Parallel eligible?:  [yes only if two independent unknowns confirmed — see gat
 
 **Parallel activation gate:** Default is sequential — one skill at a time. Run two skills in
 parallel only when all three conditions hold:
-1. Initial triage for the primary evidence type has completed and returned findings. For Windows KAPE collections: windows-artifacts initial pass. For Linux hosts: linux-host initial pass. For EDR/Velociraptor: edr-telemetry initial pass. For cloud: cloud-forensics initial pass.
+1. Initial triage for the primary evidence type has completed and returned findings. For Windows KAPE collections: windows-artifacts initial pass. For Linux hosts: linux-host initial pass. For EDR/Velociraptor: edr-telemetry initial pass. For cloud: cloud-forensics initial pass. For macOS endpoints: macos-triage initial pass.
 2. Two critical unknowns are confirmed independent (answering one does not change how
    you answer the other).
 3. Neither is yara-hunting or malware analysis — those require a specific artifact identified

@@ -162,7 +162,7 @@ Before writing Section 2, classify every machine in the evidence inventory using
 | **NOT ANALYZED** | Machine is in evidence inventory but no analysis workflow has run yet (e.g., KAPE present but no output in analysis dir) |
 | **CONFIRMED CLEAN** | Analysis ran, no attacker indicators found. Only use this if analysis was complete — do not default to "clean" when not analyzed |
 
-Document the scope table in Section 2. If a machine is POSSIBLE COMPROMISE, add it to Recommended Next Steps (Section 15) as a scope expansion candidate.
+Document the scope table in Section 2. If a machine is POSSIBLE COMPROMISE, add it to Recommended Next Steps (Section 14) as a scope expansion candidate.
 
 ### Read if present
 | File | Condition |
@@ -182,10 +182,14 @@ Document the scope table in Section 2. If a machine is POSSIBLE COMPROMISE, add 
 | `webserver_summary.txt` | Phase 13 ran (run_webserver.sh) |
 | `./analysis/cloud/gd_high_severity.csv` | Cloud-forensics skill ran (GuardDuty high severity ≥7) |
 | `./analysis/cloud/ct_high_signal.csv` | Cloud-forensics skill ran (CloudTrail high-signal events) |
-| `./analysis/cloud/ct_policy_changes.csv` | Cloud-forensics skill ran (IAM policy changes) |
+| `./analysis/cloud/ct_policy_changes.csv` | Cloud-forensics skill ran (IAM policy changes: AttachUserPolicy, PutRolePolicy) |
+| `./analysis/cloud/ct_new_keys.csv` | Cloud-forensics skill ran (IAM key creation: CreateAccessKey) |
 | `./analysis/cloud/ct_s3_getobject.csv` | Cloud-forensics skill ran (S3 GetObject / exfil) |
+| `./analysis/cloud/ct_s3_deletes.csv` | Cloud-forensics skill ran (S3 deletions) |
 | `./analysis/cloud/ct_external_role_use.csv` | Cloud-forensics skill ran (IMDS / external role use) |
 | `./analysis/memory/svcscan.txt` | Memory dump analyzed with memory-analysis skill — populate Section 9C (Services) |
+| `$CASE/analysis/unified_logs/unified.jsonl` | macOS unified log — macOS endpoint summary |
+| `$CASE/analysis/persistence/` CSVs | macOS persistence (LaunchAgents, LaunchDaemons) |
 
 ### Harvest format
 For each file read, record:
@@ -380,10 +384,10 @@ Ordering is driven by your Phase 3 classification scores, not by a single rigid 
 
 | Primary Type | Sections after Environment / Evidence Integrity |
 |---|---|
-| Ransomware | Timeline → Initial Access → Attacker Tooling & Recon → Persistence → Lateral Movement → Anti-Forensics → Memory (if present) → Cloud (if present) → Ransomware Indicators → IOCs → Recommendations |
-| APT / Targeted Intrusion | Timeline → Initial Access → Attacker Tooling & Recon → C2 Infrastructure → Credential Access → Persistence → Lateral Movement → Anti-Forensics → Memory (if present) → Cloud (if present) → IOCs → Recommendations |
-| Insider Threat | Timeline → Attacker Tooling & Recon → Data Staging → Persistence → Browser Artefacts → Anti-Forensics → Cloud (if present) → IOCs → Recommendations |
-| General IR / mixed | Timeline → Initial Access (if present) → Credential Access → Persistence → Lateral Movement → Anti-Forensics → Memory (if present) → Cloud (if present) → Browser & User Behaviour → IOCs → Conclusions → Recommendations |
+| Ransomware | Timeline → Initial Access → Attacker Tooling & Recon → Persistence → Lateral Movement → Anti-Forensics → Memory (if present) → macOS Analysis (10B, if macOS endpoint present) → Cloud (if present) → Ransomware Indicators → IOCs → Recommendations |
+| APT / Targeted Intrusion | Timeline → Initial Access → Attacker Tooling & Recon → C2 Infrastructure → Credential Access → Persistence → Lateral Movement → Anti-Forensics → Memory (if present) → macOS Analysis (10B, if macOS endpoint present) → Cloud (if present) → IOCs → Recommendations |
+| Insider Threat | Timeline → Attacker Tooling & Recon → Data Staging → Persistence → Browser Artefacts → Anti-Forensics → macOS Analysis (10B, if macOS endpoint present) → Cloud (if present) → IOCs → Recommendations |
+| General IR / mixed | Timeline → Initial Access (if present) → Credential Access → Persistence → Lateral Movement → Anti-Forensics → Memory (if present) → macOS Analysis (10B, if macOS endpoint present) → Cloud (if present) → Browser & User Behaviour → IOCs → Conclusions → Recommendations |
 
 **Step 2 — Append secondary-type sections that aren't already included:**
 For every type with ≥2 signals that is not the primary, include its characteristic sections
@@ -471,6 +475,7 @@ Write the completed report to `<case_root>/reports/investigation_report.md`. If 
 | Persistence Mechanisms (9) | Any Registry/Autoruns, Execution/ScheduledTasks, or Registry/Services CSV has attacker-created entries OR `./analysis/memory/svcscan.txt` contains non-baseline service entries |
 | Memory Analysis (10) | Memory dump present under case root |
 | Cloud Infrastructure (10A) | GuardDuty `.jsonl.gz` or CloudTrail `.json.gz` present under case root |
+| macOS Endpoint Analysis (10B) | macOS triage collection present under case root (macos-triage skill ran) |
 | Browser & User Behaviour (11) | Browser CSVs exist with data |
 | File Explorer Browsing / ShellBags (subsection of §5A and §11) | `Registry/ShellBags/<USER>/*.csv` has rows with attacker-relevant paths |
 | Ransomware Encryption Timeline (§8D subsection) | MFT shows mass file modification + VSS deletion |

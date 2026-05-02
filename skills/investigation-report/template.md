@@ -584,7 +584,9 @@ List all HIGH/CRITICAL findings. Note finding type, account, region, first/last 
 ### CloudTrail — IAM Abuse
 
 <!--
-Source: ./analysis/cloud/ct_policy_changes.csv
+Sources:
+  ./analysis/cloud/ct_policy_changes.csv — AttachUserPolicy, PutRolePolicy, and related
+  ./analysis/cloud/ct_new_keys.csv       — CreateAccessKey (IAM key creation / persistence)
 Covers: CreateAccessKey, AttachUserPolicy, PutRolePolicy, CreateUser, AddUserToGroup,
         AssumedRole from non-AWS sourceIPAddress, GetCallerIdentity from external IP.
 -->
@@ -608,7 +610,8 @@ Indicators: role assumption from external IPs, GetCallerIdentity from non-AWS IP
 ### S3 Exfiltration Indicators
 
 <!--
-Source: ./analysis/cloud/ct_s3_getobject.csv
+Sources: ./analysis/cloud/ct_s3_getobject.csv (GetObject / data retrieval)
+         ./analysis/cloud/ct_s3_deletes.csv   (DeleteObject / DeleteBucket — covering tracks)
 Flag: GetObject volume spike, DeleteObject (covering tracks), anomalous user-agent,
       bucket access from new external IP.
 -->
@@ -616,6 +619,56 @@ Flag: GetObject volume spike, DeleteObject (covering tracks), anomalous user-age
 | Time (UTC) | Source IP | Bucket | Operation | Object Count | Bytes | ATT&CK | Source |
 |------------|-----------|--------|-----------|-------------|-------|--------|--------|
 | | | | | | | T1530 | |
+
+---
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- CONDITIONAL: include if macos-triage skill ran      -->
+<!--   (macOS triage collection present under case root) -->
+<!-- ═══════════════════════════════════════════════════ -->
+
+## 10B. macOS Endpoint Analysis
+
+<!--
+Source: macos-triage skill output under $CASE/analysis/
+Include this section when a macOS triage package was analyzed.
+If macos-triage skill has not run: write "[WORKFLOW GAP: macOS evidence present but
+macos-triage skill not yet run]" and leave section stub.
+-->
+
+### Persistence Mechanisms
+
+<!--
+Source: $CASE/analysis/persistence/launchagents.csv, launchdaemons.csv, loginitems.csv
+Flag: entries pointing outside /Library/Apple/, /System/Library/, /usr/
+-->
+
+| Machine | Type | Label | Program | ATT&CK | Created (UTC) | Source |
+|---------|------|-------|---------|--------|--------------|--------|
+| | | | | T1543.004 / T1543.001 | | |
+
+### Quarantine Events
+
+<!--
+Source: $CASE/analysis/quarantine/quarantine_events.csv
+Flag: downloads during incident window, files with LSFileQuarantineAgentBundleIdentifier
+pointing to browsers, email clients, or scripting tools.
+-->
+
+| Time (UTC) | Machine | User | Filename | Source URL | Agent | ATT&CK | Source |
+|------------|---------|------|----------|-----------|-------|--------|--------|
+| | | | | | | T1566 | |
+
+### Unified Log — Key Events
+
+<!--
+Source: $CASE/analysis/unified_logs/unified.jsonl (filtered summaries)
+Include only high-value events: process execution, network connections, auth events.
+-->
+
+| Time (UTC) | Machine | User | Process | Event | ATT&CK | Source |
+|------------|---------|------|---------|-------|--------|--------|
+| | | | | | | |
 
 ---
 

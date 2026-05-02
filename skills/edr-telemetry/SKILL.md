@@ -227,7 +227,7 @@ echo "MDE external network: $(wc -l < ./analysis/edr/mde_network_external.csv)"
 
 ```bash
 # Works on CrowdStrike JSON Lines — adapt field names for other vendors
-python3 - <<'EOF'
+(python3 - "$EDR_EXPORT" <<'EOF'
 import json, sys
 from collections import defaultdict
 
@@ -287,7 +287,7 @@ for pid in list(dict.fromkeys(suspicious_pids))[:30]:
     chain(pid)
     print()
 EOF
-"$EDR_EXPORT" 2>/dev/null | tee ./analysis/edr/process_chains.txt
+) | tee ./analysis/edr/process_chains.txt
 ```
 
 ---
@@ -305,7 +305,7 @@ EOF
 | Scheduled task pointing to `\Temp\` or `\AppData\` | Velociraptor | Persistence via scheduled task (T1053.005) | High |
 | Process with no parent (orphaned) | EDR | Process injection / hollowing (T1055) | High |
 | Signed binary (certutil, msiexec) with download URL in cmdline | EDR | LOLBIN download cradle (T1105) | High |
-| DLL loaded from `\AppData\` or `\Temp\` | Velociraptor | DLL sideloading / hijacking (T1574) | High |
+| DLL loaded from `\AppData\` or `\Temp\` | Velociraptor | DLL sideloading / hijacking (T1574.001 / T1574.002) — use T1574.001 for search-order manipulation, T1574.002 for sideloading via legitimate app | High |
 | `lsass.exe` accessed by non-OS process | EDR | Credential dumping (T1003.001) | Critical |
 
 ---

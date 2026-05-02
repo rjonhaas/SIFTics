@@ -109,7 +109,7 @@ tshark -r <capture.pcap> -Y tls.handshake.type==1 \
 # Connection intervals per destination IP (look for regular intervals = beaconing)
 tshark -r <capture.pcap> -T fields -e frame.time_epoch -e ip.dst \
   | awk '{print $2, $1}' | sort | \
-python3 - <<'EOF'
+python3 - <<'EOF' | tee ./analysis/network/beacon_candidates.txt
 import sys, statistics
 from collections import defaultdict
 
@@ -137,7 +137,6 @@ for ip, times in sorted(flows.items()):
     else:
         print(f"{ip:<18} {len(times):>11} {mean:>14.1f}s {sd:>8.1f}s {cv:>6.2f}")
 EOF
-tee ./analysis/network/beacon_candidates.txt
 ```
 
 ### Step 6 — Zeek full protocol analysis (if Zeek available)

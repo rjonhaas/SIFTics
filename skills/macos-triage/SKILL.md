@@ -6,7 +6,7 @@ This runbook covers triage-based macOS DFIR on a SANS SIFT Ubuntu workstation. I
 
 **Typical triage structure:**
 ```
-<Case>/ireks-Mac-Triage/
+<Case>/<hostname>-Mac-Triage/
 ├── Library/
 │   ├── Application Support/com.apple.TCC/  ← TCC.db (privacy permissions)
 │   ├── LaunchDaemons/                       ← persistence (system-wide)
@@ -920,7 +920,8 @@ If these directories are missing (stripped triage), message resolution will be p
 **Step 1 — Parse the logarchive to JSONL (one-time, ~5–10 min):**
 
 ```bash
-LOGARCHIVE="$TRIAGE/UnifiedLogs/ireks-Mac_20250308_160413.logarchive"
+LOGARCHIVE=$(find "$TRIAGE/UnifiedLogs" -name "*.logarchive" | head -1)
+[ -z "$LOGARCHIVE" ] && echo "ERROR: no .logarchive found under $TRIAGE/UnifiedLogs" && exit 1
 OUT="$CASE/analysis/unified_logs"
 mkdir -p "$OUT"
 
@@ -935,10 +936,14 @@ wc -l "$OUT/unified.jsonl"   # verify line count
 
 **Step 2 — Query the JSONL with Python (fast, repeatable):**
 
-```python
-import json, sys
+```bash
+export UNIFIED_JSONL="$CASE/analysis/unified_logs/unified.jsonl"
+```
 
-JSONL = "/home/sansforensics/Desktop/cases/Ruse/analysis/unified_logs/unified.jsonl"
+```python
+import json, sys, os
+
+JSONL = os.environ.get("UNIFIED_JSONL", "$CASE/analysis/unified_logs/unified.jsonl")
 KEYWORDS = sys.argv[1:]   # pass keywords as args, or hardcode below
 
 with open(JSONL) as f:
@@ -997,7 +1002,7 @@ with open('$OUT/unified.jsonl') as f:
 
 ```bash
 # Basic filtered query
-log show --archive ireks-Mac_20250308_160413.logarchive \
+log show --archive "$LOGARCHIVE" \
   --predicate 'eventMessage CONTAINS "sudo" OR eventMessage CONTAINS "ssh"' \
   --style syslog \
   --start "2025-03-01" --end "2025-03-09"
@@ -1005,35 +1010,35 @@ log show --archive ireks-Mac_20250308_160413.logarchive \
 
 ```bash
 # Authentication events (securityd, authorization)
-log show --archive ireks-Mac_20250308_160413.logarchive \
+log show --archive "$LOGARCHIVE" \
   --predicate 'subsystem == "com.apple.securityd" OR category == "Authorization"' \
   --info --style syslog
 ```
 
 ```bash
 # SSH login/logout events
-log show --archive ireks-Mac_20250308_160413.logarchive \
+log show --archive "$LOGARCHIVE" \
   --predicate 'process == "sshd"' \
   --style syslog
 ```
 
 ```bash
 # App launches via LaunchServices
-log show --archive ireks-Mac_20250308_160413.logarchive \
+log show --archive "$LOGARCHIVE" \
   --predicate 'subsystem == "com.apple.launchservicesd"' \
   --style syslog
 ```
 
 ```bash
 # Network TCP connection events
-log show --archive ireks-Mac_20250308_160413.logarchive \
+log show --archive "$LOGARCHIVE" \
   --predicate 'subsystem == "com.apple.network.tcp_cca"' \
   --info --style syslog
 ```
 
 ```bash
 # Security/password change events
-log show --archive ireks-Mac_20250308_160413.logarchive \
+log show --archive "$LOGARCHIVE" \
   --predicate 'category == "authentication" OR eventMessage CONTAINS "password"' \
   --style syslog
 ```
