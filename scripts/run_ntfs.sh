@@ -5,7 +5,13 @@
 
 set -euo pipefail
 
-CASE_ROOT="/cases/jackofallhacks"
+# Resolve CASE_ROOT: $1 argument → inherited env var → interactive prompt
+CASE_ROOT="${1:-${CASE_ROOT:-}}"
+if [[ -z "$CASE_ROOT" ]]; then
+    read -rp "Case root directory (e.g. /cases/jack2): " CASE_ROOT
+fi
+[[ -d "$CASE_ROOT" ]] || { echo "ERROR: CASE_ROOT '${CASE_ROOT}' does not exist." >&2; exit 1; }
+export CASE_ROOT
 ANALYSIS_DIR="${CASE_ROOT}/analysis"
 MFTECMD="dotnet /opt/zimmermantools/MFTECmd.dll"
 COMMAND_LOG="${ANALYSIS_DIR}/commands.txt"
