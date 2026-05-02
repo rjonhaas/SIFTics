@@ -55,29 +55,19 @@ If a phase did not run (e.g., no `hunting_timeline.csv`), note it in the report 
 
 ---
 
-## Phase 2 — Case Type Inference
+## Phase 2 — Pre-Harvest Signal Check
 
-Read the following files before classifying:
+Scan these files for the most obvious signals **before** the full harvest. This step guides
+harvest order only — **do not commit to a case type here.**
+
 1. `ioc_summary.txt` — IOC volume and type distribution
-2. `antiforensics_timeline.csv` — first 50 rows
-3. `hunting_timeline.csv` — first 50 rows and last 50 rows (for dwell time)
-4. Any `c2_beacon.csv` files
+2. `antiforensics_timeline.csv` — first 20 rows (evidence destruction visible immediately?)
+3. `hunting_timeline.csv` — first and last 20 rows (lateral movement / PrivEsc events present?)
+4. Any `c2_beacon.csv` files — C2 beaconing present?
 
-Classify the case into **one primary type** (and optionally a secondary):
-
-| Type | Key Signals |
-|------|-------------|
-| **Ransomware** | VSS deletion + mass file modification in MFT + log clearing + possible ransom note path in file artefacts |
-| **APT / Targeted Intrusion** | Long dwell time (weeks/months) + C2 beaconing + credential theft + lateral movement + deliberate anti-forensics |
-| **Insider Threat** | Anomalous user activity during business hours + unusual data staging + browser searches inconsistent with role + off-hours access |
-| **Business Email Compromise** | Email artefacts + access to financial/HR systems + external domain activity |
-| **Malware / Commodity** | Known-bad hashes + no lateral movement + single-machine scope |
-| **General IR** | Mixed or unclear signals |
-
-The classified type controls:
-- Which sections appear first in the report
-- Which IOC types are emphasised
-- The framing of the executive summary
+Note what you observe. Use it to decide which Phase 3 files to prioritise first (e.g., if VSS
+deletion is already visible, read ransomware-related files early in the harvest). Do not use
+this scan to set a classification or skip any Phase 3 reads.
 
 ---
 
@@ -207,10 +197,55 @@ This is one of the most commonly missed lateral movement patterns. When an attac
 3. Cross-reference with `RemoteConnectionManager%4Operational.evtx` EID 261 clusters — a burst of EID 261 events with no following EID 1149 = failed authentication attempts (credential spray). The first EID 25 after such a cluster = first successful lateral move.
 4. The `Address: LOCAL` value in EID 25 does NOT mean the session originated from the local console — it means the connection came from within the same network segment. Always cross-reference with EID 261 source IPs and Security EID 4624 `IpAddress` fields to confirm the originating host.
 5. Attacker operational tempo signal: measure the gap between the first EID 261 cluster (credential attempts) and the first EID 25 (success) — this indicates how long it took to identify the correct credential pair.
+6. **Always calculate RDP session duration for every session found.** Session lifecycle events in LocalSessionManager:
+   - **Session start:** EID 25 (reconnect) or EID 21 (fresh logon) → `Address` field contains source IP
+   - **Session end:** EID 24 (client disconnected / session disconnected) → immediately follows EID 40
+   - Duration = EID 24 `TimeCreated` − preceding EID 25/21 `TimeCreated` for the same Session ID and user
+   - Report as `mm:ss` or `hh:mm:ss` depending on length
+   - Multiple sessions (connect → disconnect → reconnect) should each be timed separately and summed for total dwell time on that machine
 
 **Log files to parse explicitly (not covered by standard Phase 3 event log parse):**
 - `Microsoft-Windows-TerminalServices-LocalSessionManager%4Operational.evtx`
 - `Microsoft-Windows-TerminalServices-RemoteConnectionManager%4Operational.evtx`
+
+### Case Type Classification
+
+Run this subsection **after completing all Phase 3 reads above.** Score every type using only
+evidence found in the harvest — not the Phase 2 pre-scan.
+
+For each signal present in the harvested data, mark which types it supports:
+
+| Signal found in harvest | Ransomware | APT/Targeted | Insider | BEC | Commodity |
+|------------------------|:----------:|:------------:|:-------:|:---:|:---------:|
+| VSS deletion | ✓ | | | | |
+| Mass file modification (MFT / bulk unknown extensions) | ✓ | | | | |
+| Ransom note files present | ✓ | | | | |
+| Log clearing | ✓ | ✓ | | | |
+| Long dwell time (>7 days gap between first and last event) | | ✓ | ✓ | | |
+| C2 beaconing / periodic outbound connection | ✓ | ✓ | | | ✓ |
+| Credential theft (LSASS, SAM, credential files) | | ✓ | | ✓ | |
+| Lateral movement (remote execution, PsExec, WMI, RDP) | ✓ | ✓ | | | |
+| Data staging or archiving tools | | ✓ | ✓ | ✓ | |
+| Anomalous user activity vs. inferred role baseline | | | ✓ | ✓ | |
+| Browser-downloaded attacker tools | | ✓ | ✓ | | |
+| Single-machine scope confirmed | | | | | ✓ |
+| Known-bad hash match (no novel malware indicators) | | | | | ✓ |
+| Email artefacts + financial/HR system access | | | | ✓ | |
+
+**Scoring rules:**
+- **Primary type** — the type with the most signals checked.
+- **Secondary type** — any other type with ≥2 signals checked. If none qualify, omit.
+- If two types tie, list both as co-primary.
+- **Confidence:** High = ≥4 distinct signals; Medium = 2–3; Low = ≤1 or inferred only.
+
+**When multiple types have ≥2 signals**, the Executive Summary **must** include:
+
+> "Evidence is primarily consistent with [PRIMARY TYPE] ([N] signals). Signals consistent with
+> [SECONDARY TYPE] were also observed: [list the specific signals found]."
+
+Do not suppress secondary signals to keep the narrative clean. A case that presents as
+commodity malware but with lateral movement is an APT candidate — report both. The section
+ordering in Phase 4 must include sections for every type with ≥2 signals, not just the primary.
 
 ---
 
@@ -218,15 +253,29 @@ This is one of the most commonly missed lateral movement patterns. When an attac
 
 Load `~/.claude/skills/investigation-report/template.md`. Fill each section using only harvested evidence. Apply the conditional logic defined in the template to include or exclude sections.
 
-### Section ordering by case type
+### Section ordering
 
-**Ransomware:** Executive Summary → Environment → Incident Timeline → Initial Access (Web Server Triage) → Attacker Tooling & Reconnaissance → Lateral Movement → Anti-Forensics → Ransomware Indicators → IOCs → Recommendations
+Ordering is driven by your Phase 3 classification scores, not by a single rigid type.
 
-**APT / Targeted Intrusion:** Executive Summary → Environment → Attack Timeline → Initial Access (Web Server Triage) → Attacker Tooling & Reconnaissance → C2 Infrastructure → Credential Access → Lateral Movement → Anti-Forensics → IOCs → Recommendations
+**Step 1 — Lead with the primary type's section order:**
 
-**Insider Threat:** Executive Summary → Environment → User Activity Timeline → Attacker Tooling & Reconnaissance → Data Staging → Browser Artefacts → Anti-Forensics → IOCs → Recommendations
+| Primary Type | Sections after Environment |
+|---|---|
+| Ransomware | Timeline → Initial Access → Attacker Tooling & Recon → Lateral Movement → Anti-Forensics → Ransomware Indicators → IOCs → Recommendations |
+| APT / Targeted Intrusion | Timeline → Initial Access → Attacker Tooling & Recon → C2 Infrastructure → Credential Access → Lateral Movement → Anti-Forensics → IOCs → Recommendations |
+| Insider Threat | Timeline → Attacker Tooling & Recon → Data Staging → Browser Artefacts → Anti-Forensics → IOCs → Recommendations |
+| General IR / mixed | Follow template default order |
 
-**All others:** Follow template default order.
+**Step 2 — Append secondary-type sections that aren't already included:**
+For every type with ≥2 signals that is not the primary, include its characteristic sections
+(Lateral Movement, Credential Access, Data Staging, etc.) before Recommendations. Head each
+with a callout: `> **Note:** The following section addresses [SECONDARY TYPE] indicators also
+> present in this case.`
+
+**Step 3 — Never omit a section because it doesn't fit the primary type.**
+If Lateral Movement evidence exists, the Lateral Movement section is in the report — regardless
+of whether the primary classification is "Commodity Malware." Missing evidence that is in the
+artefact record is the failure mode this ordering is designed to prevent.
 
 ### Ransomware case — encryption timing analysis
 
