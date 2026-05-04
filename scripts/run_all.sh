@@ -21,6 +21,7 @@
 # Phase 12— run_ransomware.sh    Ransom notes, suspicious extensions, archive staging
 # Phase 13— run_webserver.sh     IIS log injection detection, LOLBIN downloads, operator sessions, webshell inventory
 # Phase 14— run_email.sh         PST/OST email parsing (readpst → mbox → IOC extraction, attachment hashing)
+# Phase 15— run_linux.sh         Kali Linux partition analysis (bash history, file inventory, offensive tools, CTF artifacts)
 
 set -uo pipefail
 
@@ -115,6 +116,7 @@ PHASES=(
     "Phase 12— Ransomware    |${SCRIPT_DIR}/run_ransomware.sh|Ransomware|*.csv"
     "Phase 13— Web Server   |${SCRIPT_DIR}/run_webserver.sh|WebServer|injection_attempts.csv"
     "Phase 14— Email        |${SCRIPT_DIR}/run_email.sh|Email|*_E_*_Email_Messages.csv"
+    "Phase 15— Linux Part. |${SCRIPT_DIR}/run_linux.sh|Linux|*_L_bash_history.csv"
 )
 
 # ─── main loop ───────────────────────────────────────────────────────────────
