@@ -1,6 +1,6 @@
 # SIFTics
 
-DFIR triage workflow for the SANS SIFT Workstation. Claude Code orchestrates analysis; shell scripts extract and parse artifacts; skill files guide tool execution.
+DFIR triage workflow for the SANS SIFT Workstation. Claude Code orchestrates analysis; shell scripts extract and parse artifacts; skill files guide tool execution and reporting.
 
 ---
 
@@ -9,8 +9,10 @@ DFIR triage workflow for the SANS SIFT Workstation. Claude Code orchestrates ana
 ```
 Step 0  — Case setup: create CLAUDE.md at the case root
 Step 1  — Extract evidence (KAPE ZIPs, memory images, PCAPs, cloud logs)
-Step 2  — Run triage scripts: bash run_all.sh /cases/<case_name>
+Step 2  — Run triage scripts: bash scripts/run_all.sh /cases/<case_name>
 Step 3  — Invoke Claude Code: /incident-commander → domain skills → report
+Step 4  — (optional) Run Phase 16 CVE attribution and regenerate report
+Step 5  — (optional) Generate HTML deliverable: python3 scripts/gen_html_package.py /cases/<case_name>
 ```
 
 ---
@@ -46,11 +48,15 @@ Scripts accept the case root as a positional argument. `run_all.sh` exports `CAS
 
 ```bash
 # Run full pipeline
-bash /home/sansforensics/Desktop/runbooks/run_all.sh /cases/<case_name>
+bash scripts/run_all.sh /cases/<case_name>
 
 # Run individual phase
-bash /home/sansforensics/Desktop/runbooks/run_ntfs.sh /cases/<case_name>
+bash scripts/run_ntfs.sh /cases/<case_name>
 ```
+
+### Core Windows Triage (Phases 1–13)
+
+Output lands in `<case_root>/analysis/<MACHINE>/<Category>/`.
 
 | Script | Phase | What it does |
 |--------|-------|-------------|
@@ -69,7 +75,26 @@ bash /home/sansforensics/Desktop/runbooks/run_ntfs.sh /cases/<case_name>
 | `run_ransomware.sh` | 12 | Ransom notes, suspicious extensions, archive staging |
 | `run_webserver.sh` | 13 | IIS injection detection, LOLBIN downloads, webshell inventory |
 
-Output lands in `<case_root>/analysis/<MACHINE>/<Category>/`.
+### Extended / Specialist Phases (14–16)
+
+| Script | Phase | What it does |
+|--------|-------|-------------|
+| `run_email.sh` | 14 | PST/OST/mbox parsing via readpst; message and attachment extraction |
+| `run_linux.sh` | 15 | Linux partition analysis (ext4 via losetup); auth logs, bash history, cron, SSH keys |
+| `run_cve_attribution.sh` | 16 | CVE attribution — reads completed report + COP, invokes Claude CLI, writes `analysis/cve_attribution.md` |
+
+### Utility Scripts
+
+| Script | What it does |
+|--------|-------------|
+| `run_mftecmd.sh` | Standalone MFT parser — parses `$MFT`, `$Boot`, `$LogFile`, `$J` for every machine under the case root |
+| `daedalus_fingerprint.sh` | Artifact discovery — probes mounted evidence for all known artifact classes; outputs a run-plan manifest |
+| `report_to_html.py` | Converts `reports/investigation_report.md` to a standalone dark-theme HTML report with sidebar TOC |
+| `gen_html_package.py` | Produces a customer-ready ZIP: CISO dashboard, full report, analyst evidence hub, sortable CSV tables |
+| `parse_apache_log.py` | Parses Apache combined/common access log format |
+| `parse_bash_history.py` | Categorises bash history entries with IOC extraction |
+| `parse_email.py` | Phase 14 email artifact parser (called by `run_email.sh`) |
+| `install_tools.sh` | Pre-flight dependency checker; verifies required EZ Tools are present |
 
 ---
 
@@ -80,6 +105,7 @@ Domain skill files that Claude Code reads to guide tool execution. Invoke via th
 | Skill | Domain |
 |-------|--------|
 | `incident-commander` | Investigation orchestration — invoke first |
+| `daedalus` | Adaptive artifact discovery and handler generation |
 | `windows-artifacts` | EZ Tools, Event Logs, Registry |
 | `memory-analysis` | Volatility 3, Memory Baseliner |
 | `linux-host` | Auth logs, bash history, cron, SUID |
@@ -92,6 +118,49 @@ Domain skill files that Claude Code reads to guide tool execution. Invoke via th
 | `plaso-timeline` | Cross-source super-timeline |
 | `sleuthkit` | File system triage, MFT recovery, file carving |
 | `investigation-report` | Final report generation (invoked by IC at case close) |
+| `cve-attribution` | Intel ICS Phase 16 — CVE attribution from completed report |
+
+---
+
+## Phase 16 — CVE Attribution
+
+After the investigation report is complete, run Phase 16 to attribute exploitation patterns to known CVEs:
+
+```bash
+bash scripts/run_cve_attribution.sh /cases/<case_name>
+```
+
+The script reads `reports/investigation_report.md` and `analysis/cop.md`, calls the `claude` CLI with a focused CVE attribution prompt, and writes `analysis/cve_attribution.md`. Then re-run the investigation-report skill to integrate the output as Section 3B of the report.
+
+**Requirements:** `claude` CLI in PATH (or set `CLAUDE_BIN=/path/to/claude`). Override the model with `CVE_MODEL=<model-id>`.
+
+---
+
+## HTML Deliverables
+
+### Analyst report
+
+Converts the markdown investigation report to a standalone HTML file with a dark theme and sidebar TOC:
+
+```bash
+python3 scripts/report_to_html.py /cases/<case_name>
+# Output: reports/investigation_report.html
+```
+
+### Customer package
+
+Produces a self-contained ZIP suitable for client delivery. No server required — customer unzips and opens `index.html`:
+
+```bash
+python3 scripts/gen_html_package.py /cases/<case_name>
+# Output: reports/<case_name>_package.zip
+```
+
+The package contains:
+- `index.html` — CISO executive dashboard (severity, findings, timeline, actions)
+- `report.html` — Full rendered investigation report
+- `analyst.html` — Analyst evidence hub (phase-ordered investigation journey)
+- `csv/*.html` — Individual CSV artifact tables (sortable, searchable, paginated)
 
 ---
 
