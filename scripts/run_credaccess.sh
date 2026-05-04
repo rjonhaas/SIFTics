@@ -19,6 +19,10 @@
 
 set -uo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=audit_log.sh
+source "${SCRIPT_DIR}/audit_log.sh"
+
 # Resolve CASE_ROOT: $1 argument → inherited env var → interactive prompt
 CASE_ROOT="${1:-${CASE_ROOT:-}}"
 if [[ -z "$CASE_ROOT" ]]; then
@@ -30,22 +34,9 @@ ANALYSIS_DIR="${CASE_ROOT}/analysis"
 COMMAND_LOG="${ANALYSIS_DIR}/commands.txt"
 TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M UTC")
 TIMELINE_OUT="${ANALYSIS_DIR}/credaccess_timeline.csv"
+DCSYNC_ALLOWLIST="${SCRIPT_DIR}/../config/dcsync_allowlist.txt"
 
-# ─── helpers ─────────────────────────────────────────────────────────────────
-
-log_cmd() {
-    local machine="$1" tool="$2" cmd="$3" purpose="$4" output="$5" result="$6"
-    cat >> "${COMMAND_LOG}" <<EOF
-
-[${TIMESTAMP}] ${machine} | ${tool} | Python Analysis
-  ${cmd}
-  > Purpose  : ${purpose}
-  > Output   : ${output}
-  > Result   : ${result}
-
---------------------------------------------------------------------------------
-EOF
-}
+# log_cmd() provided by audit_log.sh
 
 run_tool() {
     set +e; out=$(eval "$1" 2>&1); rc=$?; set -e
@@ -89,7 +80,7 @@ credaccess_analyzer.py
   --mode mft   : Section F timestomping over MFT CSV
 """
 
-import csv, sys, os, re, argparse
+import csv, sys, os, re, argparse, fnmatch
 from pathlib import Path
 from datetime import datetime, timezone
 
@@ -162,11 +153,32 @@ def re_field(pattern, text, default=""):
 
 # ── per-event filters ─────────────────────────────────────────────────────────
 
+def load_dcsync_allowlist(path):
+    """Load allowlist patterns from config/dcsync_allowlist.txt."""
+    patterns = []
+    try:
+        with open(path) as fh:
+            for line in fh:
+                line = line.strip()
+                if line and not line.startswith('#'):
+                    patterns.append(line.lower())
+    except FileNotFoundError:
+        pass
+    return patterns
+
+DCSYNC_ALLOWLIST_PATTERNS = load_dcsync_allowlist(
+    os.environ.get("DCSYNC_ALLOWLIST", "")
+)
+
 def keep_dcsync(row, rt):
     # Flag only non-machine accounts performing replication
     uname = re_field(r'SubjectUserName[:\s"=]+([^\s|,\"]+)', rt)
     if uname.endswith("$"):
         return False  # DC computer account — expected
+    uname_lower = uname.lower()
+    for pattern in DCSYNC_ALLOWLIST_PATTERNS:
+        if fnmatch.fnmatch(uname_lower, pattern):
+            return False  # allowed replication account
     return any(g in rt.lower() for g in DCSYNC_GUIDS)
 
 def keep_cred_access(eid, row, rt):
@@ -348,6 +360,7 @@ TIMESTOMP_COLS = [
     "Created0x10", "Created0x30",
     "LastModified0x10", "LastModified0x30",
     "LastRecordChange0x10", "LastRecordChange0x30",
+    "Reason", "Confidence",
 ]
 
 DUMP_FILE_EXTS = {".dmp", ".mdmp"}
@@ -431,7 +444,20 @@ def analyze_mft(mft_csv, out_dir, machine):
                         elif ext not in EXEC_EXTS:
                             keep = False
                     if keep:
-                        ts_row = {c: row.get(find_col(headers, c), "") for c in ts_cols}
+                        ts_row = {c: row.get(find_col(headers, c), "")
+                                  for c in ts_cols if c not in ("Reason", "Confidence")}
+                        # Reason column
+                        reasons = []
+                        if is_sifn:  reasons.append("SI<FN")
+                        if is_uzero: reasons.append("uSecZeros")
+                        ts_row["Reason"] = "+".join(reasons)
+                        # Confidence column
+                        if is_uzero:
+                            ts_row["Confidence"] = "HIGH"
+                        elif is_sifn and ext in EXEC_EXTS and not NOISY_PATHS.search(path):
+                            ts_row["Confidence"] = "MEDIUM"
+                        else:
+                            ts_row["Confidence"] = "LOW"
                         ts_hits.append(ts_row)
                         if is_sifn:  sifn  += 1
                         if is_uzero: uzero += 1
@@ -548,7 +574,7 @@ for drive_root in "${DRIVE_ROOTS[@]}"; do
         status "SKIP" "EvtxECmd hunting CSVs already exist"
     else
         mkdir -p "${out_dir}"
-        cmd="python3 ${PY_SCRIPT} --mode evtx --evtlog-dir '${evtlog_dir}' --output-dir '${out_dir}' --machine '${machine}' --timeline-out '${TIMELINE_OUT}'"
+        cmd="DCSYNC_ALLOWLIST='${DCSYNC_ALLOWLIST}' python3 ${PY_SCRIPT} --mode evtx --evtlog-dir '${evtlog_dir}' --output-dir '${out_dir}' --machine '${machine}' --timeline-out '${TIMELINE_OUT}'"
         tool_out=$(run_tool "${cmd}") && rc=0 || rc=$?
         echo "${tool_out}" | sed 's/^/  /'
         if [[ ${rc} -ne 0 ]]; then

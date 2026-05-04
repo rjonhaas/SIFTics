@@ -20,8 +20,19 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=audit_log.sh
+source "${SCRIPT_DIR}/audit_log.sh"
+
 # ── Resolve CASE_ROOT ────────────────────────────────────────────────────────
+SKIP_VALIDATION=0
+for arg in "$@"; do
+    [[ "$arg" == "--skip-validation" ]] && SKIP_VALIDATION=1
+done
+
 CASE_ROOT="${1:-${CASE_ROOT:-}}"
+# Strip --skip-validation from positional args
+set -- "${@/--skip-validation/}"
 if [[ -z "$CASE_ROOT" ]]; then
     read -rp "Case root directory (e.g. /cases/my-case): " CASE_ROOT
 fi
@@ -223,17 +234,58 @@ echo "  Done (${ELAPSED}s)"
 echo "  Output:       ${OUTPUT_MD} (${OUTPUT_LINES} lines)"
 echo "  CVEs found:   ${CVE_COUNT} — ${CVE_LIST}"
 
-# ── Log to commands.txt ───────────────────────────────────────────────────────
-cat >> "${COMMAND_LOG}" << EOF
+# ── CVE ID validation against MITRE API ──────────────────────────────────────
+if [[ ${SKIP_VALIDATION} -eq 1 ]]; then
+    echo ""
+    echo "  Validation:   SKIPPED (--skip-validation)"
+else
+    echo ""
+    echo "  Validating CVE IDs against MITRE CVE API..."
+    VALIDATION_OK=1
+    NETWORK_OK=1
 
-[${TIMESTAMP}] ALL | CVE Attribution (Intel ICS) | claude --print --tools ""
-  Model: ${MODEL}  Prompt: ${PROMPT_BYTES} bytes (investigation_report.md + cop.md)
-  > Purpose  : Attribute observed exploitation patterns to known CVEs
-  > Output   : ${OUTPUT_MD} (${OUTPUT_LINES} lines)
-  > Result   : ${CVE_COUNT} CVE(s) attributed — ${CVE_LIST} (${ELAPSED}s)
+    # Test network reachability first
+    set +e
+    curl -s --max-time 5 "https://cveawg.mitre.org/api/cve/CVE-2021-44228" -o /dev/null 2>/dev/null
+    NET_RC=$?
+    set -e
 
---------------------------------------------------------------------------------
-EOF
+    if [[ ${NET_RC} -ne 0 ]]; then
+        NETWORK_OK=0
+        echo ""
+        echo "> ⚠ NOTE: CVE validation against MITRE API was not possible (network unavailable). All CVE IDs should be manually verified." >> "${OUTPUT_MD}"
+        echo "  [WARN] MITRE API unreachable — validation note appended to output"
+    else
+        # Extract unique CVE IDs from output
+        mapfile -t CVE_IDS < <(grep -oP 'CVE-[0-9]{4}-[0-9]+' "${OUTPUT_MD}" | sort -u || true)
+        for cve_id in "${CVE_IDS[@]}"; do
+            set +e
+            HTTP_CODE=$(curl -s --max-time 10 -o /dev/null -w "%{http_code}" \
+                "https://cveawg.mitre.org/api/cve/${cve_id}" 2>/dev/null)
+            set -e
+            if [[ "${HTTP_CODE}" == "404" ]]; then
+                echo "" >> "${OUTPUT_MD}"
+                echo "> ⚠ WARNING: ${cve_id} could not be verified against MITRE CVE database. This CVE ID may be hallucinated. Manual verification required before including in deliverable." >> "${OUTPUT_MD}"
+                echo "  [WARN] ${cve_id} — 404 from MITRE API (not found)"
+                VALIDATION_OK=0
+            elif [[ "${HTTP_CODE}" == "200" ]]; then
+                echo "  [OK  ] ${cve_id} — verified"
+            else
+                echo "  [WARN] ${cve_id} — unexpected HTTP ${HTTP_CODE}"
+            fi
+        done
+        if [[ ${VALIDATION_OK} -eq 1 ]]; then
+            echo "  All CVE IDs verified against MITRE database"
+        fi
+    fi
+fi
+
+# ── Log to audit log ─────────────────────────────────────────────────────────
+log_cmd "ALL" "CVE Attribution (Intel ICS) — claude --print --tools \"\"" \
+    "claude --print --tools \"\" --model ${MODEL} (prompt: ${PROMPT_BYTES} bytes)" \
+    "Attribute observed exploitation patterns to known CVEs; validate CVE IDs against MITRE API" \
+    "${OUTPUT_MD}" \
+    "${CVE_COUNT} CVE(s) attributed — ${CVE_LIST} (${ELAPSED}s)"
 
 echo ""
 echo "========================================"

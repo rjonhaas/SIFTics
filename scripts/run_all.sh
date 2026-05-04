@@ -22,10 +22,14 @@
 # Phase 13— run_webserver.sh     IIS log injection detection, LOLBIN downloads, operator sessions, webshell inventory
 # Phase 14— run_email.sh         PST/OST email parsing (readpst → mbox → IOC extraction, attachment hashing)
 # Phase 15— run_linux.sh         Kali Linux partition analysis (bash history, file inventory, offensive tools, CTF artifacts)
+# Phase 16— run_cve_attribution.sh CVE attribution (Intel ICS) — requires investigation_report.md
+# Phase 17— run_attack_path.sh    Cross-machine attack path graph from lateral movement artifacts
 
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=audit_log.sh
+source "${SCRIPT_DIR}/audit_log.sh"
 # Resolve CASE_ROOT: $1 argument → inherited env var → interactive prompt
 CASE_ROOT="${1:-${CASE_ROOT:-}}"
 if [[ -z "$CASE_ROOT" ]]; then
@@ -117,6 +121,7 @@ PHASES=(
     "Phase 13— Web Server   |${SCRIPT_DIR}/run_webserver.sh|WebServer|injection_attempts.csv"
     "Phase 14— Email        |${SCRIPT_DIR}/run_email.sh|Email|*_E_*_Email_Messages.csv"
     "Phase 15— Linux Part. |${SCRIPT_DIR}/run_linux.sh|Linux|*_L_bash_history.csv"
+    "Phase 17— Attack Path |${SCRIPT_DIR}/run_attack_path.sh|.|attack_path.csv"
 )
 
 # ─── main loop ───────────────────────────────────────────────────────────────
@@ -129,6 +134,30 @@ echo " jackofallhacks — Full Triage Orchestrator"
 echo " $(date -u)"
 echo " Machines : ${MACHINE_COUNT}"
 echo "████████████████████████████████████████████████████"
+
+# ─── pre-flight: read-only mount verification ────────────────────────────────
+divider
+echo " PRE-FLIGHT: Verifying evidence mounts are read-only"
+echo "████████████████████████████████████████████████████"
+echo ""
+VERIFY_MOUNTS_SCRIPT="${SCRIPT_DIR}/verify_readonly_mounts.sh"
+if [[ -f "${VERIFY_MOUNTS_SCRIPT}" ]]; then
+    set +e
+    bash "${VERIFY_MOUNTS_SCRIPT}" "${CASE_ROOT}"
+    mount_rc=$?
+    set -e
+    if [[ ${mount_rc} -eq 1 ]]; then
+        echo ""
+        echo "  ERROR: One or more evidence mounts are writable."
+        echo "  Remount as read-only before continuing:"
+        echo "    sudo mount -o remount,ro <mount_point>"
+        echo ""
+        echo "  Halting — evidence integrity cannot be guaranteed with rw mounts."
+        exit 1
+    fi
+else
+    echo "  verify_readonly_mounts.sh not found — skipping mount check."
+fi
 
 # ─── pre-flight tool check ───────────────────────────────────────────────────
 divider

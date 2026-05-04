@@ -14,6 +14,10 @@
 
 set -uo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=audit_log.sh
+source "${SCRIPT_DIR}/audit_log.sh"
+
 # Resolve CASE_ROOT: $1 argument → inherited env var → interactive prompt
 CASE_ROOT="${1:-${CASE_ROOT:-}}"
 if [[ -z "$CASE_ROOT" ]]; then
@@ -24,25 +28,19 @@ export CASE_ROOT
 ANALYSIS_DIR="${CASE_ROOT}/analysis"
 COMMAND_LOG="${ANALYSIS_DIR}/commands.txt"
 TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M UTC")
+DENYLIST_JSON="${SCRIPT_DIR}/../config/ioc_denylist.json"
 
 IOC_CSV="${ANALYSIS_DIR}/ioc_master.csv"
 IOC_SUMMARY="${ANALYSIS_DIR}/ioc_summary.txt"
 
-# ─── helpers ────────────────────────────────────────────────────────────────
+# log_cmd() provided by audit_log.sh
 
-log_cmd() {
-    local machine="$1" tool="$2" cmd="$3" purpose="$4" output="$5" result="$6"
-    cat >> "${COMMAND_LOG}" <<EOF
+# ─── flag parsing ────────────────────────────────────────────────────────────
 
-[${TIMESTAMP}] ${machine} | ${tool} | Python
-  ${cmd}
-  > Purpose  : ${purpose}
-  > Output   : ${output}
-  > Result   : ${result}
-
---------------------------------------------------------------------------------
-EOF
-}
+NO_DENYLIST=0
+for arg in "$@"; do
+    [[ "$arg" == "--no-denylist" ]] && NO_DENYLIST=1
+done
 
 section()  { echo ""; echo "════════════════════════════════════════"; echo " $*"; echo "════════════════════════════════════════"; }
 status()   { printf "  [%-10s] %s\n" "$1" "$2"; }
@@ -82,9 +80,11 @@ import sys
 from collections import defaultdict
 from urllib.parse import urlparse
 
-ANALYSIS_DIR = sys.argv[1]
-IOC_CSV      = sys.argv[2]
-IOC_SUMMARY  = sys.argv[3]
+ANALYSIS_DIR   = sys.argv[1]
+IOC_CSV        = sys.argv[2]
+IOC_SUMMARY    = sys.argv[3]
+DENYLIST_PATH  = sys.argv[4] if len(sys.argv) > 4 else ""
+USE_DENYLIST   = sys.argv[5] != "0" if len(sys.argv) > 5 else True
 
 # ── regex patterns ────────────────────────────────────────────────────────────
 
@@ -97,6 +97,50 @@ RE_SHA1    = re.compile(r'\b[0-9a-fA-F]{40}\b')
 RE_MD5_RAW = re.compile(r'\b[0-9a-fA-F]{32}\b')
 RE_WINPATH = re.compile(r'[A-Za-z]:\\(?:[^\\\/:*?"<>|\r\n]+\\)*[^\\\/:*?"<>|\r\n]*')
 RE_EMAIL   = re.compile(r'\b[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}\b')
+
+# ── denylist loading ──────────────────────────────────────────────────────────
+
+import json
+
+def _load_denylist(path):
+    try:
+        with open(path) as fh:
+            return json.load(fh)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+_dl = _load_denylist(DENYLIST_PATH) if USE_DENYLIST and DENYLIST_PATH else {}
+DENY_IPS        = set(_dl.get("ipv4", []))
+DENY_IP_PFXS    = tuple(_dl.get("ipv4_prefixes", []))
+DENY_DOMAINS    = set(d.lower() for d in _dl.get("domains", []))
+DENY_DOM_SFXS   = tuple(s.lower() for s in _dl.get("domain_suffixes", []))
+DENY_UA         = [ua.lower() for ua in _dl.get("user_agents_benign", [])]
+DENY_SHA1       = set(h.lower() for h in _dl.get("sha1_known_os", []))
+
+denylisted_count = 0
+
+def is_denylisted(ioc_type, value):
+    global denylisted_count
+    if not USE_DENYLIST:
+        return False
+    v = value.lower()
+    hit = False
+    if ioc_type == 'ipv4':
+        hit = v in DENY_IPS or any(v.startswith(p) for p in DENY_IP_PFXS)
+    elif ioc_type in ('domain', 'url'):
+        # for URLs extract domain
+        if ioc_type == 'url':
+            try:
+                from urllib.parse import urlparse
+                v = urlparse(value).hostname or v
+            except Exception:
+                pass
+        hit = v in DENY_DOMAINS or any(v.endswith(s) for s in DENY_DOM_SFXS)
+    elif ioc_type == 'sha1':
+        hit = v in DENY_SHA1
+    if hit:
+        denylisted_count += 1
+    return hit
 
 # ── noise filters ─────────────────────────────────────────────────────────────
 
@@ -222,13 +266,14 @@ def extract_iocs_from_cell(cell: str, machine: str, src_file: str):
     # — URLs —
     for m in RE_URL.finditer(cell):
         v = m.group(0).rstrip('.,;)')
-        if not is_analysis_tool_path(v):
+        if not is_analysis_tool_path(v) and not is_denylisted('url', v):
             record('url', v, machine, src_file, context)
             # also extract domain from URL
             try:
                 parsed = urlparse(v)
                 domain = parsed.hostname or ''
-                if domain and not is_noisy_domain(domain) and not is_analysis_tool_path(domain):
+                if domain and not is_noisy_domain(domain) and not is_analysis_tool_path(domain) \
+                        and not is_denylisted('domain', domain):
                     record('domain', domain.lower(), machine, src_file, context)
             except Exception:
                 pass
@@ -236,7 +281,7 @@ def extract_iocs_from_cell(cell: str, machine: str, src_file: str):
     # — IPv4 —
     for m in RE_IPV4.finditer(cell):
         v = m.group(0)
-        if not is_noisy_ip(v) and not is_analysis_tool_path(v):
+        if not is_noisy_ip(v) and not is_analysis_tool_path(v) and not is_denylisted('ipv4', v):
             record('ipv4', v, machine, src_file, context)
 
     # — Windows file paths —
@@ -371,7 +416,8 @@ def least_iocs_for_type(ioc_type, n=10):
     return entries[:n]
 
 lines = []
-lines.append("IOC Extraction Summary — jackofallhacks")
+lines.append(f"IOC Extraction Summary — jackofallhacks"
+             + (f" [denylist active — {denylisted_count} suppressed]" if USE_DENYLIST else " [--no-denylist]"))
 lines.append("=" * 40)
 lines.append(f"Total unique IOCs: {total_unique}")
 lines.append("")
@@ -507,7 +553,7 @@ PYEOF
 
 status "RUN" "Scanning all CSVs under ${ANALYSIS_DIR} ..."
 
-python3 "${TMPPY}" "${ANALYSIS_DIR}" "${IOC_CSV}" "${IOC_SUMMARY}"
+python3 "${TMPPY}" "${ANALYSIS_DIR}" "${IOC_CSV}" "${IOC_SUMMARY}" "${DENYLIST_JSON}" "$([[ ${NO_DENYLIST} -eq 1 ]] && echo 0 || echo 1)"
 PY_RC=$?
 
 if [[ ${PY_RC} -ne 0 ]]; then

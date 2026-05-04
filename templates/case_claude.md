@@ -80,6 +80,17 @@ Information the human investigator has that may not appear in artifacts. Fill in
 
 ---
 
+## Evidence Integrity — Intake Hashes
+
+The collecting party must provide SHA256 hashes at intake. If no intake hashes are available, document this gap explicitly — the IC skill will record a chain-of-custody warning in the COP.
+
+| File | SHA256 (from collector) | Verified by analyst |
+|------|------------------------|---------------------|
+| | | ☐ |
+| | | ☐ |
+
+---
+
 ## Evidence Inventory
 
 | Source | Type | Path | Captured (UTC) | SHA256 |

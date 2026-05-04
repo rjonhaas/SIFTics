@@ -1,0 +1,15 @@
+# DCSync Detection Allowlist
+# One account per line. Wildcards supported (* matches any sequence of characters).
+# Accounts on this list are excluded from DCSync alerts (EID 4662 replication GUID matches).
+# Computer accounts (ending in $) are always excluded regardless of this list.
+#
+# Add legitimate replication accounts here — Azure AD Connect sync accounts,
+# third-party AD management tools, backup agents that require replication rights.
+#
+# Examples:
+#   MSOL_*              # Azure AD Connect sync accounts (auto-generated name)
+#   ADSync              # Generic Azure AD Connect account name
+#   svc_backup          # Specific service account
+
+MSOL_*
+ADSync

@@ -16,6 +16,10 @@
 
 set -uo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=audit_log.sh
+source "${SCRIPT_DIR}/audit_log.sh"
+
 # Resolve CASE_ROOT: $1 argument → inherited env var → interactive prompt
 CASE_ROOT="${1:-${CASE_ROOT:-}}"
 if [[ -z "$CASE_ROOT" ]]; then
@@ -26,22 +30,9 @@ export CASE_ROOT
 ANALYSIS_DIR="${CASE_ROOT}/analysis"
 COMMAND_LOG="${ANALYSIS_DIR}/commands.txt"
 TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M UTC")
+DENYLIST_JSON="${SCRIPT_DIR}/../config/ioc_denylist.json"
 
-# ─── helpers ──────────────────────────────────────────────────────────────────
-
-log_cmd() {
-    local machine="$1" tool="$2" cmd="$3" purpose="$4" output="$5" result="$6"
-    cat >> "${COMMAND_LOG}" <<EOF
-
-[${TIMESTAMP}] ${machine} | ${tool}
-  ${cmd}
-  > Purpose  : ${purpose}
-  > Output   : ${output}
-  > Result   : ${result}
-
---------------------------------------------------------------------------------
-EOF
-}
+# log_cmd() provided by audit_log.sh
 
 run_tool() {
     set +e; out=$(eval "$1" 2>&1); rc=$?; set -e
@@ -96,12 +87,45 @@ Usage:
 
 import argparse
 import csv
+import json
 import math
 import os
 import re
 import sys
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
+
+# ── Denylist ──────────────────────────────────────────────────────────────────
+
+def _load_denylist(path):
+    try:
+        with open(path) as fh:
+            return json.load(fh)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+def _build_denylist(path):
+    dl = _load_denylist(path)
+    return {
+        "ips":       set(dl.get("ipv4", [])),
+        "ip_pfxs":  tuple(dl.get("ipv4_prefixes", [])),
+        "domains":  set(d.lower() for d in dl.get("domains", [])),
+        "dom_sfxs": tuple(s.lower() for s in dl.get("domain_suffixes", [])),
+        "uas":      [ua.lower() for ua in dl.get("user_agents_benign", [])],
+    }
+
+DENYLIST: dict = {}  # populated in main() once we know the path
+
+def ip_is_known_infra(ip: str) -> bool:
+    if not DENYLIST:
+        return False
+    return ip in DENYLIST["ips"] or any(ip.startswith(p) for p in DENYLIST["ip_pfxs"])
+
+def ua_is_benign(ua: str) -> bool:
+    if not DENYLIST or not ua:
+        return False
+    ua_lower = ua.lower()
+    return any(b in ua_lower for b in DENYLIST["uas"])
 
 # ── Known C2 check-in intervals (seconds) ────────────────────────────────────
 KNOWN_C2_INTERVALS = [30, 60, 120, 300, 600, 900, 1800, 3600]
@@ -119,7 +143,7 @@ OUTPUT_FIELDS = [
     'MostCommonURI', 'MostCommonUserAgent',
     'MeanIntervalSec', 'MedianIntervalSec', 'StdDevSec', 'CoeffVariation',
     'BeaconScore', 'Classification', 'MatchedC2Interval',
-    'FirstSeen', 'LastSeen', 'Machine',
+    'FirstSeen', 'LastSeen', 'Machine', 'DenylistNote',
 ]
 
 
@@ -356,11 +380,24 @@ def analyse_ip(ip: str, reqs: list) -> dict:
                 matched_interval = str(c2_iv)
                 break
 
+    # ── Denylist score adjustments ────────────────────────────────────────────
+    denylist_note = ''
+    if ip_is_known_infra(ip):
+        score -= 20
+        denylist_note += 'known_infra(-20) '
+    if ua_is_benign(most_common_ua):
+        score -= 15
+        denylist_note += 'benign_ua(-15)'
+
     # ── Classification ────────────────────────────────────────────────────────
+    pre_filter_score = score + (20 if ip_is_known_infra(ip) else 0) + \
+                               (15 if ua_is_benign(most_common_ua) else 0)
     if score >= 50:
         classification = 'BEACON_LIKELY'
     elif score >= 30:
         classification = 'BEACON_POSSIBLE'
+    elif denylist_note and pre_filter_score >= 30:
+        classification = 'FILTERED'
     else:
         classification = 'NORMAL'
 
@@ -384,6 +421,7 @@ def analyse_ip(ip: str, reqs: list) -> dict:
         'FirstSeen':          first_seen,
         'LastSeen':           last_seen,
         'Machine':            '',   # filled in by caller
+        'DenylistNote':       denylist_note.strip(),
     }
 
 
@@ -391,10 +429,14 @@ def analyse_ip(ip: str, reqs: list) -> dict:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--input-csv',  required=True)
-    ap.add_argument('--output-dir', required=True)
-    ap.add_argument('--machine',    required=True)
+    ap.add_argument('--input-csv',   required=True)
+    ap.add_argument('--output-dir',  required=True)
+    ap.add_argument('--machine',     required=True)
+    ap.add_argument('--denylist',    default='')
     args = ap.parse_args()
+    global DENYLIST
+    if args.denylist:
+        DENYLIST = _build_denylist(args.denylist)
 
     input_path = args.input_csv
     output_dir = args.output_dir
@@ -545,7 +587,7 @@ for drive_root in "${DRIVE_ROOTS[@]}"; do
 
     mkdir -p "${iis_out_dir}"
 
-    cmd="python3 '${PY_SCRIPT}' --input-csv '${input_arg}' --output-dir '${iis_out_dir}' --machine '${machine}'"
+    cmd="python3 '${PY_SCRIPT}' --input-csv '${input_arg}' --output-dir '${iis_out_dir}' --machine '${machine}' --denylist '${DENYLIST_JSON}'"
     tool_out=$(run_tool "${cmd}") && rc=0 || rc=$?
 
     if [[ ${rc} -eq 1 && "${tool_out}" == *"no parseable"* ]]; then

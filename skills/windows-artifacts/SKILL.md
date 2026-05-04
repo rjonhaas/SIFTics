@@ -158,6 +158,29 @@ Key: Records last execution time for each user's programs. Survived reboots unti
 
 ## MFT and Change Journal
 
+### Timestomping Analysis — Interpretation Rules and False Positives
+
+When MFTECmd produces `SI<FN = True` (i.e., `$STANDARD_INFO` Created < `$FILE_NAME` Created), apply these rules before concluding timestomping:
+
+**Confirmed timestomping indicators:**
+- **uSecZeros** (nanosecond component of `$STANDARD_INFO` timestamp = 0): timestomping tools (Metasploit `timestomp`, Cobalt Strike `timestomp` command) call `SetFileTime()` which only accepts 100ns resolution — this zeros the sub-second precision fields. High confidence. The `run_credaccess.sh` output classifies these as **Confidence=HIGH**.
+- `$SI` Created < `$FN` Created by >1 second **AND** file is an executable in a non-system path: **Confidence=MEDIUM**.
+
+**Known false positive sources — check these before reporting:**
+- **File rename or move:** `$FILE_NAME` timestamps update on rename, move, or hardlink creation. A file moved into place after its creation date will always show `$SI Created < $FN Created` — this is not timestomping.
+- **WinSxS, Windows Installer, Windows Servicing directories:** These directories produce legitimate `SI<FN` mismatches at high volume due to file staging during Windows Update. These are filtered by default in `run_credaccess.sh`.
+- **Copied files:** The `Copied` column in MFTECmd output = True indicates the `$STANDARD_INFO` timestamps were explicitly set from the source. Not timestomping — expected behavior of robocopy, backup agents, deployment tools.
+- **Windows Update delivered binaries:** `$FN` is set at NTFS write time; `$SI` may predate `$FN` by design when files are staged from WIM images.
+
+**Confidence column in `_F_Timestomping.csv`:**
+| Confidence | Criteria |
+|------------|---------|
+| HIGH | uSecZeros present (nanosecond field zeroed — API-level evidence of SetFileTime call) |
+| MEDIUM | SI<FN on executable in non-system path (no uSecZeros) |
+| LOW | SI<FN only, non-executable or system-adjacent path — likely legitimate |
+
+**Reason column values:** `SI<FN`, `uSecZeros`, or `SI<FN+uSecZeros`
+
 ### MFT
 
 ```bash
