@@ -152,6 +152,7 @@ Read files in this priority order. Use the Explore agent for large directories. 
 | Per-machine `Registry/ShellBags/<USER>/*.csv` | Folder browsing (File Explorer) — `FirstInteracted`, `LastInteracted`, `AbsolutePath` per user |
 | Per-machine `Browser/*_Downloads.csv` | Tools/files the attacker downloaded via browser — `StartTime_UTC`, `TargetPath`, `SourceURL`, `State` |
 | `./analysis/evidence_hashes.txt` | Chain of custody — SHA256 for all evidence files (Section 2A) |
+| `./analysis/cve_attribution.md` | CVE attribution (Phase 16) — populate Section 3B; if absent, note Phase 16 as NOT RUN in Section 15 |
 
 ### Scope-of-Compromise Reconstruction
 
@@ -451,6 +452,22 @@ logs describing the same event count as one source, not two.
 ### Output
 Write the completed report to `<case_root>/reports/investigation_report.md`. If a report already exists, write to `investigation_report_<YYYYMMDD_HHMM>.md` to avoid overwriting.
 
+**CVE Attribution integration (Section 3B):** If `./analysis/cve_attribution.md` exists, integrate its findings before finalising the report:
+1. Add Section 3B — CVE Attribution immediately after Section 3 (Attack Timeline), reproducing CVE blocks verbatim from `cve_attribution.md`.
+2. For each **High-confidence** CVE: update the Executive Summary to name the CVE, append `(CVE-YYYY-NNNNN)` to the matching ATT&CK cell(s) in the timeline table, add a `C-ID` row to the COP Confirmed Findings, and add a `### CVEs` sub-table to Section 12 IOCs.
+3. For each **Moderate/Low-confidence** CVE: add an `I-ID` row to COP Inferred Findings only — do not promote to Executive Summary or Timeline.
+4. Add Phase 16 to Section 15 Workflow Coverage: `| 16 | run_cve_attribution.sh | COMPLETE | [N] CVE(s) attributed: [list] |`
+5. Add CVE IDs to IOC Master in COP under type `CVE`.
+
+After writing the Markdown file, immediately generate an HTML version:
+
+```bash
+python3 /home/sansforensics/projects/SIFTics/scripts/report_to_html.py \
+    "<case_root>/reports/investigation_report.md"
+```
+
+This writes `investigation_report.html` (or `investigation_report_<YYYYMMDD_HHMM>.html`) alongside the Markdown file. The HTML is a standalone single-file report with embedded CSS and JavaScript — no external dependencies. Both files are deliverables; report both paths to the operator.
+
 ---
 
 ## Mandatory report sections (always present)
@@ -467,6 +484,7 @@ Write the completed report to `<case_root>/reports/investigation_report.md`. If 
 
 | Section | Include when |
 |---------|-------------|
+| CVE Attribution (3B) | `./analysis/cve_attribution.md` exists with ≥1 `#### CVE-` heading |
 | Initial Access — Web Server Triage (3A) | `webserver_summary.txt` exists with data (Phase 13) |
 | C2 Infrastructure (4) | `c2_beacon.csv` exists with ≥1 row |
 | Credential Access (5) | `credaccess_timeline.csv` has data |

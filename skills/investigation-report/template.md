@@ -178,6 +178,26 @@ irregular intervals, recon URIs) from automated tool phases (curl/custom UA, fix
 ---
 
 <!-- ═══════════════════════════════════════════════════ -->
+<!-- CONDITIONAL: include if cve_attribution.md exists  -->
+<!--             with ≥1 "#### CVE-" heading (Phase 16) -->
+<!-- ═══════════════════════════════════════════════════ -->
+
+## 3B. CVE Attribution (Intel ICS)
+
+<!--
+Source: ./analysis/cve_attribution.md (Phase 16 — run_cve_attribution.sh)
+Reproduce the content of cve_attribution.md verbatim here.
+
+Integration rules (apply AFTER reproducing the CVE blocks):
+  High confidence CVEs  → also update Section 1 (name the CVE), annotate
+                          ATT&CK column in Section 3 timeline, add to Section 12 CVEs table
+  Moderate/Low CVEs     → reproduced here only; do NOT update Section 1 or timeline
+  If cve_attribution.md is absent → write "[WORKFLOW GAP: Phase 16 not run]" and omit section
+-->
+
+---
+
+<!-- ═══════════════════════════════════════════════════ -->
 <!-- CONDITIONAL: include if c2_beacon.csv exists       -->
 <!--             with ≥1 data row                       -->
 <!-- ═══════════════════════════════════════════════════ -->

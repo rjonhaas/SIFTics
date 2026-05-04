@@ -235,6 +235,7 @@ parallel only when all three conditions hold:
 | Raw disk image (no pre-extracted artifacts) | `sleuthkit` | File system triage, MFT recovery, file carving |
 | macOS endpoint involved | `macos-triage` | Unified log, FSEvents, quarantine DB |
 | All analysis complete, findings stable | `investigation-report` | Final documented report |
+| Investigation report complete, exploitation mechanism identified | `cve-attribution` | CVE attribution via Intel ICS Phase 16 |
 
 **Sequencing heuristic for common patterns:**
 
@@ -277,6 +278,7 @@ the operational period:
 | LaunchAgent/LaunchDaemon created in non-system path | Pivot to macos-triage for persistence analysis |
 | Quarantine DB entry for suspicious download | Pivot to macos-triage; hash the file; consider yara-hunting |
 | Unified Log shows suspicious process execution | Pivot to macos-triage for process tree reconstruction |
+| Investigation report generated AND software version / process anomaly / archive pattern documented | Run `run_cve_attribution.sh` (Phase 16); re-invoke investigation-report skill to integrate Section 3B |
 
 ---
 
