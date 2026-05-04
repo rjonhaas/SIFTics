@@ -295,28 +295,33 @@ main { flex: 1; padding: 0; overflow-x: auto; max-width: 100%; }
 .finding-title { font-size: 13px; font-weight: 700; color: #0f1923; margin-bottom: 5px; }
 .finding-body { font-size: 12.5px; color: #4b5563; line-height: 1.55; }
 
-/* ── Attack timeline ── */
-.atl { position: relative; padding-left: 150px; }
+/* ── Attack timeline ──
+   Layout arithmetic (all from .atl left edge):
+     padding-left = 200px  → item content starts at 200px
+     line at 172px          → .atl::before left: 172px
+     dot left edge = 200-36 = 164px; spans 164-180px; center 172px  ✓
+     date right edge = 155px  → 9px clear gap before dot             ✓
+*/
+.atl { position: relative; padding-left: 200px; }
 .atl::before {
-    content: ''; position: absolute; left: 128px; top: 8px; bottom: 8px;
+    content: ''; position: absolute; left: 172px; top: 8px; bottom: 8px;
     width: 2px; background: linear-gradient(to bottom, #00b4d8 0%, #e8edf4 100%);
 }
 .atl-item { position: relative; margin-bottom: 22px; }
 .atl-item:last-child { margin-bottom: 0; }
 .atl-date {
-    position: absolute; left: -150px; width: 140px; text-align: right;
+    position: absolute; left: -200px; width: 155px; text-align: right;
     font-size: 11px; font-weight: 700; color: #5a7095; padding-top: 3px;
     line-height: 1.3;
 }
 .atl-dot {
-    position: absolute; left: -30px; top: 4px;
+    position: absolute; left: -36px; top: 4px;
     width: 16px; height: 16px;
     background: #00b4d8; border-radius: 50%;
     border: 3px solid #fff; box-shadow: 0 0 0 2px #00b4d8;
-    flex-shrink: 0;
 }
 .atl-dot.critical {
-    background: #dc2626; box-shadow: 0 0 0 2px #dc2626; width: 18px; height: 18px; left: -31px; top: 3px;
+    background: #dc2626; box-shadow: 0 0 0 2px #dc2626; width: 18px; height: 18px; left: -37px; top: 3px;
 }
 .atl-text { font-size: 13px; color: #374151; line-height: 1.55; }
 .atl-item.critical .atl-text { color: #1d2433; font-weight: 500; }
