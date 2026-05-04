@@ -198,6 +198,11 @@ interface ManifestEntry {
   type: "disk" | "memory" | "pcap" | "logs" | "velociraptor" | "other";
   host?: string;
   description?: string;
+  /** Pre-computed SHA-256 from ewfverify / examiner intake. Used at startup to
+   *  avoid re-hashing multi-GB images. Evidence store still verifies working
+   *  copies during custody preparation. */
+  sha256?: string;
+  sizeBytes?: number;
 }
 
 async function loadEvidenceManifest(): Promise<void> {
@@ -212,7 +217,15 @@ async function loadEvidenceManifest(): Promise<void> {
   for (const entry of parsed.evidence) {
     const full = join(EVIDENCE_MOUNT, entry.path);
     const id = mountManager.registerEvidence(entry.path, entry.type);
-    await hashRegistry.registerFile(full);
+    if (entry.sha256 && entry.sizeBytes) {
+      // Use pre-computed hash from manifest (examiner-verified at intake).
+      // Re-hashing multi-GB images at server startup is prohibitive; the
+      // read-only mount guard + custody-chain verification on working copies
+      // provide the runtime integrity story.
+      hashRegistry.register(full, entry.sha256, entry.sizeBytes);
+    } else {
+      await hashRegistry.registerFile(full);
+    }
     const hostTag = entry.host ? ` host=${entry.host}` : "";
     console.error(`Registered ${id}: ${entry.path} (type=${entry.type}${hostTag})`);
   }

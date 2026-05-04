@@ -49,6 +49,9 @@ interface Args {
   /** Comma-separated EVD-NNN ids the Evidence Store should make working
    *  copies of. Bound to keep working-copy disk usage small for demo runs. */
   prepareOnly?: string[];
+  /** Comma-separated branch skill IDs to activate, overriding evidence-driven
+   *  selection (e.g. "operations/memory-branch"). Used to focus demo runs. */
+  branches?: string[];
 }
 
 function parseArgs(argv: string[]): Args {
@@ -68,6 +71,9 @@ function parseArgs(argv: string[]): Args {
       case "mcp-entry": out.mcpEntry = val; break;
       case "prepare-only":
         out.prepareOnly = val.split(",").map((s) => s.trim()).filter(Boolean);
+        break;
+      case "branches":
+        out.branches = val.split(",").map((s) => s.trim()).filter(Boolean);
         break;
       case "help": printUsage(); process.exit(0);
       default: throw new Error(`Unknown flag --${key}`);
@@ -167,6 +173,7 @@ async function main(): Promise<void> {
       mcp,
       runner,
       prepareOnly: args.prepareOnly,
+      branchesOverride: args.branches,
     });
     const result = await loop.run(directive, args.dryRun);
 

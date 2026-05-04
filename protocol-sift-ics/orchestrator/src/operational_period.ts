@@ -57,6 +57,10 @@ export interface PeriodLoopDeps {
    *  keep working-copy disk usage bounded on demo runs. Empty/unset means
    *  prepare every memory/disk source in the directive. */
   prepareOnly?: string[];
+  /** When set, overrides selective branch activation with this explicit list
+   *  (e.g. ["operations/memory-branch"] to run Memory only). Used for tight
+   *  test-cycle iteration when full multi-branch coverage isn't needed. */
+  branchesOverride?: string[];
 }
 
 export interface PeriodLoopResult {
@@ -359,8 +363,13 @@ export class OperationalPeriodLoop {
     }
   }
 
-  /** Selective activation: branches with no relevant evidence stand down. */
+  /** Selective activation: branches with no relevant evidence stand down.
+   *  An explicit override (CLI --branches) takes precedence over the
+   *  evidence-driven selection. */
   private selectBranches(directive: IncidentDirective): string[] {
+    if (this.deps.branchesOverride && this.deps.branchesOverride.length > 0) {
+      return [...this.deps.branchesOverride];
+    }
     const sources = directive.evidence_sources;
     const has = (t: DirectiveEvidenceSource["type"]) => sources.some((s) => s.type === t);
     const active = new Set<string>(["operations/triage-branch"]);

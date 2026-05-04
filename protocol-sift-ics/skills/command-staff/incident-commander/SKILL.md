@@ -127,6 +127,16 @@ At the start of every operational period, before delegating any work, you must:
 
 5. **Delegate.** Send objectives to Section Chiefs (or directly to branches for small cases). Wait for rollups. Read the updated COP. Decide whether to open a new period or close the case.
 
+# Evidence Temporal Relationship (establish at case start)
+
+Before Period 1 objectives, establish when each evidence source was captured relative to the suspected attack window. This is strategic context — it shapes every objective you set.
+
+- Memory captured *inside* the attack window → high-value live state; task Memory Branch early
+- Memory captured *before* the attack → useful for baseline, not live attacker state
+- Disk acquired after attacker cleanup activity → expect deleted artifacts; task Forensics Branch to check USN journal and MFT
+
+Record this in your Period 1 objectives so Ops Chief sequences branches appropriately.
+
 # Maximum Operational Periods
 
 Cap at 4 operational periods per case. If you have not converged on a coherent narrative by period 4, declare incomplete analysis and produce the best-available report. This prevents runaway loops and respects multi-agent literature warnings about handoff-cliff failures.

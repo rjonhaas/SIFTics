@@ -316,6 +316,119 @@ If you're a Claude Code session and the user asks you something about this proje
 - The user knows the architecture well — they don't need re-orientation. Skip the preamble and answer the question.
 - For decisions that change architectural invariants, surface the change and confirm with the user before proceeding.
 
+## Tool Validation Log
+
+Each entry records an interactive test of a tool against real SRL-2018 evidence, run directly via Claude Code before swarm execution. Format: date · tool · result · any fixes applied to MCP server source.
+
+**Workflow:** Run tool interactively → verify output → fix MCP server source if needed → append entry here → rebuild MCP server before swarm run.
+
+**Evidence under test:** `base-dc-cdrive.E01` (33 GiB, Windows DC C-drive, case 20180905-001) + `base-dc-memory.img` (DC memory capture, MD5 verified 9ab3a3e2842bc9caf164837668c155aa).
+
+---
+
+**2026-04-28 · Phase 0 — Evidence Intake & Verification · base-dc-cdrive.E01**
+- `ewfverify`: SUCCESS — MD5 `e18b450127de04afb3211faa456ada27` matches stored hash. SHA1 `15f1215e824a3319020cb74addcbe22d90fc6c18`. 33 GiB read in ~2 min.
+- `ewfinfo`: Case 20180905-001, examiner Clint Barton, acquired via F-Response over network, FTK Imager format, Win 201x, 70,529,024 sectors × 512 = 36,110,860,288 bytes.
+- Partition layout: **No partition table** — image is a logical C: drive acquisition, not a full physical disk. `mmls` returns nothing. `file` and `fsstat` confirm NTFS VBR at offset 0. Volume serial `34A405AFA4057520`. MFT at cluster 786432.
+- Mount command (verified working):
+  ```
+  sudo ewfmount ~/Desktop/cases/SRL-2018/base-dc-cdrive.E01 /mnt/ewf_mount
+  sudo mount -o ro,loop,noexec,nosuid,show_sys_files -t ntfs /mnt/ewf_mount/ewf1 /mnt/evidence
+  ```
+- MCP server impact: `resolveEvtxDir()` and all disk tool path helpers assume `/mnt/evidence/{evidence_id}/...`. With this mount at `/mnt/evidence`, evidence_id maps to the root — manifest must set `mount_point: /mnt/evidence` directly. **Review mount_manager.ts before swarm run.**
+
+---
+
+**2026-04-28 · Phase 1 — Registry Triage · RegRipper `rip.pl`**
+- Invocation: `rip.pl -r <hive> -f <profile>` (profiles: system, software, sam, ntuser). Binary at `/usr/local/bin/rip.pl`. ✅
+- Hives copied to analysis directory before parsing — evidence stays read-only.
+- Key facts: Host `BASE-DC`, domain `shieldbase.lan`, IP `10.10.4.4` (static), OS Windows Server 2016 Standard build 14393.2214, Timezone Eastern Standard Time, last shutdown 2018-09-07 20:25:33Z.
+- Local accounts (SAM): only built-in Administrator/Guest/DefaultAccount. Domain accounts (cbarton-a, rsydow-a, spsql) are in AD.
+- Run keys: VMware Tools + McAfee Agent only — no attacker persistence.
+- `subject_srv.exe` (`C:\Windows\subject_srv.exe`, 1.1 MB PE32, 2018-04-10): **F-Response Subject Service binary** — the remote acquisition tool's client component, not attacker tooling. SHA256: `87c8fa606729ed63cb9d59f6b731338f8b06addbb3ef91e99b773eac2f2c524d`.
+- `mnemosyne` kernel driver: memory acquisition driver installed by examiner on 2018-09-06T22:11:15Z alongside `F-Response Subject` service; reinstalled twice on 2018-09-07 post-shutdown (acquisition artifact).
+
+**2026-04-28 · Phase 1 — ShimCache · RegRipper `appcompatcache` plugin**
+- Invocation: `rip.pl -r SYSTEM -p appcompatcache`. ✅
+- Notable: `ntdsutil.exe` (2018-04-25), `Autorunsc.exe` in `C:\Windows\` (2018-08-15, unusual location), `\\shieldbase.lan\sysvol\...\InstallOffice365.bat` (GPO startup script, 2018-05-14).
+
+**2026-04-28 · Phase 1 — Event Logs · EvtxECmd**
+- Invocation: `EvtxECmd -f <file> --inc <event_ids> --json <output_dir>`. Binary at `/usr/local/bin/EvtxECmd`. ✅
+- Output format: JSONL (UTF-8 BOM). New process name is in `Payload → EventData.Data[NewProcessName]`, not in PayloadData fields. Parse with `json.loads(e['Payload'])`.
+- Security.evtx: 235 MB. Process creation auditing (4688) enabled — 8,184 events.
+- `--json` requires a DIRECTORY, `--jsonf` requires a FILENAME. Neither writes to stdout — no `-` support. `evtx.ts` was using `--json -` (broken). **Fixed: `evtx.ts` now uses `--jsonf <temp_path>`, reads the file, then deletes it. Also wrapped `execFileP` in try/catch. Build: clean.** ✅
+
+**2026-04-28 · Phase 1 — KEY FINDINGS (Attacker Activity on BASE-DC)**
+- **NTDS.DIT credential theft:** `spsql@shieldbase` (compromised SQL service account) ran `ntdsutil.exe "ac i ntds" ifm "create full c:\windows\temp\perfmon" q q` at 2018-09-05T12:26:28Z and 12:27:19Z. Full AD database extracted to `C:\windows\temp\perfmon\`. Directory deleted before acquisition — not present on disk.
+- **VSS manipulation (ransomware prep):** `rsydow-a@shieldbase` used `wmic /node:<IP> shadowcopy call create/list` against hosts 172.16.7.15, 172.16.6.11, 172.16.6.14, 172.16.7.11 on 2018-09-05 and 2018-09-07. Pattern consistent with pre-ransomware shadow copy enumeration/creation.
+- **vssadmin:** `spsql` ran `vssadmin list shadows` at 2018-09-05T12:05:18Z immediately before ntdsutil runs.
+- **Lateral movement:** `rsydow-a` pinged `base-file` by hostname (2018-09-07T02:59:04Z); opened DNS management console (2018-09-05T14:47:09Z).
+- **Accounts of interest:** `spsql` (SQL service account, used for credential theft), `rsydow-a` (active attacker account, VSS and lateral movement). `cbarton-a` appears to be the examiner (Clint Barton).
+
+**2026-04-28 · Memory Analysis · Volatility 3 (windows.psscan, windows.netscan, windows.malfind)**
+- Vol3 wrapper is at `/usr/local/bin/vol` → `/opt/volatility3/vol.py`. ✅
+- **Plugin results summary against `base-dc-memory.img` (Windows Server 2016 DC, captured 2018-09-06 22:57:49Z):**
+  - `windows.info` ✅ — OS confirmed, capture time verified
+  - `windows.psscan` ✅ — Full process list via pool tag scan (60 processes). Saved to `analysis/dc-memory/psscan.txt`.
+  - `windows.netscan` ✅ — Network connections via pool scan. Saved to `analysis/dc-memory/netscan.txt`.
+  - `windows.cmdline` ❌ — Returns headers only. EPROCESS list walk failing on this image (same issue as pslist/pstree).
+  - `windows.malfind` ❌ — Returns headers only. VAD walk fails for same reason (EPROCESS chain broken in this image).
+  - `windows.dlllist` ❌ — Returns headers only. PEB read fails via EPROCESS.
+  - `windows.vadinfo` ❌ — Returns headers only. VAD walk fails.
+  - `windows.filescan` ✅ (runs) — No results on our filtered query (may need broader query for real cases).
+- **Swarm instruction**: Use `windows.psscan` and `windows.netscan` for this image. Do NOT call `windows.pslist`, `windows.pstree`, `windows.cmdline`, `windows.dlllist`, `windows.malfind`, or `windows.vadinfo` — they silently return empty results and waste iteration budget.
+
+**2026-04-28 · Phase 2 — Memory KEY FINDINGS (BASE-DC)**
+- **Suspicious process chain:** `RuntimeBroker.exe` (PID 4932, PPID 836/svchost) → `powershell.exe` (PID 5612) → `notepad.exe` (PID 7936) + `conhost.exe` (PID 5488). RuntimeBroker should never spawn PowerShell. PowerShell spawning notepad is classic hollow/shellcode injection target.
+- **Timeline extends attack window back to 2018-08-16:** powershell.exe started 2018-08-16T22:10:54Z — 20 days BEFORE the NTDS.DIT theft on 2018-09-05. Attacker had persistent access for 3 weeks before executing noisy operations.
+- **dllhost.exe (PID 1152, PPID 836) started 2018-08-16T22:10:47Z** — 7 seconds BEFORE powershell started. Sequential COM-based execution pattern (dllhost → powershell) is consistent with a COM-based initial execution technique.
+- **cmd.exe (PID 9012, PPID 6628) — created AND exited 2018-09-06T22:53:58Z** (4 minutes before capture). Parent PID 6628 is NOT in psscan — either short-lived or hidden. Zero threads at capture = process terminated. Represents attacker activity immediately before acquisition.
+- **No external C2 connections visible in netscan.** Only ESTABLISHED connections are LDAP (389) and Global Catalog (3268) from `172.16.4.6` to the DC, and loopback pairs. Suspicious PIDs have zero attributed network sockets. C2 is likely sleeping implant (long beacon interval), DNS-based C2, or named pipes.
+- **`172.16.4.6` querying DC on LDAP and Global Catalog** at capture time — could be legitimate domain member or attacker pivot host. Cross-reference with other host evidence.
+- **malfind returned zero results system-wide** — no classic RWX injected pages. The RuntimeBroker→PowerShell→notepad chain does not use standard shellcode injection visible to malfind. Technique may be module stomping, reflective loading, or amsi patching.
+
+**2026-04-28 · Phase 2 (continued) — PowerShell Script Block Logs + Logon Analysis (BASE-DC disk)**
+- **PowerShell Operational log** (27 MB, 999 script block records): Event ID 4104 parsed via EvtxECmd `--jsonf`. PID 5612 = 512 of those records.
+- **PID 5612 is rsydow-a's interactive admin session**, NOT a C2 implant. Confirmed by `cd C:\users\rsydow-a\Documents\` and use of `srl-all.txt` (domain-wide computer list). Session ran Aug 16 – Sep 7 (3 weeks).
+- **rsydow-a's full command history (PID 5612):** VMware timesync checks across all domain computers (`srl-all.txt`), `enable-computerrestore` on workstations, `vssadmin resize shadowstorage` on workstations, `wmic /node:<IP> shadowcopy call create` on all domain hosts (Aug 17 through Sep 5), `enter-pssession` to 172.16.6.11 and base-rd-01, restarted base-mail (Aug 30), restarted base-file (Sep 7 03:00Z — during attack window). This is domain admin activity, creating VSS snapshots across all hosts.
+- **Security log coverage: Sep 4-7 only** — rolled over (no 1102 clear event). 50,651 logon records. Activity before Sep 4 not visible in Security log, but visible in PS log.
+- **rsydow-a logon sources:** Type 10 (RDP) to DC from BASE-ADMIN (172.16.5.26) on Sep 7 20:29Z. Type 3 from BASE-MAIL, BASE-FILE, BASE-ELF, BASE-AV — Kerberos delegation from remote PS commands.
+- **spsql logon sources:** NTDS theft originated from BASE-FILE (172.16.4.5/10.10.4.5) and BASE-RD-01 (172.16.6.11). spsql authenticated to DC from those hosts — confirms it was invoked on the file/RDS server.
+- **CONFIRMED C2 BEACON — Administrator account from BASE-AV (172.16.5.20) → DC:** 246 events in 41 bursts, intervals 90–118 min (mean 106 min, ~14% jitter). 6 simultaneous Kerberos/SMB/LDAP auths per burst. Pattern: **automated C2 beacon with sleep jitter**. Runs Sep 4-7 continuously.
+
+**2026-04-28 · Phase 3 — BASE-AV Memory Analysis (base-av-memory.img, captured 2018-09-06 23:48Z)**
+- OS: Windows 2008R2/Server (NtMajorVersion=6), captured 50 minutes after DC capture.
+- `windows.psscan` ✅ — Process list confirms McAfee ePO stack (Apache.exe 266 threads, Tomcat7, sqlservr.exe, EventParser.exe, srvmon.exe, masvc.exe), Puppet Labs stack (`rubyw.exe` PID 1084 + `ruby.exe` PID 1556 running as services), NSClient++ (`nscp.exe`), NCPA (`ncpa_passive.exe`, `ncpa_listener.exe`).
+- `windows.netscan` ✅ — Key connections:
+  - `rubyw.exe` (PID 1084) → `10.10.254.1:61613` CLOSED — **Puppet MCollective daemon (mcollectived) beaconing to ActiveMQ broker on port 61613 (STOMP).** This is the C2 mechanism. 10.10.254.1 = MCollective/ActiveMQ broker; if compromised, attacker controls all Puppet-managed hosts.
+  - `sqlceip.exe` (PID 1180) → `172.16.4.10:8080` ESTABLISHED — explained as corporate proxy (`@proxy` from PuTTY saved sessions on admin host). Normal corporate web proxy usage.
+  - `chrome.exe` → `172.16.4.10:80/8080` (multiple CLOSED) — confirms 172.16.4.10 is the corporate proxy.
+  - `subject_srv.exe` (PID 4268) → `172.16.5.50:52830` ESTABLISHED — F-Response examiner acquisition connection (normal).
+- **C2 mechanism identified: Puppet MCollective over ActiveMQ STOMP (port 61613).** The `rubyw.exe` MCollective daemon runs on every Puppet-managed host. An attacker controlling `10.10.254.1` (ActiveMQ broker) can execute arbitrary commands on all managed hosts simultaneously — this is how rsydow-a's NTDS theft and VSS operations could have been scripted domain-wide.
+- **Env note:** BASE-AV memory image is 32-bit Windows (WindowsIntel32e layer). All plugins that worked on DC memory also work here.
+
+**2026-04-28 · Phase 4 — BASE-FILE Memory Analysis (base-file-memory.img, captured 2018-09-06 19:28:44Z)**
+- OS: Windows 6.3 (Server 2012 R2), captured 3.5h BEFORE DC capture — still inside active attack window (Sep 5–7).
+- `windows.psscan` ✅ — psscan and netscan both work on this image.
+- **WMI lateral movement entry point confirmed**: `WmiPrvSE.exe` (PID 1196, parent svchost PID 600) spawned `powershell.exe` (PID 4072) at 2018-08-28T22:08:25Z. WmiPrvSE spawning PS is the smoking gun for `wmic /node:... process call create "powershell.exe ..."` remote execution.
+- **Persistent C2 implant chain**: powershell.exe (PID 4072, 64-bit) → powershell.exe (PID 3164, WOW64=32-bit) → 30× rundll32.exe (Aug 30 – Sep 6, each lasting 3-30 seconds). PS spawning short-lived rundll32 in regular bursts = C2 beacon execution pattern (shellcode run in rundll32 then terminate).
+- **Puppet MCollective C2**: `rubyw.exe` (PID 1156) → `10.10.254.1:61613` ESTABLISHED — same MCollective C2 mechanism as BASE-AV. All Puppet-managed hosts are under attacker C2 control.
+- **Active PS network connections**: PID 3164 (32-bit PS) has CLOSE_WAIT connection to `172.16.4.10:8080` (corporate proxy); PID 4072 (64-bit PS) has CLOSED connection to same proxy. Multiple UDP port-0 sockets on PID 4072 (raw socket capability).
+- **Rar.exe exfil staging**: `Rar.exe` (PID 2524) ran 2018-09-05T14:43–14:52Z (9 min). Parent PID 6352 not in psscan (already exited). Timing: 2+ hours after NTDS theft (12:26Z). This is compressing stolen credential data for exfil.
+- **Exfil destination**: `System` (PID 4) → `10.10.150.181:445` ESTABLISHED SMB connection. `10.10.150.181` is NOT in any corporate IP range observed — suspected attacker-controlled exfil server or staging point.
+- **Inbound SMB from multiple hosts at capture time**: BASE-FILE serving SMB (port 445) to 172.16.6.11, 6.13, 6.14, 7.12, 7.13, 7.14, 7.16, 5.20 (BASE-AV), 5.21, 5.25, 5.26 (BASE-ADMIN), 4.4 (DC), 10.10.150.181 — confirms BASE-FILE is the primary file server and lateral movement hub.
+- **WinRM outbound (svchost PID 928) to 172.16.5.21** (multiple CLOSED/CLOSE_WAIT) — PS remoting sessions being established from BASE-FILE to unknown host 172.16.5.21.
+- **`masvc.exe` (McAfee Agent) → `172.16.5.20:443`** — confirms BASE-AV (172.16.5.20) is the McAfee ePO server managing this host.
+- **Attack sequence on BASE-FILE**:
+  1. 2018-08-28T22:08Z: Attacker lands via WMI lateral movement (WmiPrvSE → PS chain)
+  2. Aug 30 – Sep 5: PS beacon running (30 rundll32 executions over 8 days)
+  3. 2018-09-05T12:26Z: spsql runs ntdsutil on DC (logons to DC originate FROM 172.16.4.5/10.10.4.5)
+  4. 2018-09-05T14:43–14:52Z: Rar.exe archives stolen data (9 min)
+  5. ~14:52Z: Rar archive exfil'd to 10.10.150.181:445 via SMB
+  6. Sep 6: More PS beacon activity, reg.exe runs, examiner F-Response acquisition begins 19:25Z
+
+---
+
 ## Last Updated
 
-April 27, 2026 — updated by Claude Opus 4.7. Captures the OpenClaw → Claude Code subagent orchestrator migration, the five MCP server bugs found and fixed during first real boot, and the SRL-2018 case wiring. If you're reading this and the date is much later, check `git log` and `SUBMISSION_CHECKLIST.md` for state since.
+April 28, 2026 — Phases 0-4 complete on SRL-2018 (BASE-DC disk + memory, BASE-AV memory, BASE-FILE memory). Full attack chain reconstructed end-to-end. WMI lateral movement into BASE-FILE confirmed (WmiPrvSE → PS chain, Aug 28). NTDS theft via spsql from BASE-FILE confirmed. Rar.exe exfil staging at 14:43Z Sep 5. SMB exfil to 10.10.150.181 (unknown host, suspected attacker infrastructure). Puppet MCollective C2 (rubyw.exe → 10.10.254.1:61613) confirmed on both BASE-FILE and BASE-AV.

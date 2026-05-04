@@ -96,7 +96,11 @@ function renderToolCatalog(skill: SkillConfig, mcp: McpClient): string {
 function directiveContext(directive: IncidentDirective): string {
   const evidence = directive.evidence_sources
     .map((e, i) => {
-      const parts = [`[${i + 1}] type=${e.type} path=${e.path}`];
+      // EVD-NNN matches the MCP server's MountManager registration order
+      // (manifest sequence, 1-indexed). Branches MUST use this ID when
+      // calling tools (e.g. memory_id: "EVD-003" for the third source).
+      const evdId = `EVD-${String(i + 1).padStart(3, "0")}`;
+      const parts = [`${evdId} type=${e.type}`];
       if (e.host) parts.push(`host=${e.host}`);
       if (e.os) parts.push(`os=${e.os}`);
       if (e.sha256) parts.push(`sha256=${e.sha256.slice(0, 16)}…`);
@@ -198,7 +202,7 @@ export async function runBranch(
     skill: branch,
     userMessage,
     tools,
-    maxTokens: 4096,
+    maxTokens: 8192,
     maxTurns: 8,
     onToolUse: async (use) => {
       if (use.name !== "submit_tool_request") {
@@ -556,7 +560,15 @@ export async function runDocumentationUnit(
     `  },`,
     `  "operational_periods_summary": [`,
     `    { "period": 1, "objectives": ["..."], "active_branches": ["triage","memory"], "key_findings_added": ["FND-001"], "ic_reasoning": "..." }`,
-    `  ]`,
+    `  ],`,
+    `  "retrospective": {`,
+    `    "what_worked": ["<methodology that produced findings this run — branch-agnostic, e.g. 'parsing parent-child PID anomalies via vol_pstree before vol_pslist surfaced injected processes faster than the reverse order'>"],`,
+    `    "what_did_not": ["<specific tool calls that returned errors and why; argument-shape misses; ordering missteps>"],`,
+    `    "patterns_observed": ["<recurring pattern across this incident's evidence — useful as a hypothesis to test in future incidents>"],`,
+    `    "suggested_skill_md_updates": [`,
+    `      { "skill": "operations/<branch>", "addition": "<one-sentence tradecraft rule grounded in this run, suitable for human review>", "rationale": "<why this would help future runs>" }`,
+    `    ]`,
+    `  }`,
     "}",
     "```",
     "",
@@ -566,6 +578,12 @@ export async function runDocumentationUnit(
     "3. If no findings back a phase, OMIT the phase. Empty attack_narrative + empty iocs is acceptable; fabricated narrative is not.",
     "4. The incident_summary must reflect what was actually observed. If the swarm produced no substantive findings, say so directly — do not invent an APT story.",
     "5. Every IOC entry's supporting_findings array must reference a real FND-NNN that appears in the rollups.",
+    "",
+    "RETROSPECTIVE RULES (After-Action Review):",
+    "6. The retrospective section captures METHODOLOGY learnings only — it must NOT restate findings or invent factual claims about the evidence.",
+    "7. suggested_skill_md_updates is operator-review-only output. Each entry is a proposal for a human to evaluate, never an instruction the system applies.",
+    "8. If you cannot identify genuine methodology learnings from this run, return empty arrays. A useless retrospective is better than a fabricated one.",
+    "9. Tradecraft suggestions should be branch-applicable rules of practice (e.g. 'when X is observed, run Y next'), not facts about this specific incident's hosts or attackers.",
   ].join("\n");
 
   const result = await deps.runner.invoke({

@@ -23,7 +23,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { randomUUID, createHash } from "node:crypto";
-import { writeFile, stat } from "node:fs/promises";
+import { writeFile, readFile, stat, unlink, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
 import type { PathGuard } from "../../safety/path_guard.js";
@@ -92,20 +92,31 @@ export async function parseEventLogs(
   const evtxDir = resolveEvtxDir(args.evidence_id, args.log_name);
   ctx.pathGuard.validatePath(evtxDir);
 
-  // EvtxECmd parses .evtx files to JSON.
+  // EvtxECmd writes JSON to a file, not stdout. Use --jsonf to specify the output path.
+  const artifactsDir = join(ctx.pathGuard.getWorkingDir(), "parsed_artifacts");
+  await mkdir(artifactsDir, { recursive: true });
+  const outputPath = join(artifactsDir, `evtx_raw_${executionId}.jsonl`);
+  ctx.pathGuard.validatePath(outputPath, true);
+
   // -d <dir> parses all .evtx in a directory; -f <file> parses a single file.
+  const isFile = evtxDir.endsWith(".evtx");
   const cmdArgs = [
-    "-d", evtxDir,
-    "--json", "-",  // JSON output to stdout
+    isFile ? "-f" : "-d", evtxDir,
+    "--jsonf", outputPath,
   ];
 
-  const { stdout } = await execFileP(
-    "EvtxECmd",
-    cmdArgs,
-    { maxBuffer: 500 * 1024 * 1024 }
-  );
+  let rawOutput: string;
+  try {
+    await execFileP("EvtxECmd", cmdArgs, { maxBuffer: 50 * 1024 * 1024 });
+    rawOutput = await readFile(outputPath, "utf-8").catch(() => "");
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(`EvtxECmd failed for evidence ${args.evidence_id}: ${msg}`);
+  } finally {
+    await unlink(outputPath).catch(() => undefined);
+  }
 
-  let rawRecords = parseEvtxOutput(stdout);
+  let rawRecords = parseEvtxOutput(rawOutput);
 
   // Apply filters
   if (args.event_ids) {

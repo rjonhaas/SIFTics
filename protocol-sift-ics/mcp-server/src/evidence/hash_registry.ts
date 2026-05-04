@@ -101,10 +101,16 @@ export class HashRegistry {
    * Verify all registered evidence files still match their original hashes.
    * Returns true if ALL hashes match; false if ANY mismatch is detected.
    *
+   * Files exceeding `maxSizeBytes` (default 100 MB) are skipped — re-hashing
+   * multi-GB memory images after every tool call is prohibitive. Large files
+   * are protected by the read-only mount guard; their integrity was established
+   * at intake (ewfverify). Set `maxSizeBytes: Infinity` for a full audit-grade
+   * sweep (used by Evidence Store at period boundaries, not hot-path tool calls).
+   *
    * Called by index.ts after every tool execution and by Evidence Store
    * at operational period boundaries.
    */
-  async verifyAllMounted(): Promise<boolean> {
+  async verifyAllMounted(maxSizeBytes = 100 * 1024 * 1024): Promise<boolean> {
     if (this.entries.size === 0) {
       // No evidence registered — vacuously true.
       // This happens during development/testing without real evidence.
@@ -112,6 +118,10 @@ export class HashRegistry {
     }
 
     for (const [path, entry] of this.entries) {
+      if (entry.sizeBytes > maxSizeBytes) {
+        // Large file: trust the read-only mount guard instead of re-hashing.
+        continue;
+      }
       try {
         const currentHash = await this.computeHash(path);
         if (currentHash !== entry.sha256) {
