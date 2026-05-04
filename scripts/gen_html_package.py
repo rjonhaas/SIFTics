@@ -1,24 +1,96 @@
 #!/usr/bin/env python3
-"""gen_html_package.py — Generate a self-contained browsable HTML case package.
+"""gen_html_package.py — Self-contained HTML case package generator.
 
-Reads CSVs from <case_root>/analysis/ and the investigation report from
-<case_root>/reports/ and generates a navigable HTML site under
-<case_root>/reports/html/.
+Produces a customer-ready ZIP with:
+  index.html    — CISO executive dashboard (severity, findings, timeline, actions)
+  report.html   — Full investigation report (markdown rendered)
+  analyst.html  — Analyst evidence hub (phase-ordered investigation journey)
+  csv/*.html    — Individual CSV artifact tables (sortable, searchable, paginated)
+
+No server required — all assets are inline CSS/JS.  Customer unzips and opens
+index.html in any browser.
 
 Usage: python3 gen_html_package.py <case_root>
 """
 
-import sys
-import os
-import csv
-import shutil
-import subprocess
-import re
-import html as _h
+import sys, os, csv, shutil, subprocess, re, zipfile, html as _h
 from pathlib import Path
 from datetime import datetime, timezone
 
-MAX_EMBED_ROWS = 5000   # embed all rows up to this; truncate larger files
+MAX_EMBED_ROWS = 5000
+
+# ─── Case-specific executive content ──────────────────────────────────────────
+# Customize this block for each case.
+
+CASE_CONFIG = {
+    'severity':       'CRITICAL',
+    'severity_color': '#dc2626',
+    'date_range':     '2019-03-08 – 2019-03-22',
+    'incident_type':  'External Breach + Insider Threat',
+    'summary': [
+        "An external attacker exploited <strong>CVE-2014-6287 in HTTP File Server (HFS) on Bob's Windows 7 machine</strong>, deploying a Meterpreter payload (<code>UWkpjFjDzM.exe</code>) that established a live command-and-control session to <code>10.0.0.106:4444</code> — confirmed active at the time evidence was captured.",
+        "Simultaneously, an insider threat — <strong>Karen</strong> (<code>klovespizza@outlook.com</code>), recruited via Craigslist by a threat actor identified as <strong>TAAUSAI / Michael Scotch</strong> — accepted <strong>$150,000 USD</strong> to facilitate the breach by gaining Bob's trust. Karen staged Kali Linux, Mimikatz, and Metasploit on her own machine for attack preparation and confirmed receipt of payment before the operation.",
+        "Following the breach, Karen conducted anti-forensics operations (timestamp manipulation via SetMace.exe, Tor Browser use, timestomp download), then exfiltrated the social engineering transcript to TAAUSAI in an encrypted archive. Her own notes describe the objective: <em>\"Gain Bob's Trust / Learn how to hack / Profit.\"</em>",
+    ],
+    'findings': [
+        ('🎯', '#dc2626', 'Active External Breach',
+         "CVE-2014-6287 exploited on Bob's HTTP File Server. VBScript dropper deployed Meterpreter payload. Interactive shell spawned. TCP 10.0.0.101:49217 → 10.0.0.106:4444 was ESTABLISHED at evidence capture."),
+        ('💰', '#d97706', 'Insider Threat — $150,000 USD',
+         "Karen (klovespizza@outlook.com) was recruited by TAAUSAI / Michael Scotch and paid $150,000 to facilitate the hack against Bob Redliubeht. Full recruitment chain confirmed from Outlook OST — 5 inbound + 7 sent emails."),
+        ('🔑', '#7c3aed', 'Attack Toolkit Staged on Kali',
+         "Full Mimikatz credential-dumping toolkit (mimikatz.exe, mimidrv.sys, mimilib.dll) and Metasploit framework confirmed on Karen's hidden Kali Linux partition. 95 bash history commands document operational preparation."),
+        ('🕵', '#0369a1', 'Anti-Forensics Operations',
+         "SetMace.exe executed 2019-03-17 21:24 UTC — NTFS timestamps manipulated on hundreds of files. Tor Browser installed. timestomp.exe downloaded. Three independent forensic sources confirm each action."),
+        ('📤', '#065f46', 'Social Engineering Log Exfiltrated',
+         "Skype Convo.zip (Bob social engineering transcript, password=pacalove) emailed to TAAUSAI 2019-03-22 23:36 UTC. Karen's message: \"Things didn't go as planned with Bob.\" SHA256 confirmed across email attachment and RecentDocs."),
+    ],
+    'timeline': [
+        ('2019-03-08', "TAAUSAI makes first contact with Karen via Craigslist, offering $150,000 USD for \"entry level cyber security analyst\" insider work targeting Bob Redliubeht (CEO of Alpacamybags).", False),
+        ('2019-03-17 06:18', "TAAUSAI sends base64 authentication challenge. Karen decodes it in 16 minutes (TheCardCriesNoMore) and submits correct answer — operator vetting complete.", False),
+        ('2019-03-17 20:54', "Karen installs Tor Browser, executes SetMace.exe (NTFS timestamp manipulation), downloads timestomp.exe from GitHub to USB. Anti-forensics operations begin same afternoon as job confirmation.", False),
+        ('2019-03-22 01:47', "TAAUSAI sends operation briefing: target Bob Redliubeht; debrief coordinates 27°22′50″N 33°37′54″E (Gulf of Suez, Egypt); meeting March 23 at 0600 EDT. Karen confirms payment received.", False),
+        ('2019-03-22 05:35', "CVE-2014-6287 exploited. HFS.exe spawns wscript.exe → UWkpjFjDzM.exe (Meterpreter) → cmd.exe. Active C2 session to 10.0.0.106:4444 established and confirmed in memory.", True),
+        ('2019-03-22 23:36', "Karen emails Skype Convo.zip to TAAUSAI — social engineering transcript exfiltrated under encryption. Operation concluded.", False),
+    ],
+    'actions': [
+        ('IMMEDIATE', '#dc2626',
+         'Acquire PacaLady USB drive (A:\\)',
+         "This USB drive contains Secrets.txt, SetMace.exe, timestomp.exe, and likely the Pastebin MD5 source file — none of which are in the current evidence set. It was connected to Karen's machine and must be seized before it is destroyed or concealed."),
+        ('URGENT', '#d97706',
+         'Identify the attacker machine at 10.0.0.106',
+         "This is the Meterpreter C2 server. Query router/DHCP logs for the 10.0.0.0/24 subnet at 2019-03-22 05:34–05:46 UTC. The unanalyzed Triage-VM.7z archive (28.7 GB) may contain this machine's forensic image."),
+        ('LEGAL', '#7c3aed',
+         'Serve legal process on TAAUSAI (taausai@gmail.com)',
+         "This Gmail account orchestrated the breach and issued $150,000 in payment. Compel Google for account registration, IP login history, and communications. Preserve Craigslist relay addresses (@reply.craigslist.org) used in initial contact."),
+        ('INVESTIGATE', '#0369a1',
+         'Extract and analyze Triage-VM.7z',
+         "This 28.7 GB VMware archive was not analyzed due to size. It contains two VMDKs and may hold the C2 machine or Bob's machine with artifacts not present in the memory image."),
+        ('VERIFY', '#065f46',
+         'Confirm lateral movement scope via network logs',
+         "No lateral movement artifacts were found in available evidence. However, network telemetry was not available. Review router/switch logs or PCAP for the 10.0.0.0/24 subnet on 2019-03-22 to confirm the breach was contained to Bob's machine."),
+    ],
+}
+
+# ─── Phase registry ────────────────────────────────────────────────────────────
+
+PHASES = [
+    (1,  'MFT',           'NTFS / MFT',          'Master File Table — file system timeline, file creation/modification/access timestamps, INDX records.'),
+    (2,  'Registry',      'Registry',             'Registry hives — autoruns, installed services, user activity (ShimCache, Amcache, UserAssist, ShellBags), MRU lists.'),
+    (3,  'EventLogs',     'Event Logs',           'Windows Event Logs — account logons (4624/4625), process creation (4688), service installs, policy changes, log clearing (1102).'),
+    (4,  'Artifacts',     'Artifacts',            'User artifacts — LNK shortcuts, Jump Lists, Recycle Bin deletions, Prefetch execution traces, RecentDocs.'),
+    (5,  'Execution',     'Execution',            'Execution traces — scheduled tasks, PowerShell command history, IIS/web server logs, application event records.'),
+    (6,  'Hunting',       'Threat Hunting',       'Threat hunting results — privilege escalation events, lateral movement, remote execution, suspicious parent–child process chains.'),
+    (7,  'CredAccess',    'Credential Access',    'Credential access artifacts — WMI subscriptions, LSASS access, SAM hive, crash dumps, timestomping indicators.'),
+    (8,  'AntiForensics', 'Anti-Forensics',       'Anti-forensics activity — event log clearing, VSS shadow deletion, Windows Defender tampering, known anti-forensic tools.'),
+    (9,  'Root',          'IOC Master',           'Root-level analysis outputs — consolidated IOC master list, summary reports from all phases.'),
+    (11, 'Browser',       'Browser Artifacts',    'Browser artifacts — Chrome/Edge/IE history, download records, cached credentials, form data.'),
+    (12, 'Ransomware',    'Ransomware',           'Ransomware indicators — ransom notes, files with suspicious extensions, archive staging for exfiltration.'),
+    (13, 'WebServer',     'Web Server',           'Web server analysis — injection attempts, LOLBIN download cradles, operator sessions, webshell inventory.'),
+    (14, 'Email',         'Email Analysis',       'Email artifacts — Outlook OST/PST messages, attachments, contacts, calendar items extracted via readpst.'),
+    (15, 'Linux',         'Linux Partition',      'Linux partition analysis — bash history (95 cmds), offensive tools (Mimikatz, Metasploit), auth logs, CTF artifacts.'),
+]
+
+PHASE_BY_FOLDER = {row[1]: row for row in PHASES if row[1]}
 
 # ─── CSS ──────────────────────────────────────────────────────────────────────
 
@@ -37,40 +109,41 @@ body {
 
 /* ── Header ── */
 header {
-    background: #0f1923;
+    background: #0a1628;
     color: #e8edf4;
     padding: 14px 24px;
     display: flex;
     align-items: center;
-    gap: 18px;
+    gap: 16px;
     position: sticky;
     top: 0;
-    z-index: 100;
-    box-shadow: 0 2px 8px rgba(0,0,0,.4);
+    z-index: 200;
+    box-shadow: 0 2px 8px rgba(0,0,0,.5);
 }
 header .badge {
     background: #00b4d8;
-    color: #0f1923;
+    color: #0a1628;
     font-weight: 700;
     font-size: 11px;
-    letter-spacing: .05em;
+    letter-spacing: .06em;
     padding: 3px 8px;
     border-radius: 3px;
     text-transform: uppercase;
+    flex-shrink: 0;
 }
-header h1 { font-size: 17px; font-weight: 600; letter-spacing: .02em; }
-header .sub { font-size: 12px; color: #8a9bb5; margin-left: auto; }
+header h1 { font-size: 16px; font-weight: 600; letter-spacing: .02em; }
+header .sub { font-size: 11px; color: #7a8faa; margin-left: auto; white-space: nowrap; }
 
 /* ── Layout ── */
 .layout { display: flex; flex: 1; min-height: 0; }
 
 /* ── Sidebar ── */
 nav.sidebar {
-    width: 260px;
-    min-width: 220px;
-    background: #1a2535;
+    width: 270px;
+    min-width: 230px;
+    background: #111d2e;
     color: #c5cfe0;
-    padding: 16px 0;
+    padding: 16px 0 24px;
     overflow-y: auto;
     position: sticky;
     top: 49px;
@@ -80,28 +153,27 @@ nav.sidebar {
 nav.sidebar .nav-title {
     font-size: 10px;
     font-weight: 700;
-    letter-spacing: .1em;
+    letter-spacing: .12em;
     text-transform: uppercase;
-    color: #5a7095;
-    padding: 8px 16px 4px;
+    color: #4a6080;
+    padding: 12px 16px 6px;
 }
 nav.sidebar ul { list-style: none; }
 nav.sidebar li a {
     display: block;
-    padding: 5px 16px 5px 24px;
-    color: #a8b9d0;
+    padding: 5px 16px 5px 26px;
+    color: #8fa3be;
     text-decoration: none;
     font-size: 12.5px;
-    line-height: 1.5;
+    line-height: 1.45;
     border-left: 3px solid transparent;
-    transition: background .12s, color .12s;
+    transition: background .1s, color .1s;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
-nav.sidebar li a:hover,
-nav.sidebar li a.active {
-    background: rgba(0,180,216,.08);
+nav.sidebar li a:hover, nav.sidebar li a.active {
+    background: rgba(0,180,216,.09);
     color: #00b4d8;
     border-left-color: #00b4d8;
 }
@@ -109,159 +181,266 @@ nav.sidebar .nav-group > a {
     padding-left: 16px;
     font-weight: 600;
     color: #c5cfe0;
-    font-size: 12px;
+    font-size: 11.5px;
     text-transform: uppercase;
-    letter-spacing: .04em;
+    letter-spacing: .05em;
 }
 nav.sidebar .nav-group ul { display: none; }
 nav.sidebar .nav-group.open ul { display: block; }
-nav.sidebar .nav-group > a::before { content: "▶ "; font-size: 9px; }
+nav.sidebar .nav-group > a::before { content: "▶ "; font-size: 9px; opacity: .6; }
 nav.sidebar .nav-group.open > a::before { content: "▼ "; }
+nav.sidebar .phase-num {
+    display: inline-block;
+    background: #1e3050;
+    color: #5a8ec0;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 2px;
+    margin-right: 5px;
+}
 
 /* ── Main content ── */
-main {
-    flex: 1;
-    padding: 24px 28px;
-    overflow-x: auto;
-    max-width: 100%;
+main { flex: 1; padding: 0; overflow-x: auto; max-width: 100%; }
+.main-inner { padding: 24px 28px; }
+
+/* ── Severity banner ── */
+.severity-banner {
+    padding: 18px 28px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    background: linear-gradient(135deg, #1a0a0a 0%, #2d1010 100%);
+    border-bottom: 3px solid var(--sev-color, #dc2626);
 }
+.sev-pill {
+    background: var(--sev-color, #dc2626);
+    color: #fff;
+    font-weight: 800;
+    font-size: 13px;
+    letter-spacing: .1em;
+    padding: 5px 14px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.sev-label { color: #f1c0c0; font-size: 13px; font-weight: 500; }
+.sev-label strong { color: #fff; }
+.sev-dates { color: #9a7070; font-size: 12px; margin-left: auto; white-space: nowrap; }
 
 /* ── Cards ── */
 .card {
     background: #fff;
-    border-radius: 6px;
-    box-shadow: 0 1px 4px rgba(0,0,0,.08);
-    padding: 20px 24px;
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.07);
+    padding: 22px 26px;
     margin-bottom: 20px;
 }
-.card h2 {
-    font-size: 15px;
-    font-weight: 600;
-    color: #0f1923;
+.card-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: #5a7095;
     margin-bottom: 14px;
     padding-bottom: 10px;
-    border-bottom: 1px solid #e8edf4;
-}
-.card h3 {
-    font-size: 13px;
-    font-weight: 600;
-    color: #374151;
-    margin: 16px 0 8px;
-}
-
-/* ── Stat tiles ── */
-.stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    gap: 14px;
-    margin-bottom: 20px;
-}
-.stat-tile {
-    background: #fff;
-    border-radius: 6px;
-    box-shadow: 0 1px 4px rgba(0,0,0,.08);
-    padding: 16px;
-    text-align: center;
-    border-top: 3px solid #00b4d8;
-}
-.stat-tile .val {
-    font-size: 26px;
-    font-weight: 700;
-    color: #0f1923;
-    line-height: 1;
-}
-.stat-tile .lbl { font-size: 11px; color: #6b7280; margin-top: 4px; }
-
-/* ── Table controls ── */
-.tbl-controls {
+    border-bottom: 1px solid #f0f2f5;
     display: flex;
     align-items: center;
-    gap: 12px;
-    margin-bottom: 10px;
-    flex-wrap: wrap;
+    gap: 8px;
 }
-.tbl-controls input[type=search] {
-    padding: 6px 12px;
-    border: 1px solid #d1d5db;
+.card-title::before { content: ""; display: inline-block; width: 3px; height: 14px; background: #00b4d8; border-radius: 2px; }
+.card h2 { font-size: 15px; font-weight: 600; color: #0f1923; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid #e8edf4; }
+.card h3 { font-size: 13px; font-weight: 600; color: #374151; margin: 16px 0 8px; }
+
+/* ── Executive narrative ── */
+.exec-narrative p {
+    font-size: 14px;
+    line-height: 1.75;
+    color: #2d3748;
+    margin-bottom: 12px;
+}
+.exec-narrative p:last-child { margin-bottom: 0; }
+.exec-narrative code {
+    background: #f1f5f9;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: 'SF Mono', Consolas, monospace;
+    font-size: 12px;
+    color: #1e40af;
+}
+.exec-narrative em { color: #4b5563; font-style: italic; }
+
+/* ── Finding cards ── */
+.findings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+    margin-bottom: 0;
+}
+.finding-card {
+    border-radius: 7px;
+    border: 1px solid #e8edf4;
+    padding: 18px 20px;
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    background: #fff;
+    border-left: 4px solid var(--fc, #00b4d8);
+    transition: box-shadow .15s;
+}
+.finding-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,.1); }
+.finding-icon { font-size: 24px; flex-shrink: 0; margin-top: 2px; }
+.finding-title { font-size: 13px; font-weight: 700; color: #0f1923; margin-bottom: 5px; }
+.finding-body { font-size: 12.5px; color: #4b5563; line-height: 1.55; }
+
+/* ── Attack timeline ── */
+.atl { position: relative; padding-left: 150px; }
+.atl::before {
+    content: ''; position: absolute; left: 128px; top: 8px; bottom: 8px;
+    width: 2px; background: linear-gradient(to bottom, #00b4d8 0%, #e8edf4 100%);
+}
+.atl-item { position: relative; margin-bottom: 22px; }
+.atl-item:last-child { margin-bottom: 0; }
+.atl-date {
+    position: absolute; left: -150px; width: 140px; text-align: right;
+    font-size: 11px; font-weight: 700; color: #5a7095; padding-top: 3px;
+    line-height: 1.3;
+}
+.atl-dot {
+    position: absolute; left: -30px; top: 4px;
+    width: 16px; height: 16px;
+    background: #00b4d8; border-radius: 50%;
+    border: 3px solid #fff; box-shadow: 0 0 0 2px #00b4d8;
+    flex-shrink: 0;
+}
+.atl-dot.critical {
+    background: #dc2626; box-shadow: 0 0 0 2px #dc2626; width: 18px; height: 18px; left: -31px; top: 3px;
+}
+.atl-text { font-size: 13px; color: #374151; line-height: 1.55; }
+.atl-item.critical .atl-text { color: #1d2433; font-weight: 500; }
+
+/* ── Recommended actions ── */
+.action-list { display: flex; flex-direction: column; gap: 12px; }
+.action-item {
+    display: flex; gap: 14px; align-items: flex-start;
+    padding: 14px 16px;
+    border-radius: 6px;
+    background: #f8fafc;
+    border: 1px solid #e8edf4;
+    border-left: 4px solid var(--ac, #00b4d8);
+}
+.action-tag {
+    font-size: 10px; font-weight: 800; letter-spacing: .08em;
+    text-transform: uppercase;
+    padding: 3px 8px; border-radius: 3px;
+    background: var(--ac, #00b4d8);
+    color: #fff;
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+.action-title { font-size: 13px; font-weight: 600; color: #0f1923; margin-bottom: 3px; }
+.action-body { font-size: 12.5px; color: #4b5563; line-height: 1.5; }
+
+/* ── CISO nav buttons ── */
+.ciso-nav { display: flex; gap: 12px; flex-wrap: wrap; }
+.ciso-btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 20px; border-radius: 5px;
+    font-size: 13px; font-weight: 600;
+    text-decoration: none;
+    transition: opacity .15s, transform .1s;
+}
+.ciso-btn:hover { opacity: .88; transform: translateY(-1px); }
+.ciso-btn.primary { background: #0f1923; color: #00b4d8; border: 2px solid #00b4d8; }
+.ciso-btn.secondary { background: #f0f2f5; color: #374151; border: 2px solid #d1d5db; }
+
+/* ── Analyst hub ── */
+.phase-grid { display: flex; flex-direction: column; gap: 14px; }
+.phase-card {
+    background: #fff; border-radius: 7px;
+    border: 1px solid #e8edf4;
+    border-left: 4px solid #00b4d8;
+    padding: 16px 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.05);
+}
+.phase-card-header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px; }
+.phase-num-badge {
+    background: #0f1923; color: #00b4d8;
+    font-size: 11px; font-weight: 700;
+    padding: 2px 8px; border-radius: 3px;
+    white-space: nowrap; flex-shrink: 0;
+}
+.phase-card-title { font-size: 14px; font-weight: 700; color: #0f1923; }
+.phase-card-desc { font-size: 12.5px; color: #6b7280; line-height: 1.5; margin-bottom: 10px; }
+.phase-links { display: flex; flex-wrap: wrap; gap: 8px; }
+.phase-link {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 10px;
+    background: #f0f2f5; border: 1px solid #d1d5db;
     border-radius: 4px;
-    font-size: 13px;
-    width: 260px;
-    outline: none;
+    font-size: 12px; color: #374151; text-decoration: none;
+    transition: background .1s, border-color .1s;
 }
-.tbl-controls input[type=search]:focus { border-color: #00b4d8; }
+.phase-link:hover { background: #e8f4ff; border-color: #00b4d8; color: #0369a1; }
+.phase-empty { font-size: 12px; color: #9ca3af; font-style: italic; }
+
+/* ── Stat tiles ── */
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; margin-bottom: 20px; }
+.stat-tile {
+    background: #fff; border-radius: 7px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.07);
+    padding: 16px; text-align: center;
+    border-top: 3px solid #00b4d8;
+}
+.stat-tile .val { font-size: 28px; font-weight: 800; color: #0f1923; line-height: 1; }
+.stat-tile .lbl { font-size: 11px; color: #6b7280; margin-top: 5px; }
+
+/* ── Table controls ── */
+.tbl-controls { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+.tbl-controls input[type=search] {
+    padding: 6px 12px; border: 1px solid #d1d5db;
+    border-radius: 4px; font-size: 13px; width: 280px; outline: none;
+}
+.tbl-controls input[type=search]:focus { border-color: #00b4d8; box-shadow: 0 0 0 2px rgba(0,180,216,.15); }
 .tbl-controls .row-info { font-size: 12px; color: #6b7280; margin-left: auto; }
 .tbl-controls select {
-    padding: 5px 10px;
-    border: 1px solid #d1d5db;
-    border-radius: 4px;
-    font-size: 12px;
-    background: #fff;
-    cursor: pointer;
+    padding: 5px 10px; border: 1px solid #d1d5db;
+    border-radius: 4px; font-size: 12px; background: #fff; cursor: pointer;
 }
 .notice {
-    background: #fef3c7;
-    border-left: 4px solid #f59e0b;
-    padding: 8px 14px;
-    font-size: 12px;
-    color: #92400e;
-    margin-bottom: 10px;
-    border-radius: 0 4px 4px 0;
+    background: #fef3c7; border-left: 4px solid #f59e0b;
+    padding: 8px 14px; font-size: 12px; color: #92400e;
+    margin-bottom: 10px; border-radius: 0 4px 4px 0;
 }
 
 /* ── Data table ── */
 .tbl-wrap { overflow-x: auto; }
-table.data-tbl {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 12.5px;
-    white-space: nowrap;
-}
+table.data-tbl { width: 100%; border-collapse: collapse; font-size: 12.5px; white-space: nowrap; }
 table.data-tbl thead th {
-    background: #1a2535;
-    color: #c5cfe0;
-    padding: 8px 12px;
-    text-align: left;
-    font-weight: 600;
-    cursor: pointer;
-    user-select: none;
-    position: sticky;
-    top: 0;
+    background: #111d2e; color: #c5cfe0;
+    padding: 8px 12px; text-align: left;
+    font-weight: 600; cursor: pointer; user-select: none;
+    position: sticky; top: 0;
 }
-table.data-tbl thead th:hover { background: #243347; color: #00b4d8; }
+table.data-tbl thead th:hover { background: #1a2f4a; color: #00b4d8; }
 table.data-tbl thead th.asc::after  { content: " ▲"; font-size: 10px; }
 table.data-tbl thead th.desc::after { content: " ▼"; font-size: 10px; }
 table.data-tbl tbody tr:nth-child(even) { background: #f8fafc; }
-table.data-tbl tbody tr:hover { background: #e8f4ff; }
+table.data-tbl tbody tr:hover { background: #ebf5ff; }
 table.data-tbl td {
-    padding: 6px 12px;
-    border-bottom: 1px solid #e8edf4;
-    max-width: 380px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    vertical-align: top;
-    white-space: nowrap;
-}
-table.data-tbl td.wrap {
-    white-space: normal;
-    word-break: break-all;
-    max-width: 340px;
+    padding: 6px 12px; border-bottom: 1px solid #e8edf4;
+    max-width: 380px; overflow: hidden; text-overflow: ellipsis;
+    vertical-align: top; white-space: nowrap;
 }
 
 /* ── Pagination ── */
-.pagination {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-top: 10px;
-    font-size: 12px;
-}
+.pagination { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 12px; }
 .pagination button {
-    padding: 4px 10px;
-    border: 1px solid #d1d5db;
-    border-radius: 3px;
-    background: #fff;
-    cursor: pointer;
-    font-size: 12px;
+    padding: 4px 10px; border: 1px solid #d1d5db;
+    border-radius: 3px; background: #fff; cursor: pointer; font-size: 12px;
 }
 .pagination button:hover:not(:disabled) { background: #e8f4ff; border-color: #00b4d8; }
 .pagination button:disabled { opacity: .4; cursor: default; }
@@ -272,57 +451,32 @@ table.data-tbl td.wrap {
 .report-body h2 { font-size: 17px; margin: 20px 0 10px; color: #1a2535; border-bottom: 1px solid #e8edf4; padding-bottom: 6px; }
 .report-body h3 { font-size: 14px; margin: 16px 0 8px; color: #374151; }
 .report-body h4 { font-size: 13px; margin: 12px 0 6px; }
-.report-body p  { margin-bottom: 10px; line-height: 1.6; }
+.report-body p  { margin-bottom: 10px; line-height: 1.7; }
 .report-body ul, .report-body ol { margin: 8px 0 10px 24px; }
 .report-body li { margin-bottom: 4px; line-height: 1.5; }
-.report-body code {
-    background: #f1f5f9;
-    padding: 1px 5px;
-    border-radius: 3px;
-    font-family: 'SF Mono', 'Cascadia Code', Consolas, monospace;
-    font-size: 12px;
-}
-.report-body pre {
-    background: #1a2535;
-    color: #c5cfe0;
-    padding: 14px 18px;
-    border-radius: 5px;
-    overflow-x: auto;
-    margin-bottom: 12px;
-}
+.report-body code { background: #f1f5f9; padding: 1px 5px; border-radius: 3px; font-family: 'SF Mono', Consolas, monospace; font-size: 12px; }
+.report-body pre { background: #111d2e; color: #c5cfe0; padding: 14px 18px; border-radius: 5px; overflow-x: auto; margin-bottom: 12px; }
 .report-body pre code { background: none; padding: 0; color: inherit; font-size: 12.5px; }
 .report-body table { border-collapse: collapse; width: 100%; margin-bottom: 14px; font-size: 12.5px; }
-.report-body table th {
-    background: #1a2535;
-    color: #c5cfe0;
-    padding: 7px 12px;
-    text-align: left;
-    font-weight: 600;
-}
-.report-body table td {
-    padding: 6px 12px;
-    border-bottom: 1px solid #e8edf4;
-}
+.report-body table th { background: #111d2e; color: #c5cfe0; padding: 7px 12px; text-align: left; font-weight: 600; }
+.report-body table td { padding: 6px 12px; border-bottom: 1px solid #e8edf4; }
 .report-body table tr:nth-child(even) { background: #f8fafc; }
-.report-body blockquote {
-    border-left: 4px solid #00b4d8;
-    padding: 8px 16px;
-    background: #f0f9ff;
-    margin-bottom: 10px;
-    font-style: italic;
-    color: #374151;
-}
+.report-body blockquote { border-left: 4px solid #00b4d8; padding: 8px 16px; background: #f0f9ff; margin-bottom: 10px; font-style: italic; color: #374151; }
 .report-body hr { border: none; border-top: 1px solid #e8edf4; margin: 20px 0; }
-.report-body del { color: #9ca3af; }
 .report-body strong { font-weight: 700; }
+.report-body del { color: #9ca3af; }
 
 /* ── Footer ── */
-footer {
-    background: #0f1923;
-    color: #5a7095;
-    font-size: 11px;
-    padding: 10px 24px;
-    text-align: center;
+footer { background: #0a1628; color: #4a6080; font-size: 11px; padding: 10px 24px; text-align: center; }
+
+/* ── Print ── */
+@media print {
+    header, nav.sidebar, footer { display: none !important; }
+    .layout { display: block; }
+    main { padding: 0; }
+    .severity-banner { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .finding-card { break-inside: avoid; }
+    .action-item { break-inside: avoid; }
 }
 """
 
@@ -336,8 +490,6 @@ document.querySelectorAll('.nav-group > a').forEach(link => {
         link.closest('.nav-group').classList.toggle('open');
     });
 });
-
-// Auto-open group containing active link
 document.querySelectorAll('nav.sidebar li a.active').forEach(a => {
     const grp = a.closest('.nav-group');
     if (grp) grp.classList.add('open');
@@ -354,11 +506,11 @@ document.querySelectorAll('nav.sidebar li a.active').forEach(a => {
         let sortCol = -1, sortAsc = true, page = 1, pageSize = 100;
 
         const wrap = tbl.closest('.tbl-section') || tbl.parentElement;
-        const searchEl  = wrap.querySelector('input[type=search]');
-        const sizeEl    = wrap.querySelector('select.page-size');
-        const infoEl    = wrap.querySelector('.row-info');
-        const prevBtn   = wrap.querySelector('.prev-btn');
-        const nextBtn   = wrap.querySelector('.next-btn');
+        const searchEl   = wrap.querySelector('input[type=search]');
+        const sizeEl     = wrap.querySelector('select.page-size');
+        const infoEl     = wrap.querySelector('.row-info');
+        const prevBtn    = wrap.querySelector('.prev-btn');
+        const nextBtn    = wrap.querySelector('.next-btn');
         const pageInfoEl = wrap.querySelector('.page-info');
 
         function render() {
@@ -371,15 +523,11 @@ document.querySelectorAll('nav.sidebar li a.active').forEach(a => {
             if (nextBtn)   nextBtn.disabled = (end >= filtered.length);
             if (pageInfoEl) pageInfoEl.textContent = `Page ${page} of ${Math.max(1, Math.ceil(filtered.length/pageSize))}`;
         }
-
         function applyFilter() {
             const q = searchEl ? searchEl.value.toLowerCase() : '';
             filtered = q ? allRows.filter(r => r.textContent.toLowerCase().includes(q)) : allRows.slice();
-            page = 1;
-            applySort(false);
-            render();
+            page = 1; applySort(false); render();
         }
-
         function applySort(rerender=true) {
             if (sortCol < 0) { if(rerender) render(); return; }
             filtered.sort((a, b) => {
@@ -391,32 +539,27 @@ document.querySelectorAll('nav.sidebar li a.active').forEach(a => {
             });
             if(rerender) render();
         }
-
-        // Column sort
         tbl.querySelectorAll('thead th').forEach((th, i) => {
             th.addEventListener('click', () => {
                 if (sortCol === i) { sortAsc = !sortAsc; }
                 else { sortCol = i; sortAsc = true; }
                 tbl.querySelectorAll('thead th').forEach(t => t.classList.remove('asc','desc'));
                 th.classList.add(sortAsc ? 'asc' : 'desc');
-                page = 1;
-                applySort();
+                page = 1; applySort();
             });
         });
-
         if (searchEl) searchEl.addEventListener('input', applyFilter);
-        if (sizeEl) sizeEl.addEventListener('change', () => { pageSize = parseInt(sizeEl.value)||100; page=1; render(); });
-        if (prevBtn) prevBtn.addEventListener('click', () => { if(page>1){page--;render();} });
-        if (nextBtn) nextBtn.addEventListener('click', () => { const maxPg=Math.ceil(filtered.length/pageSize); if(page<maxPg){page++;render();} });
-
+        if (sizeEl)   sizeEl.addEventListener('change', () => { pageSize = parseInt(sizeEl.value)||100; page=1; render(); });
+        if (prevBtn)  prevBtn.addEventListener('click', () => { if(page>1){page--;render();} });
+        if (nextBtn)  nextBtn.addEventListener('click', () => { const maxPg=Math.ceil(filtered.length/pageSize); if(page<maxPg){page++;render();} });
         render();
     });
 })();
 """
 
-# ─── HTML template helpers ─────────────────────────────────────────────────────
+# ─── Page template ────────────────────────────────────────────────────────────
 
-def page(title, content, nav_html, active_href="", case_name="", generated=""):
+def page(title, content, nav_html, case_name="", generated=""):
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -429,20 +572,55 @@ def page(title, content, nav_html, active_href="", case_name="", generated=""):
 <header>
   <div class="badge">DFIR</div>
   <h1>{_h.escape(case_name)}</h1>
-  <div class="sub">Generated {_h.escape(generated)} UTC</div>
+  <div class="sub">Generated {_h.escape(generated)} UTC &nbsp;|&nbsp; FOR AUTHORIZED USE ONLY</div>
 </header>
 <div class="layout">
   {nav_html}
   <main>{content}</main>
 </div>
-<footer>defcon2019_dfir Case Package &mdash; SIFT Workstation &mdash; FOR AUTHORIZED USE ONLY</footer>
+<footer>{_h.escape(case_name)} Case Package &mdash; SIFT Workstation &mdash; FOR AUTHORIZED USE ONLY</footer>
 <script>{JS}</script>
 </body>
 </html>"""
 
 
-def table_page_content(csv_path, machine, rel_name, truncated_at=None):
-    """Render CSV rows as an HTML table with search/sort/pagination."""
+# ─── Navigation builder ───────────────────────────────────────────────────────
+
+def build_nav(nav_tree, active_href="", depth=0):
+    """
+    depth=0: page in html/ root (index.html, report.html, analyst.html)
+    depth=1: page in html/csv/ subdirectory — hrefs adjusted accordingly
+    """
+    def adjust(h):
+        if h in ('#', ''):
+            return h
+        if depth == 0:
+            return h
+        if h.startswith('csv/'):
+            return h[4:]
+        return '../' + h
+
+    lines = ['<nav class="sidebar">']
+    lines.append('<div class="nav-title">Case Navigator</div>')
+    lines.append('<ul>')
+    for label, href, children in nav_tree:
+        if children:
+            act = "open" if any(c[1] == active_href for c in children) else ""
+            lines.append(f'<li class="nav-group {act}"><a href="#">{_h.escape(label)}</a><ul>')
+            for clabel, chref, _ in children:
+                active_cls = ' class="active"' if chref == active_href else ''
+                lines.append(f'  <li><a href="{adjust(chref)}"{active_cls}>{_h.escape(clabel)}</a></li>')
+            lines.append('</ul></li>')
+        else:
+            active_cls = ' class="active"' if href == active_href else ''
+            lines.append(f'<li><a href="{adjust(href)}"{active_cls}>{_h.escape(label)}</a></li>')
+    lines.append('</ul></nav>')
+    return "\n".join(lines)
+
+
+# ─── Table page ───────────────────────────────────────────────────────────────
+
+def table_page_content(csv_path, rel_name, truncated_at=None):
     rows = []
     headers = []
     try:
@@ -457,10 +635,9 @@ def table_page_content(csv_path, machine, rel_name, truncated_at=None):
     except Exception as e:
         return f'<div class="card"><p style="color:red">Error reading CSV: {_h.escape(str(e))}</p></div>'
 
-    total_embedded = len(rows)
     notice = ""
     if truncated_at:
-        notice = f'<div class="notice">⚠ Large file — showing first {total_embedded:,} rows of {truncated_at:,}+ total rows. Download the CSV for full data.</div>'
+        notice = f'<div class="notice">⚠ Large file — showing first {len(rows):,} of {truncated_at:,}+ rows. See the CSV file for complete data.</div>'
 
     th_html = "".join(f"<th>{_h.escape(h)}</th>" for h in headers)
     td_rows = []
@@ -473,6 +650,7 @@ def table_page_content(csv_path, machine, rel_name, truncated_at=None):
     tbody_html = "\n".join(td_rows)
 
     return f"""
+<div class="main-inner">
 <div class="card">
   <h2>{_h.escape(rel_name)}</h2>
   <div class="tbl-section">
@@ -501,259 +679,317 @@ def table_page_content(csv_path, machine, rel_name, truncated_at=None):
       <button class="next-btn">Next &#8594;</button>
     </div>
   </div>
+</div>
 </div>"""
 
 
-# ─── Navigation builder ───────────────────────────────────────────────────────
+# ─── CSV discovery ────────────────────────────────────────────────────────────
 
-def build_nav(nav_tree, active_href="", depth=0):
-    """
-    nav_tree: list of (label, href, children)
-    children is list of (label, href, [])  or None
-    depth=0  : page lives in html/ root (index.html, report.html)
-    depth=1  : page lives in html/csv/ — adjust hrefs so links resolve correctly:
-               csv/foo.html  → foo.html   (sibling in same dir)
-               index.html    → ../index.html  (parent dir)
-    Comparison against active_href always uses the canonical (unadjusted) href.
-    """
-    def adjust(h):
-        if h in ('#', ''):
-            return h
-        if depth == 0:
-            return h
-        # depth=1: page is inside csv/ subdirectory
-        if h.startswith('csv/'):
-            return h[4:]      # strip prefix — sibling file in same dir
-        return '../' + h      # root-level page — go up one level
+def slug(p):
+    return re.sub(r'[^a-zA-Z0-9_\-]', '_', str(p))
 
-    lines = ['<nav class="sidebar">']
-    lines.append('<div class="nav-title">Case Navigator</div>')
-    lines.append('<ul>')
 
-    for label, href, children in nav_tree:
-        if children:
-            act = "open" if any(c[1] == active_href for c in children) else ""
-            lines.append(f'<li class="nav-group {act}"><a href="#">{_h.escape(label)}</a><ul>')
-            for clabel, chref, _ in children:
-                active_cls = ' class="active"' if chref == active_href else ''
-                lines.append(f'  <li><a href="{adjust(chref)}"{active_cls}>{_h.escape(clabel)}</a></li>')
-            lines.append('</ul></li>')
-        else:
-            active_cls = ' class="active"' if href == active_href else ''
-            lines.append(f'<li><a href="{adjust(href)}"{active_cls}>{_h.escape(label)}</a></li>')
+def discover_csvs(analysis_dir):
+    root_csvs = []
+    machine_map = {}
+    adir = Path(analysis_dir)
+    for p in sorted(adir.rglob('*.csv')):
+        rel = p.relative_to(adir)
+        parts = rel.parts
+        if len(parts) == 1:
+            root_csvs.append((p.name, p))
+            continue
+        machine = parts[0]
+        phase = parts[1] if len(parts) > 2 else 'Root'
+        machine_map.setdefault(machine, {}).setdefault(phase, []).append((p.name, p))
+    return root_csvs, machine_map
 
-    lines.append('</ul></nav>')
-    return "\n".join(lines)
+
+def count_csv_rows(fpath):
+    try:
+        with open(fpath, encoding='utf-8', errors='replace') as f:
+            return max(sum(1 for _ in f) - 1, 0)
+    except Exception:
+        return 0
 
 
 # ─── Markdown → HTML ──────────────────────────────────────────────────────────
 
 def md_to_html(md_path):
-    """Convert markdown to HTML.
-    Priority: pandoc → python-markdown → regex fallback.
-    """
-    # 1. Try pandoc (best table / GFM support)
     try:
         result = subprocess.run(
             ['pandoc', '--from', 'gfm', '--to', 'html', str(md_path)],
             capture_output=True, text=True, timeout=30
         )
         if result.returncode == 0:
-            return result.stdout
+            return result.stdout, 'pandoc'
     except Exception:
         pass
-
-    # 2. Try python-markdown with tables + fenced-code extensions
     try:
         import markdown as _md
         text = Path(md_path).read_text(encoding='utf-8', errors='replace')
-        return _md.markdown(text, extensions=[
-            'tables', 'fenced_code', 'nl2br', 'sane_lists', 'toc'
-        ])
+        return _md.markdown(text, extensions=['tables', 'fenced_code', 'nl2br', 'sane_lists', 'toc']), 'python-markdown'
     except Exception:
         pass
-
-    # 3. Minimal regex fallback
     try:
         text = Path(md_path).read_text(encoding='utf-8', errors='replace')
     except Exception:
-        return '<p>Could not read report file.</p>'
-
+        return '<p>Could not read report file.</p>', 'error'
     text = _h.escape(text)
     for n in range(6, 0, -1):
-        hashes = '#' * n
-        text = re.sub(rf'^{hashes}\s+(.+)$', rf'<h{n}>\1</h{n}>', text, flags=re.MULTILINE)
+        text = re.sub(rf'^{"#"*n}\s+(.+)$', rf'<h{n}>\1</h{n}>', text, flags=re.MULTILINE)
     text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
     text = re.sub(r'`([^`]+)`', r'<code>\1</code>', text)
     text = re.sub(r'^---+$', '<hr>', text, flags=re.MULTILINE)
     text = text.replace('\n\n', '</p><p>')
-    return f'<p>{text}</p>'
+    return f'<p>{text}</p>', 'regex-fallback'
 
 
-# ─── CSV discovery ────────────────────────────────────────────────────────────
+# ─── Build nav trees ──────────────────────────────────────────────────────────
 
-PHASE_LABELS = {
-    'MFT':            'NTFS / MFT',
-    'Registry':       'Registry',
-    'EventLogs':      'Event Logs',
-    'Artifacts':      'Artifacts',
-    'Execution':      'Execution',
-    'Hunting':        'Hunting',
-    'CredAccess':     'Cred Access',
-    'AntiForensics':  'Anti-Forensics',
-    'Browser':        'Browser',
-    'Ransomware':     'Ransomware',
-    'WebServer':      'Web Server',
-    'Email':          'Email',
-    'Linux':          'Linux Partition',
-}
+def build_analyst_nav_tree(machine_map, root_csvs, csv_file_map):
+    """Phase-ordered nav tree for analyst pages."""
+    tree = [
+        ("Case Overview",        "index.html",   []),
+        ("Investigation Report", "report.html",  []),
+        ("Analyst Evidence Hub", "analyst.html", []),
+    ]
 
-def discover_csvs(analysis_dir):
-    """
-    Returns dict: {machine: {phase: [(label, path)]}}
-    Plus a top-level list for root-level CSVs.
-    """
-    root_csvs = []
-    machine_map = {}
+    phase_order = {row[1]: row[0] for row in PHASES if row[1]}
 
-    adir = Path(analysis_dir)
-    for p in sorted(adir.rglob('*.csv')):
-        rel = p.relative_to(adir)
-        parts = rel.parts
-
-        if len(parts) == 1:
-            # Root-level CSV (ioc_master.csv, etc.)
-            root_csvs.append((p.name, p))
-            continue
-
-        machine = parts[0]
-        if len(parts) == 2:
-            phase = 'Root'
-        else:
-            phase = parts[1]
-
-        machine_map.setdefault(machine, {}).setdefault(phase, []).append(
-            (p.name, p)
+    for machine in sorted(machine_map.keys()):
+        # Group phases in defined order
+        phases_sorted = sorted(
+            machine_map[machine].items(),
+            key=lambda kv: phase_order.get(kv[0], 99)
         )
+        children = []
+        for phase_folder, files in phases_sorted:
+            phase_row = PHASE_BY_FOLDER.get(phase_folder)
+            phase_label = phase_row[2] if phase_row else phase_folder
+            phase_num   = phase_row[0] if phase_row else '?'
+            for fname, fpath in sorted(files):
+                href_slug = slug(fpath.relative_to(fpath.parent.parent.parent)) + '.html'
+                href = f"csv/{href_slug}"
+                short = fname.replace('.csv', '').replace(f'{machine}_', '').replace(f'{machine.upper()}_', '')
+                label = f"Ph{phase_num}: {short}"
+                children.append((label, href, []))
+                csv_file_map[href] = (fname, fpath)
+        if children:
+            tree.append((f"Machine: {machine}", "#", children))
 
-    return root_csvs, machine_map
+    # Root CSVs (IOC master, etc.)
+    root_children = []
+    for fname, fpath in sorted(root_csvs):
+        href_slug = slug(fpath.name) + '.html'
+        href = f"csv/{href_slug}"
+        root_children.append((fname.replace('.csv', ''), href, []))
+        csv_file_map[href] = (fname, fpath)
+    if root_children:
+        tree.append(("Analysis Root", "#", root_children))
+
+    return tree
 
 
-def slug(path):
-    """Turn a path into a safe filename slug."""
-    return re.sub(r'[^a-zA-Z0-9_\-]', '_', str(path))
+def build_exec_nav_tree():
+    """Minimal nav tree for the CISO executive page."""
+    return [
+        ("Case Overview",        "index.html",   []),
+        ("Investigation Report", "report.html",  []),
+        ("Analyst Evidence Hub", "analyst.html", []),
+    ]
 
 
-# ─── Index page ───────────────────────────────────────────────────────────────
+# ─── CISO Executive Index ─────────────────────────────────────────────────────
 
-def gen_index(case_root, analysis_dir, root_csvs, machine_map, nav_html, case_name, generated):
-    """Generate the landing page with case summary stats."""
+def gen_exec_index(nav_html, case_name, generated):
+    cfg = CASE_CONFIG
+    sev_color = cfg['severity_color']
 
-    # Count totals
-    total_csvs = len(root_csvs)
-    total_rows = 0
-    machine_stats = {}
-    for machine, phases in machine_map.items():
-        m_rows = 0
-        m_files = 0
-        for phase, files in phases.items():
-            for fname, fpath in files:
-                total_csvs += 1
-                m_files += 1
-                try:
-                    with open(fpath, encoding='utf-8', errors='replace') as f:
-                        n = sum(1 for _ in f) - 1
-                        m_rows += max(n, 0)
-                        total_rows += max(n, 0)
-                except Exception:
-                    pass
-        machine_stats[machine] = (m_files, m_rows)
+    # Severity banner
+    banner = f"""
+<div class="severity-banner" style="--sev-color:{sev_color}">
+  <div class="sev-pill">{_h.escape(cfg['severity'])}</div>
+  <div class="sev-label"><strong>{_h.escape(cfg['incident_type'])}</strong></div>
+  <div class="sev-dates">{_h.escape(cfg['date_range'])}</div>
+</div>"""
 
-    for fname, fpath in root_csvs:
-        try:
-            with open(fpath, encoding='utf-8', errors='replace') as f:
-                n = sum(1 for _ in f) - 1
-                total_rows += max(n, 0)
-        except Exception:
-            pass
+    # Narrative
+    paras = "".join(f"<p>{p}</p>" for p in cfg['summary'])
+    narrative = f"""
+<div class="main-inner">
+<div class="card exec-narrative">
+  <div class="card-title">What Happened</div>
+  {paras}
+</div>"""
+
+    # Finding cards
+    cards_html = ""
+    for icon, color, title, body in cfg['findings']:
+        cards_html += f"""
+<div class="finding-card" style="--fc:{color}">
+  <div class="finding-icon">{icon}</div>
+  <div>
+    <div class="finding-title">{_h.escape(title)}</div>
+    <div class="finding-body">{_h.escape(body)}</div>
+  </div>
+</div>"""
+    findings_section = f"""
+<div class="card">
+  <div class="card-title">Key Findings</div>
+  <div class="findings-grid">{cards_html}</div>
+</div>"""
+
+    # Attack timeline
+    tl_items = ""
+    for date, text, critical in cfg['timeline']:
+        dot_cls = "atl-dot critical" if critical else "atl-dot"
+        item_cls = "atl-item critical" if critical else "atl-item"
+        tl_items += f"""
+<div class="{item_cls}">
+  <div class="atl-date">{_h.escape(date)}</div>
+  <div class="{dot_cls}"></div>
+  <div class="atl-text">{_h.escape(text)}</div>
+</div>"""
+    timeline_section = f"""
+<div class="card">
+  <div class="card-title">Attack Timeline</div>
+  <div class="atl">{tl_items}</div>
+</div>"""
+
+    # Recommended actions
+    actions_html = ""
+    for tag, color, title, body in cfg['actions']:
+        actions_html += f"""
+<div class="action-item" style="--ac:{color}">
+  <div class="action-tag" style="background:{color}">{_h.escape(tag)}</div>
+  <div>
+    <div class="action-title">{_h.escape(title)}</div>
+    <div class="action-body">{_h.escape(body)}</div>
+  </div>
+</div>"""
+    actions_section = f"""
+<div class="card">
+  <div class="card-title">Recommended Actions</div>
+  <div class="action-list">{actions_html}</div>
+</div>"""
+
+    # Navigate to details
+    nav_buttons = f"""
+<div class="card">
+  <div class="card-title">Full Package</div>
+  <div class="ciso-nav">
+    <a class="ciso-btn primary" href="report.html">📄 &nbsp;Full Investigation Report</a>
+    <a class="ciso-btn secondary" href="analyst.html">🔬 &nbsp;Analyst Evidence Hub</a>
+  </div>
+</div>
+</div>"""
+
+    content = banner + narrative + findings_section + timeline_section + actions_section + nav_buttons
+
+    return page(
+        title="Executive Summary",
+        content=content,
+        nav_html=nav_html,
+        case_name=case_name,
+        generated=generated,
+    )
+
+
+# ─── Analyst Hub ──────────────────────────────────────────────────────────────
+
+def gen_analyst_hub(machine_map, root_csvs, csv_file_map, nav_html, case_name, generated):
+    # Stats
+    total_csvs = len(root_csvs) + sum(len(f) for m in machine_map.values() for f in m.values())
+    total_rows = sum(count_csv_rows(fp) for _, fp in root_csvs)
+    for m in machine_map.values():
+        for files in m.values():
+            for _, fp in files:
+                total_rows += count_csv_rows(fp)
 
     tiles = f"""
 <div class="stats-grid">
   <div class="stat-tile"><div class="val">{len(machine_map)}</div><div class="lbl">Machines</div></div>
-  <div class="stat-tile"><div class="val">{total_csvs:,}</div><div class="lbl">CSV Artifacts</div></div>
+  <div class="stat-tile"><div class="val">{total_csvs:,}</div><div class="lbl">Artifact Files</div></div>
   <div class="stat-tile"><div class="val">{total_rows:,}</div><div class="lbl">Total Data Rows</div></div>
-  <div class="stat-tile"><div class="val">{len(root_csvs)}</div><div class="lbl">Root-Level Reports</div></div>
+  <div class="stat-tile"><div class="val">{len(PHASES)}</div><div class="lbl">Analysis Phases</div></div>
 </div>"""
 
-    # Machine summary table
-    mach_rows = ""
-    for machine, (nfiles, nrows) in sorted(machine_stats.items()):
-        mach_rows += f"<tr><td><strong>{_h.escape(machine)}</strong></td><td>{nfiles}</td><td>{nrows:,}</td></tr>"
+    phase_order = {row[1]: row[0] for row in PHASES if row[1]}
 
-    machine_table = f"""
-<div class="card">
-  <h2>Evidence Summary by Machine</h2>
-  <div class="tbl-wrap">
-  <table class="data-tbl">
-    <thead><tr><th>Machine</th><th>Artifact Files</th><th>Data Rows</th></tr></thead>
-    <tbody>{mach_rows}</tbody>
-  </table>
-  </div>
-</div>"""
-
-    # Phase coverage table
-    all_phases = set()
-    for machine, phases in machine_map.items():
-        all_phases.update(phases.keys())
-
-    phase_rows = ""
-    for phase in sorted(all_phases):
-        label = PHASE_LABELS.get(phase, phase)
-        coverage = ""
+    # Phase cards — one per phase, showing all machines
+    phase_cards_html = ""
+    for phase_num, phase_folder, phase_label, phase_desc in PHASES:
+        if not phase_folder:
+            continue
+        all_links = []
         for machine in sorted(machine_map.keys()):
-            files = machine_map[machine].get(phase, [])
-            if files:
-                n_rows = 0
-                for _, fpath in files:
-                    try:
-                        with open(fpath, encoding='utf-8', errors='replace') as f:
-                            n_rows += max(sum(1 for _ in f) - 1, 0)
-                    except Exception:
-                        pass
-                coverage += f" {machine}: {n_rows:,} rows;"
-            else:
-                coverage += f" {machine}: —;"
-        phase_rows += f"<tr><td>{_h.escape(label)}</td><td style='font-size:11px;color:#6b7280'>{_h.escape(coverage.strip())}</td></tr>"
+            files = machine_map[machine].get(phase_folder, [])
+            for fname, fpath in sorted(files):
+                href_slug = slug(fpath.relative_to(fpath.parent.parent.parent)) + '.html'
+                href = f"csv/{href_slug}"
+                nrows = count_csv_rows(fpath)
+                short = fname.replace('.csv', '').replace(f'{machine}_', '').replace(f'{machine.upper()}_', '')
+                all_links.append((short, href, nrows))
 
-    phase_table = f"""
-<div class="card">
-  <h2>Phase Coverage</h2>
-  <div class="tbl-wrap">
-  <table class="data-tbl">
-    <thead><tr><th>Phase</th><th>Coverage</th></tr></thead>
-    <tbody>{phase_rows}</tbody>
-  </table>
+        # Root CSVs that belong to this phase (Root = phase 9)
+        if phase_folder == 'Root':
+            for fname, fpath in sorted(root_csvs):
+                href_slug = slug(fpath.name) + '.html'
+                href = f"csv/{href_slug}"
+                nrows = count_csv_rows(fpath)
+                all_links.append((fname.replace('.csv', ''), href, nrows))
+
+        links_html = ""
+        if all_links:
+            for short, href, nrows in all_links:
+                row_label = f"{nrows:,} rows" if nrows else "0 rows"
+                links_html += f'<a class="phase-link" href="{_h.escape(href)}">{_h.escape(short)} <span style="color:#9ca3af;font-size:11px">({row_label})</span></a>'
+        else:
+            links_html = '<span class="phase-empty">No artifacts generated for this phase</span>'
+
+        phase_cards_html += f"""
+<div class="phase-card">
+  <div class="phase-card-header">
+    <span class="phase-num-badge">Phase {phase_num}</span>
+    <span class="phase-card-title">{_h.escape(phase_label)}</span>
   </div>
+  <div class="phase-card-desc">{_h.escape(phase_desc)}</div>
+  <div class="phase-links">{links_html}</div>
 </div>"""
 
-    # Quick links
-    links_html = '<div class="card"><h2>Quick Links</h2><ul style="list-style:none;display:flex;flex-wrap:wrap;gap:10px;">'
-    links_html += '<li><a href="report.html" style="display:inline-block;background:#0f1923;color:#00b4d8;padding:7px 14px;border-radius:4px;text-decoration:none;font-size:13px;">📄 Investigation Report</a></li>'
-    for fname, fpath in root_csvs:
-        safe = slug(fpath.name) + '.html'
-        links_html += f'<li><a href="csv/{_h.escape(safe)}" style="display:inline-block;background:#f0f2f5;border:1px solid #d1d5db;color:#374151;padding:7px 14px;border-radius:4px;text-decoration:none;font-size:12px;">{_h.escape(fname)}</a></li>'
-    links_html += '</ul></div>'
-
-    content = tiles + machine_table + phase_table + links_html
+    content = f"""
+<div class="main-inner">
+<div class="card">
+  <div class="card-title">Evidence Overview</div>
+  {tiles}
+</div>
+<div class="card">
+  <div class="card-title">Investigation Journey — Phases 1–15</div>
+  <p style="font-size:13px;color:#6b7280;margin-bottom:16px;">Each phase below represents one analysis script run against the evidence. Follow them in order to trace the investigation from filesystem triage through email analysis and Linux partition recovery.</p>
+  <div class="phase-grid">{phase_cards_html}</div>
+</div>
+</div>"""
 
     return page(
-        title="Case Overview",
+        title="Analyst Evidence Hub",
         content=content,
         nav_html=nav_html,
-        active_href="index.html",
         case_name=case_name,
         generated=generated,
     )
+
+
+# ─── Zip generation ───────────────────────────────────────────────────────────
+
+def generate_zip(out_dir, case_name):
+    zip_path = out_dir.parent / f"{case_name}_case_package.zip"
+    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
+        for p in sorted(out_dir.rglob('*.html')):
+            arcname = p.relative_to(out_dir)
+            zf.write(p, arcname)
+    size_mb = zip_path.stat().st_size / (1024 * 1024)
+    return zip_path, size_mb
 
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
@@ -769,9 +1005,9 @@ def main():
         sys.exit(1)
 
     analysis_dir = case_root / 'analysis'
-    report_md = case_root / 'reports' / 'investigation_report.md'
-    out_dir = case_root / 'reports' / 'html'
-    csv_dir = out_dir / 'csv'
+    report_md    = case_root / 'reports' / 'investigation_report.md'
+    out_dir      = case_root / 'reports' / 'html'
+    csv_dir      = out_dir / 'csv'
 
     out_dir.mkdir(parents=True, exist_ok=True)
     csv_dir.mkdir(parents=True, exist_ok=True)
@@ -780,114 +1016,72 @@ def main():
     generated = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')
 
     print(f"[*] Case root    : {case_root}")
-    print(f"[*] Analysis dir : {analysis_dir}")
     print(f"[*] Output dir   : {out_dir}")
 
     # ── Discover CSVs ──────────────────────────────────────────────────────
     root_csvs, machine_map = discover_csvs(analysis_dir)
-    print(f"[*] Machines     : {list(machine_map.keys())}")
-    total_csv = len(root_csvs) + sum(
-        len(files) for phases in machine_map.values() for files in phases.values()
-    )
+    total_csv = len(root_csvs) + sum(len(f) for m in machine_map.values() for f in m.values())
+    print(f"[*] Machines     : {sorted(machine_map.keys())}")
     print(f"[*] CSV files    : {total_csv}")
 
-    # ── Build navigation tree ──────────────────────────────────────────────
-    nav_tree = [
-        ("Case Overview",        "index.html",  []),
-        ("Investigation Report", "report.html", []),
-    ]
+    # ── Build nav trees and CSV map ─────────────────────────────────────────
+    csv_file_map = {}
+    analyst_nav_tree = build_analyst_nav_tree(machine_map, root_csvs, csv_file_map)
+    exec_nav_tree    = build_exec_nav_tree()
 
-    # Per-machine groups
-    csv_file_map = {}  # href -> (label, fpath)
-
-    for machine in sorted(machine_map.keys()):
-        children = []
-        for phase in sorted(machine_map[machine].keys()):
-            label = PHASE_LABELS.get(phase, phase)
-            for fname, fpath in sorted(machine_map[machine][phase]):
-                href_slug = slug(fpath.relative_to(analysis_dir)) + '.html'
-                href = f"csv/{href_slug}"
-                short = fname.replace('.csv', '').replace(f'{machine}_', '')
-                children.append((f"{label}: {short}", href, []))
-                csv_file_map[href] = (fname, fpath)
-        nav_tree.append((f"Machine: {machine}", "#", children))
-
-    # Root-level CSVs group
-    root_children = []
-    for fname, fpath in sorted(root_csvs):
-        href_slug = slug(fpath.name) + '.html'
-        href = f"csv/{href_slug}"
-        root_children.append((fname.replace('.csv',''), href, []))
-        csv_file_map[href] = (fname, fpath)
-    if root_children:
-        nav_tree.append(("Analysis Root", "#", root_children))
-
-    # ── Generate CSV table pages ───────────────────────────────────────────
+    # ── Generate CSV table pages ─────────────────────────────────────────
     for href, (fname, fpath) in csv_file_map.items():
-        nav_html = build_nav(nav_tree, active_href=href, depth=1)
-        content  = table_page_content(fpath, machine="", rel_name=fname)
+        nav_html = build_nav(analyst_nav_tree, active_href=href, depth=1)
+        content  = table_page_content(fpath, rel_name=fname)
         html_out = page(
-            title=fname,
-            content=content,
-            nav_html=nav_html,
-            active_href=href,
-            case_name=case_name,
-            generated=generated,
+            title=fname, content=content,
+            nav_html=nav_html, case_name=case_name, generated=generated,
         )
-        # href is "csv/<slug>.html"
         out_path = out_dir / href
         out_path.parent.mkdir(parents=True, exist_ok=True)
         out_path.write_text(html_out, encoding='utf-8')
+    print(f"[*] CSV pages    : {len(csv_file_map)}")
 
-    print(f"[*] Generated {len(csv_file_map)} table pages")
-
-    # ── Generate investigation report page ─────────────────────────────────
-    nav_html = build_nav(nav_tree, active_href="report.html", depth=0)
+    # ── Generate investigation report page ───────────────────────────────
+    nav_html = build_nav(analyst_nav_tree, active_href="report.html", depth=0)
     if report_md.exists():
-        body_html = md_to_html(report_md)
-        if shutil.which('pandoc'):
-            method = "pandoc"
-        else:
-            try:
-                import markdown as _chk; method = "python-markdown"
-            except ImportError:
-                method = "regex-fallback"
-        print(f"[*] Report converted via {method}")
+        body_html, method = md_to_html(report_md)
+        print(f"[*] Report via   : {method}")
     else:
-        body_html = f"<p>Report not found at {_h.escape(str(report_md))}</p>"
-
-    report_content = f'<div class="card report-body">{body_html}</div>'
-    report_html = page(
-        title="Investigation Report",
-        content=report_content,
-        nav_html=nav_html,
-        active_href="report.html",
-        case_name=case_name,
-        generated=generated,
+        body_html, method = f"<p>Report not found at {_h.escape(str(report_md))}</p>", 'missing'
+    report_content = f'<div class="main-inner"><div class="card report-body">{body_html}</div></div>'
+    (out_dir / 'report.html').write_text(
+        page(title="Investigation Report", content=report_content,
+             nav_html=nav_html, case_name=case_name, generated=generated),
+        encoding='utf-8'
     )
-    (out_dir / 'report.html').write_text(report_html, encoding='utf-8')
-    print(f"[*] Report page  : {out_dir / 'report.html'}")
+    print(f"[*] report.html  : done")
 
-    # ── Generate index page ────────────────────────────────────────────────
-    nav_html = build_nav(nav_tree, active_href="index.html", depth=0)
-    index_html = gen_index(
-        case_root=case_root,
-        analysis_dir=analysis_dir,
-        root_csvs=root_csvs,
-        machine_map=machine_map,
-        nav_html=nav_html,
-        case_name=case_name,
-        generated=generated,
+    # ── Generate analyst hub ─────────────────────────────────────────────
+    nav_html = build_nav(analyst_nav_tree, active_href="analyst.html", depth=0)
+    (out_dir / 'analyst.html').write_text(
+        gen_analyst_hub(machine_map, root_csvs, csv_file_map, nav_html, case_name, generated),
+        encoding='utf-8'
     )
-    (out_dir / 'index.html').write_text(index_html, encoding='utf-8')
-    print(f"[*] Index page   : {out_dir / 'index.html'}")
+    print(f"[*] analyst.html : done")
 
-    # ── Final summary ──────────────────────────────────────────────────────
+    # ── Generate CISO executive index ────────────────────────────────────
+    nav_html = build_nav(exec_nav_tree, active_href="index.html", depth=0)
+    (out_dir / 'index.html').write_text(
+        gen_exec_index(nav_html, case_name, generated),
+        encoding='utf-8'
+    )
+    print(f"[*] index.html   : done")
+
+    # ── Generate zip deliverable ─────────────────────────────────────────
+    zip_path, size_mb = generate_zip(out_dir, case_name)
+    print(f"[*] ZIP          : {zip_path}  ({size_mb:.1f} MB)")
+
     print()
-    print(f"  HTML package ready:")
+    print(f"  Deliverable ready:")
+    print(f"    {zip_path}")
+    print(f"  Or open directly:")
     print(f"    {out_dir}/index.html")
-    print(f"    {out_dir}/report.html")
-    print(f"    {out_dir}/csv/  ({len(csv_file_map)} table pages)")
 
 
 if __name__ == '__main__':
