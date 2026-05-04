@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # DAEDALUS:HANDLES win_sched_tasks win_ps_history
+# DAEDALUS:DOMAIN windows_execution
 # run_execution.sh — Phase 5: Server & execution-focused artifacts.
 # Supplements Phase 2 (Amcache/ShimCache/BAM) for machines where prefetch
 # is disabled (servers) and collects high-value execution evidence across

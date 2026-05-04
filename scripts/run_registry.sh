@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # DAEDALUS:HANDLES win_registry win_shimcache win_amcache win_userassist win_shellbags
+# DAEDALUS:DOMAIN windows_registry
 # run_registry.sh — Phase 2 registry parsing for all machines under the case root.
 #
 # Sections (run in order):

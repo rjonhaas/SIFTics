@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # DAEDALUS:HANDLES log_iis log_apache log_nginx log_iis_httperr
+# DAEDALUS:DOMAIN web_server_logs
 # run_webserver.sh — Phase 13: Web Server & Initial Access Triage
 #
 # Analyses IIS W3C access logs to detect:

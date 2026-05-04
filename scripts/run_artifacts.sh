@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # DAEDALUS:HANDLES win_lnk win_jumplist win_prefetch win_recyclebin
+# DAEDALUS:DOMAIN windows_artifacts
 # run_artifacts.sh — Phase 4: Parse user activity artifacts for every machine
 # under the case root.
 #

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # DAEDALUS:HANDLES linux_ext_partition linux_bash_history linux_auth_log linux_cron linux_ssh_keys
+# DAEDALUS:DOMAIN linux_host
 # run_linux.sh — Phase 15: Kali Linux Partition Analysis
 #
 # Analyzes the Kali Linux partition embedded in the case disk image (EWF).
