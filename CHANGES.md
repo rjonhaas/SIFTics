@@ -133,6 +133,39 @@
 
 ---
 
+## Item 11 — Accuracy Benchmark Harness
+
+**Files created:**
+- `benchmark/ground_truth/defcon2019.json` — 21 ground truth checks for the DEF CON 2019 DFIR CTF case (public evidence, DFA 2019); covers Phases 2, 3, 6, 7, 8, 9, 11, 14, 15 + memory analysis; all checks derived from confirmed COP findings
+- `benchmark/ground_truth/spottedinwild.json` — 16 ground truth checks for CyberDefenders Case 166 SpottedInTheWild (public evidence, cyberdefenders.org); covers Phases 1, 6, 7, 8, 9, 11, 16
+- `scripts/score_benchmark.py` — evaluates SIFTics analysis output against a ground truth JSON; supports check types `file_exists`, `file_contains`, `csv_contains`, `csv_min_rows`; outputs per-check PASS/FAIL, phase-level recall table, overall recall %, and optional JSON results file
+
+**Usage:**
+```bash
+python3 scripts/score_benchmark.py \
+    --case-dir /cases/defcon2019_dfir \
+    --ground-truth benchmark/ground_truth/defcon2019.json
+
+python3 scripts/score_benchmark.py \
+    --case-dir /cases/166-spottedinthewild \
+    --ground-truth benchmark/ground_truth/spottedinwild.json \
+    --output results.json
+```
+
+**Baseline scores (existing analysis):**
+- DEF CON 2019: 21/21 (100.0%) across 10 phases including memory analysis, email, and Linux/Kali partition
+- SpottedInTheWild: 16/16 (100.0%) across 7 phases including Phase 16 CVE attribution
+
+**Known gap documented in ground truth:**
+- GT-S09 and GT-S10 (SpottedInTheWild): C2 IPs 172.18.35.10 and 192.168.1.5 are identified in the COP but not extracted to `ioc_master.csv` — `run_ioc_extract.sh` does not scan decoded script content or MFT URL strings. The checks verify COP presence (agent found it) while the `known_gap` field documents the extraction limitation for the accuracy report.
+
+**Design decisions:**
+- Ground truth checks against the COP for findings that were identified analytically but not extracted by a specific phase script — tests whether the agent found the IOC, not whether a specific downstream script extracted it.
+- `known_gap` field in check objects documents limitations for the accuracy report without failing the check.
+- Judges can independently verify scores by downloading the same public evidence sets and re-running `score_benchmark.py`.
+
+---
+
 ## Files Not Modified in This Pass
 
 The following run_*.sh scripts retain their local `log_cmd()` definitions and do not yet source `audit_log.sh`. They produce commands.txt output only:

@@ -1,0 +1,261 @@
+{
+  "case_id": "defcon2019_dfir",
+  "case_name": "DEF CON 2019 DFIR CTF",
+  "public_source": "DEF CON 2019 Digital Forensics Arena DFIR CTF — evidence and answer keys publicly available",
+  "ground_truth_version": "1.0",
+  "machine_prefix": "Bob",
+  "notes": [
+    "Two-machine case: Bob (Win7 memory image) and Karen (Win10 KAPE disk image via Bob_Kape/).",
+    "Memory analysis outputs (vol_*.txt) require running the memory-analysis skill against Adam Ferrante - Triage-Memory.mem.",
+    "Phase 14 (Email) and Phase 15 (Linux/Kali) outputs require the full SIFTics run including run_email.sh and run_linux.sh.",
+    "All accuracy checks are derived from confirmed COP findings (confidence=CONFIRMED) or inferred findings (confidence=INFERRED)."
+  ],
+  "checks": [
+    {
+      "id": "GT-D01",
+      "phase": "Phase 9 — IOC Extract",
+      "description": "IOC master file present and non-empty",
+      "confidence": "CONFIRMED",
+      "check": {
+        "type": "file_exists",
+        "file": "analysis/ioc_master.csv"
+      }
+    },
+    {
+      "id": "GT-D02",
+      "phase": "Phase 8 — AntiForensics",
+      "description": "Anti-forensics timeline present and non-empty",
+      "confidence": "CONFIRMED",
+      "check": {
+        "type": "file_exists",
+        "file": "analysis/antiforensics_timeline.csv"
+      }
+    },
+    {
+      "id": "GT-D03",
+      "phase": "Phase 7 — CredAccess",
+      "description": "Credential access timeline present and non-empty",
+      "confidence": "CONFIRMED",
+      "check": {
+        "type": "file_exists",
+        "file": "analysis/credaccess_timeline.csv"
+      }
+    },
+    {
+      "id": "GT-D04",
+      "phase": "Phase 6 — Hunting",
+      "description": "Hunting timeline present and non-empty",
+      "confidence": "CONFIRMED",
+      "check": {
+        "type": "file_exists",
+        "file": "analysis/hunting_timeline.csv"
+      }
+    },
+    {
+      "id": "GT-D05",
+      "phase": "Phase 3 — EventLogs",
+      "description": "Event log CSV present and non-empty",
+      "confidence": "CONFIRMED",
+      "check": {
+        "type": "file_exists",
+        "file": "analysis/Bob/EventLogs/Bob_C_evtx.csv"
+      }
+    },
+    {
+      "id": "GT-D06",
+      "phase": "Phase 2 — Registry",
+      "description": "ShimCache CSV present and non-empty",
+      "confidence": "CONFIRMED",
+      "check": {
+        "type": "file_exists",
+        "file": "analysis/Bob/Registry/ShimCache/Bob_C_ShimCache.csv"
+      }
+    },
+    {
+      "id": "GT-D07",
+      "phase": "Phase 11 — Browser",
+      "description": "Chrome downloads CSV present and non-empty",
+      "confidence": "CONFIRMED",
+      "check": {
+        "type": "file_exists",
+        "file": "analysis/Bob/Browser/Bob_B_Chrome_Karen_Downloads.csv"
+      }
+    },
+    {
+      "id": "GT-D08",
+      "phase": "Phase 7 — CredAccess",
+      "description": "Timestomping CSV present and non-empty",
+      "confidence": "CONFIRMED",
+      "check": {
+        "type": "file_exists",
+        "file": "analysis/Bob/CredAccess/Bob_F_Timestomping.csv"
+      }
+    },
+    {
+      "id": "GT-D09",
+      "phase": "Phase 15 — Linux/Kali",
+      "description": "Kali bash history CSV present and non-empty",
+      "confidence": "CONFIRMED",
+      "check": {
+        "type": "file_exists",
+        "file": "analysis/Bob/Linux/Bob_L_bash_history.csv"
+      }
+    },
+    {
+      "id": "GT-D10",
+      "phase": "Phase 14 — Email",
+      "description": "Email messages CSV present and non-empty",
+      "confidence": "CONFIRMED",
+      "check": {
+        "type": "file_exists",
+        "file": "analysis/Bob/Email/Bob_E_Karen_Email_Messages.csv"
+      }
+    },
+    {
+      "id": "GT-D11",
+      "phase": "Phase 9 — IOC Extract",
+      "description": "Insider's email klovespizza@outlook.com extracted to IOC master",
+      "confidence": "CONFIRMED",
+      "attck": "T1078 — Valid Accounts",
+      "check": {
+        "type": "csv_contains",
+        "file": "analysis/ioc_master.csv",
+        "field": "ioc_value",
+        "value": "klovespizza@outlook.com",
+        "match": "exact"
+      }
+    },
+    {
+      "id": "GT-D12",
+      "phase": "Phase 2 — Registry",
+      "description": "SetMace timestamp manipulation tool recorded in ShimCache (anti-forensics tool executed)",
+      "confidence": "CONFIRMED",
+      "attck": "T1070.006 — Indicator Removal: Timestomp",
+      "check": {
+        "type": "csv_contains",
+        "file": "analysis/Bob/Registry/ShimCache/Bob_C_ShimCache.csv",
+        "field": "Path",
+        "value": "SetMace",
+        "match": "contains"
+      }
+    },
+    {
+      "id": "GT-D13",
+      "phase": "Phase 11 — Browser",
+      "description": "timestomp.exe downloaded via Chrome from GitHub (anti-forensics tool staging)",
+      "confidence": "CONFIRMED",
+      "attck": "T1070.006 — Indicator Removal: Timestomp",
+      "check": {
+        "type": "csv_contains",
+        "file": "analysis/Bob/Browser/Bob_B_Chrome_Karen_Downloads.csv",
+        "field": "TargetPath",
+        "value": "timestomp.exe",
+        "match": "contains"
+      }
+    },
+    {
+      "id": "GT-D14",
+      "phase": "Phase 14 — Email",
+      "description": "Handler email address taausai@gmail.com identified in email artifacts",
+      "confidence": "CONFIRMED",
+      "attck": "T1566 — Phishing / Social Engineering",
+      "check": {
+        "type": "file_contains",
+        "file": "analysis/Bob/Email/Bob_E_Karen_Email_Messages.csv",
+        "value": "taausai@gmail.com"
+      }
+    },
+    {
+      "id": "GT-D15",
+      "phase": "Phase 15 — Linux/Kali",
+      "description": "mimikatz.exe identified in Kali partition offensive tool inventory",
+      "confidence": "CONFIRMED",
+      "attck": "T1003 — OS Credential Dumping",
+      "check": {
+        "type": "csv_contains",
+        "file": "analysis/Bob/Linux/Bob_L_offensive_tools.csv",
+        "field": "ToolName",
+        "value": "mimikatz.exe",
+        "match": "exact"
+      }
+    },
+    {
+      "id": "GT-D16",
+      "phase": "Phase 15 — Linux/Kali",
+      "description": "msfconsole (Metasploit) execution recorded in Kali bash history",
+      "confidence": "CONFIRMED",
+      "attck": "T1059 — Command and Scripting Interpreter",
+      "check": {
+        "type": "csv_contains",
+        "file": "analysis/Bob/Linux/Bob_L_bash_history.csv",
+        "field": "Command",
+        "value": "msfconsole",
+        "match": "exact"
+      }
+    },
+    {
+      "id": "GT-D17",
+      "phase": "Phase 15 — Linux/Kali",
+      "description": "Karen's operational checklist ('Gain Bob's Trust / Learn how to hack / Profit') found on Kali partition",
+      "confidence": "CONFIRMED",
+      "attck": "T1591 — Gather Victim Org Information",
+      "check": {
+        "type": "csv_contains",
+        "file": "analysis/Bob/Linux/Bob_L_ctf_artifacts.csv",
+        "field": "ContentPreview",
+        "value": "Gain Bob",
+        "match": "contains"
+      }
+    },
+    {
+      "id": "GT-D18",
+      "phase": "Phase 14 — Email",
+      "description": "Exfiltrated Skype Convo.zip attachment SHA256 recorded (social engineering transcript exfiltrated to handler)",
+      "confidence": "CONFIRMED",
+      "attck": "T1041 — Exfiltration Over C2 Channel",
+      "check": {
+        "type": "csv_contains",
+        "file": "analysis/Bob/Email/Bob_E_Karen_Email_Attachments.csv",
+        "field": "SHA256",
+        "value": "eaa869a96d18c08c6c87ebf0e286cb480ca77e0192a24181e0a1fcb564c99ee9",
+        "match": "exact"
+      }
+    },
+    {
+      "id": "GT-D19",
+      "phase": "Memory Analysis",
+      "description": "C2 server 10.0.0.106:4444 identified in memory network scan (active Meterpreter session)",
+      "confidence": "CONFIRMED",
+      "attck": "T1095 — Non-Application Layer Protocol",
+      "check": {
+        "type": "file_contains",
+        "file": "analysis/vol_netscan.txt",
+        "value": "10.0.0.106"
+      }
+    },
+    {
+      "id": "GT-D20",
+      "phase": "Memory Analysis",
+      "description": "Meterpreter payload UWkpjFjDzM.exe identified in memory network scan",
+      "confidence": "CONFIRMED",
+      "attck": "T1055 — Process Injection",
+      "check": {
+        "type": "file_contains",
+        "file": "analysis/vol_netscan.txt",
+        "value": "UWkpjFjDzM.exe"
+      }
+    },
+    {
+      "id": "GT-D21",
+      "phase": "Phase 7 — CredAccess",
+      "description": "Widespread timestomping — MFT shows 1000+ SI<FN anomalies consistent with SetMace bulk operation",
+      "confidence": "CONFIRMED",
+      "attck": "T1070.006 — Indicator Removal: Timestomp",
+      "check": {
+        "type": "csv_min_rows",
+        "file": "analysis/Bob/CredAccess/Bob_F_Timestomping.csv",
+        "min_rows": 1000
+      }
+    }
+  ]
+}

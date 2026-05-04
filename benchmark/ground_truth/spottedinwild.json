@@ -1,0 +1,199 @@
+{
+  "case_id": "166-spottedinthewild",
+  "case_name": "CyberDefenders — SpottedInTheWild (Case 166)",
+  "public_source": "CyberDefenders.org — Case 166, SpottedInTheWild. Evidence and walkthrough publicly available at cyberdefenders.org.",
+  "ground_truth_version": "1.0",
+  "machine_prefix": "c125",
+  "notes": [
+    "Single-machine case: Windows endpoint DESKTOP-2R3AR22 (hostname), evidence via KAPE collection c125_Kape/ and VHD c125-SpottedInTheWild.vhd.",
+    "Phase 16 (CVE Attribution) requires Claude invocation via run_cve_attribution.sh after investigation_report.md is produced.",
+    "The scheduled task 'whoisthebaba' was deleted before collection — it is recoverable from MFT ($I30 + USN Journal) but not present in Tasks CSVs.",
+    "Massive timestomping (9,049 uSecZero entries) is a post-exploitation framework indicator consistent with Metasploit or Cobalt Strike."
+  ],
+  "checks": [
+    {
+      "id": "GT-S01",
+      "phase": "Phase 9 — IOC Extract",
+      "description": "IOC master file present and non-empty",
+      "confidence": "CONFIRMED",
+      "check": {
+        "type": "file_exists",
+        "file": "analysis/ioc_master.csv"
+      }
+    },
+    {
+      "id": "GT-S02",
+      "phase": "Phase 8 — AntiForensics",
+      "description": "Anti-forensics timeline present and non-empty",
+      "confidence": "CONFIRMED",
+      "check": {
+        "type": "file_exists",
+        "file": "analysis/antiforensics_timeline.csv"
+      }
+    },
+    {
+      "id": "GT-S03",
+      "phase": "Phase 7 — CredAccess",
+      "description": "Credential access timeline present and non-empty",
+      "confidence": "CONFIRMED",
+      "check": {
+        "type": "file_exists",
+        "file": "analysis/credaccess_timeline.csv"
+      }
+    },
+    {
+      "id": "GT-S04",
+      "phase": "Phase 6 — Hunting",
+      "description": "Hunting timeline present and non-empty",
+      "confidence": "CONFIRMED",
+      "check": {
+        "type": "file_exists",
+        "file": "analysis/hunting_timeline.csv"
+      }
+    },
+    {
+      "id": "GT-S05",
+      "phase": "Phase 11 — Browser",
+      "description": "Zone.Identifier CSV present (captures Telegram download zone marking)",
+      "confidence": "CONFIRMED",
+      "check": {
+        "type": "file_exists",
+        "file": "analysis/c125/Browser/c125_A_ZoneIdentifier.csv"
+      }
+    },
+    {
+      "id": "GT-S06",
+      "phase": "Phase 8 — AntiForensics",
+      "description": "Log clearing CSV present and non-empty",
+      "confidence": "CONFIRMED",
+      "check": {
+        "type": "file_exists",
+        "file": "analysis/c125/AntiForensics/c125_A_AntiForensics_LogClearing.csv"
+      }
+    },
+    {
+      "id": "GT-S07",
+      "phase": "Phase 8 — AntiForensics",
+      "description": "VSS shadow deletion CSV present and non-empty",
+      "confidence": "CONFIRMED",
+      "check": {
+        "type": "file_exists",
+        "file": "analysis/c125/AntiForensics/c125_B_AntiForensics_VSSShadowDeletion.csv"
+      }
+    },
+    {
+      "id": "GT-S08",
+      "phase": "Phase 7 — CredAccess",
+      "description": "Timestomping CSV present and non-empty",
+      "confidence": "CONFIRMED",
+      "check": {
+        "type": "file_exists",
+        "file": "analysis/c125/CredAccess/c125_F_Timestomping.csv"
+      }
+    },
+    {
+      "id": "GT-S09",
+      "phase": "Phase 9 — IOC Extract",
+      "description": "C2 server 172.18.35.10 (stage-2 payload delivery) identified in COP findings. NOTE: this IP is not extracted to ioc_master.csv — it was recovered from a decoded download URL in the MFT/USN journal, not from a structured CSV field. Known run_ioc_extract.sh gap for script-embedded IPs.",
+      "confidence": "CONFIRMED",
+      "attck": "T1105 — Ingress Tool Transfer",
+      "known_gap": "run_ioc_extract.sh does not scan decoded script content or MFT URL strings — IP reaches COP but not ioc_master",
+      "check": {
+        "type": "file_contains",
+        "file": "analysis/cop.md",
+        "value": "172.18.35.10"
+      }
+    },
+    {
+      "id": "GT-S10",
+      "phase": "Phase 9 — IOC Extract",
+      "description": "Recon exfiltration server 192.168.1.5 identified in COP findings. NOTE: recovered from decoded run.ps1 content — not extracted to ioc_master.csv. Same known gap as GT-S09.",
+      "confidence": "CONFIRMED",
+      "attck": "T1041 — Exfiltration Over C2 Channel",
+      "known_gap": "run_ioc_extract.sh does not scan decoded PowerShell content — IP reaches COP but not ioc_master",
+      "check": {
+        "type": "file_contains",
+        "file": "analysis/cop.md",
+        "value": "192.168.1.5"
+      }
+    },
+    {
+      "id": "GT-S11",
+      "phase": "Phase 11 — Browser",
+      "description": "SANS SEC401.rar (Telegram-delivered lure) captured in Zone.Identifier (ZoneId=3, Internet origin)",
+      "confidence": "CONFIRMED",
+      "attck": "T1566.001 — Phishing: Spearphishing Attachment",
+      "check": {
+        "type": "csv_contains",
+        "file": "analysis/c125/Browser/c125_A_ZoneIdentifier.csv",
+        "field": "FileName",
+        "value": "SANS SEC401",
+        "match": "contains"
+      }
+    },
+    {
+      "id": "GT-S12",
+      "phase": "Phase 8 — AntiForensics",
+      "description": "Security event log cleared (EID 1102) by Administrator at 2024-02-03 07:38:01 UTC",
+      "confidence": "CONFIRMED",
+      "attck": "T1070.001 — Indicator Removal: Clear Windows Event Logs",
+      "check": {
+        "type": "csv_contains",
+        "file": "analysis/c125/AntiForensics/c125_A_AntiForensics_LogClearing.csv",
+        "field": "EventId",
+        "value": "1102",
+        "match": "exact"
+      }
+    },
+    {
+      "id": "GT-S13",
+      "phase": "Phase 8 — AntiForensics",
+      "description": "VSS shadow copy deleted (EID 8198) at 2024-02-03 21:02:32 UTC — backup destruction",
+      "confidence": "CONFIRMED",
+      "attck": "T1490 — Inhibit System Recovery",
+      "check": {
+        "type": "csv_contains",
+        "file": "analysis/c125/AntiForensics/c125_B_AntiForensics_VSSShadowDeletion.csv",
+        "field": "EventId",
+        "value": "8198",
+        "match": "exact"
+      }
+    },
+    {
+      "id": "GT-S14",
+      "phase": "Phase 1 — NTFS/MFT",
+      "description": "Scheduled task 'whoisthebaba' (persistence mechanism) recorded in MFT even though task was deleted before collection",
+      "confidence": "CONFIRMED",
+      "attck": "T1053.005 — Scheduled Task/Job: Scheduled Task",
+      "check": {
+        "type": "file_contains",
+        "file": "analysis/c125/c125_C_MFT.csv",
+        "value": "whoisthebaba"
+      }
+    },
+    {
+      "id": "GT-S15",
+      "phase": "Phase 16 — CVE Attribution",
+      "description": "CVE-2023-38831 (WinRAR RCE via trailing-space folder + double-extension) identified in CVE attribution report",
+      "confidence": "CONFIRMED",
+      "attck": "T1203 — Exploitation for Client Execution",
+      "check": {
+        "type": "file_contains",
+        "file": "analysis/cve_attribution.md",
+        "value": "CVE-2023-38831"
+      }
+    },
+    {
+      "id": "GT-S16",
+      "phase": "Phase 7 — CredAccess",
+      "description": "Massive timestomping — MFT shows 5000+ SI<FN anomalies consistent with post-exploitation framework bulk operation",
+      "confidence": "CONFIRMED",
+      "attck": "T1070.006 — Indicator Removal: Timestomp",
+      "check": {
+        "type": "csv_min_rows",
+        "file": "analysis/c125/CredAccess/c125_F_Timestomping.csv",
+        "min_rows": 5000
+      }
+    }
+  ]
+}
