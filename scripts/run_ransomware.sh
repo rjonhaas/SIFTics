@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# DAEDALUS:HANDLES win_mft win_evtx
 # run_ransomware.sh — Phase 12: Ransomware & Exfiltration Indicators
 #
 # Reads MFT CSVs produced by Phase 1 and analyses them for:

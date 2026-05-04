@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# DAEDALUS:HANDLES win_mft
 # run_ntfs.sh — Phase 1: Parse NTFS artifacts ($MFT, $Boot, $LogFile, $J) for
 # every machine under the case root. Outputs one CSV per artifact per machine to
 # analysis/<MACHINE>/. Skips artifacts that are absent or already processed.

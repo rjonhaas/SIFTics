@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# DAEDALUS:HANDLES win_evtx win_registry
 # run_antiforensics.sh — Phase 8: Anti-Forensics Detection
 #
 # Sections (A–C work on Phase 3 EvtxECmd CSVs; D works on Phase 4 Prefetch

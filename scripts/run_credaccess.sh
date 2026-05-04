@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# DAEDALUS:HANDLES win_evtx win_registry
 # run_credaccess.sh — Phase 7: Credential Access & Persistence Detection
 #
 # Sections (A–E work on Phase 3 EvtxECmd CSVs; F works on Phase 1 MFT CSVs):

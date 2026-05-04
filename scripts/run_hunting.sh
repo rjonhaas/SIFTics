@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# DAEDALUS:HANDLES win_evtx win_registry
 # run_hunting.sh — Phase 6: Privilege escalation & lateral movement hunting
 # over pre-parsed EvtxECmd CSVs (requires Phase 3 output).
 #

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# DAEDALUS:HANDLES win_evtx
 # run_eventlogs.sh — Phase 3: Parse Windows event logs for every machine under
 # the case root using EvtxECmd with the full Maps library.
 #

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# DAEDALUS:HANDLES *(meta — consolidates all prior phase outputs)
 # run_ioc_extract.sh — Phase 9: IOC Extraction
 #
 # Reads ALL CSV files under analysis/ (recursively) and extracts IOCs

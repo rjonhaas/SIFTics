@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# DAEDALUS:HANDLES log_iis
 # run_c2_beacon.sh — Phase 10: C2 Beacon Detection
 #
 # Statistically detects C2 beaconing behaviour by analysing inter-request

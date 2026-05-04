@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# DAEDALUS:HANDLES email_ost email_pst email_mbox
 # run_email.sh — Phase 14: Email Artifact Parsing (PST/OST via readpst)
 #
 # Sections:

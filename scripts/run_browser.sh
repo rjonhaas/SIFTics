@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# DAEDALUS:HANDLES browser_chrome browser_edge browser_firefox browser_ie_legacy
 # run_browser.sh — Phase 11: Browser & User Behavior Artifacts
 #
 # Sections:
