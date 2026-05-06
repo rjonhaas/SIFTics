@@ -14,6 +14,10 @@
 
 set -uo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=audit_log.sh
+source "${SCRIPT_DIR}/audit_log.sh"
+
 # Resolve CASE_ROOT: $1 argument → inherited env var → interactive prompt
 CASE_ROOT="${1:-${CASE_ROOT:-}}"
 if [[ -z "$CASE_ROOT" ]]; then
@@ -35,19 +39,7 @@ trap 'rm -f "${PY_SCRIPT}"' EXIT
 
 # ─── helpers ────────────────────────────────────────────────────────────────
 
-log_cmd() {
-    local machine="$1" tool="$2" cmd="$3" purpose="$4" output="$5" result="$6"
-    cat >> "${COMMAND_LOG}" <<EOF
-
-[${TIMESTAMP}] ${machine} | ${tool} | Browser
-  ${cmd}
-  > Purpose  : ${purpose}
-  > Output   : ${output}
-  > Result   : ${result}
-
---------------------------------------------------------------------------------
-EOF
-}
+# log_cmd() provided by audit_log.sh
 
 run_tool() {
     set +e; out=$(eval "$1" 2>&1); rc=$?; set -e

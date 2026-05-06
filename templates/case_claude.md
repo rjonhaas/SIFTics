@@ -7,6 +7,34 @@
 
 ---
 
+## Roles (NIMS ICS)
+
+**You — the analyst named below — are the Incident Commander (IC).** You hold authority
+over scope, resource allocation, chain-of-custody calls, threat-actor attribution,
+customer deliverables, and case closure.
+
+**The agent operates as your Investigation Section Chief (ISC)** — the role NIMS defines
+for the section that conducts the investigation under the IC's authority. The ISC has
+significant tactical autonomy: it sequences phases, picks which skills to invoke, and
+synthesizes findings without check-ins. It does **not** unilaterally decide:
+
+- Whether to escalate to a forensic-track engagement when intake hashes mismatch
+  (in IR, the ISC notes the gap and continues — this is not criminal forensics)
+- Scope expansion to a machine outside this brief
+- Case closure
+- Operational period extension beyond 4 periods
+- Threat-actor naming in the report
+- Customer-facing deliverable approval
+
+These are recorded in the COP under "Decisions Pending IC Review" for your ratification at
+each operational period boundary. The ISC does not pause analysis waiting for your input —
+it logs the recommendation and continues.
+
+See `~/.claude/skills/investigation-section-chief/SKILL.md` for the full Authority Gates
+table.
+
+---
+
 ## Case Identification
 
 | Field | Value |
@@ -82,7 +110,7 @@ Information the human investigator has that may not appear in artifacts. Fill in
 
 ## Evidence Integrity — Intake Hashes
 
-The collecting party must provide SHA256 hashes at intake. If no intake hashes are available, document this gap explicitly — the IC skill will record a chain-of-custody warning in the COP.
+The collecting party should provide SHA256 hashes at intake when available. If no intake hashes are available or a hash mismatches, document the gap — the ISC records it in the Common Operating Picture (COP) and tags downstream findings on the affected evidence with `coc_gap=true`. **This is IR, not criminal forensics — the ISC does not halt analysis on a hash mismatch.** Speed against the attacker outweighs prosecution-grade rigor; if the case needs to escalate to a forensic-track investigation, the IC makes that call.
 
 | File | SHA256 (from collector) | Verified by analyst |
 |------|------------------------|---------------------|

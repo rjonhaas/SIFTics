@@ -15,26 +15,38 @@ import shutil
 import sys
 from pathlib import Path
 
-# Patterns that indicate a potential prompt injection attempt
-# Each tuple is (description, compiled_regex)
+# Patterns that indicate a potential prompt injection attempt.
+# Substring patterns (case-insensitive) — anywhere in the cell.
+# Attackers embed these inside otherwise-legitimate-looking field values, so
+# line-start anchoring (used in earlier versions) produced false negatives.
 INJECTION_PATTERNS = [
-    # Line-start patterns (check against each line in the cell)
-    re.compile(r'(?:^|\n)\s*you are\b', re.IGNORECASE),
-    re.compile(r'(?:^|\n)\s*ignore previous\b', re.IGNORECASE),
-    re.compile(r'(?:^|\n)\s*system\s*:', re.IGNORECASE),
-    re.compile(r'(?:^|\n)\s*assistant\s*:', re.IGNORECASE),
-    re.compile(r'(?:^|\n)\s*user\s*:', re.IGNORECASE),
-    re.compile(r'(?:^|\n)\s*human\s*:', re.IGNORECASE),
-    re.compile(r'(?:^|\n)\s*```', re.IGNORECASE),
-    # Substring patterns (anywhere in the cell)
-    re.compile(r'ignore all prior instructions', re.IGNORECASE),
-    re.compile(r'new instructions', re.IGNORECASE),
-    re.compile(r'disregard', re.IGNORECASE),
-    re.compile(r'override', re.IGNORECASE),
-    re.compile(r'forget your', re.IGNORECASE),
-    re.compile(r'act as', re.IGNORECASE),
-    re.compile(r'pretend you are', re.IGNORECASE),
-    re.compile(r'your new role', re.IGNORECASE),
+    # Direct instruction-override phrasing
+    re.compile(r'\bignore\s+(previous|prior|all|the\s+above|above|preceding)\b', re.IGNORECASE),
+    re.compile(r'\bdisregard\s+(previous|prior|all|the\s+above|above|preceding|instructions)\b', re.IGNORECASE),
+    re.compile(r'\bnew\s+instructions?\b', re.IGNORECASE),
+    re.compile(r'\boverride\s+(previous|prior|all|the above|instructions)\b', re.IGNORECASE),
+    re.compile(r'\bforget\s+(your|all|previous|prior)\b', re.IGNORECASE),
+    re.compile(r'\bact\s+as\s+(if|a|an)\b', re.IGNORECASE),
+    re.compile(r'\bpretend\s+(you|to)\b', re.IGNORECASE),
+    re.compile(r'\byour\s+new\s+(role|task|instructions?)\b', re.IGNORECASE),
+    re.compile(r'\bfrom\s+now\s+on\b', re.IGNORECASE),
+    # Role-impersonation tags / chat-format markers
+    re.compile(r'<\s*/?\s*(system|assistant|user|human)\s*>', re.IGNORECASE),
+    re.compile(r'\[\s*(system|assistant|user|human)\s*\]', re.IGNORECASE),
+    re.compile(r'(?:^|\W)(system|assistant|user|human)\s*:\s*\S', re.IGNORECASE),
+    # Direct addressing patterns common in injections
+    re.compile(r'\byou\s+are\s+(now|a|an|the|going)\b', re.IGNORECASE),
+    re.compile(r'\byou\s+(must|will|shall)\s+(now|always|never|disclose|reveal|return|print)\b', re.IGNORECASE),
+    # Code/markdown injection that shifts LLM into eval mode
+    re.compile(r'```\s*(system|prompt|instructions?)', re.IGNORECASE),
+    # Specific exploit phrases seen in the wild
+    re.compile(r'\b(reveal|disclose|return|print|leak)\s+(all|the)?\s*(secrets?|passwords?|api\s*keys?|tokens?|credentials?)\b', re.IGNORECASE),
+    re.compile(r'\bexfiltrate\b', re.IGNORECASE),
+    re.compile(r'\bjailbreak\b', re.IGNORECASE),
+    # Common DAN-style and bypass markers
+    re.compile(r'\bDAN\s+mode\b', re.IGNORECASE),
+    re.compile(r'\bdeveloper\s+mode\b', re.IGNORECASE),
+    re.compile(r'\bunfiltered\b', re.IGNORECASE),
 ]
 
 

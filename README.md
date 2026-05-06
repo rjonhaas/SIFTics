@@ -9,11 +9,28 @@ DFIR triage workflow for the SANS SIFT Workstation. Claude Code orchestrates ana
 ```
 Step 0  — Case setup: create CLAUDE.md at the case root
 Step 1  — Extract evidence (KAPE ZIPs, memory images, PCAPs, cloud logs)
-Step 2  — Run triage scripts: bash scripts/run_all.sh /cases/<case_name>
-Step 3  — Invoke Claude Code: /incident-commander → domain skills → report
-Step 4  — (optional) Run Phase 16 CVE attribution and regenerate report
-Step 5  — (optional) Generate HTML deliverable: python3 scripts/gen_html_package.py /cases/<case_name>
+Step 2  — Open the case directory in Claude Code and invoke
+          /investigation-section-chief. The agent (NIMS ICS Investigation Section
+          Chief — your "Intel Section") reads the triage-methodology skill,
+          decides which phase scripts apply, and sequences them. You (the human
+          analyst) are the Incident Commander; the agent reports to you.
+Step 3  — ISC invokes domain skills as findings dictate (memory-analysis,
+          network-analysis, yara-hunting, etc.) and writes the
+          Common Operating Picture (COP) at every operational period boundary.
+          Authority-gated decisions (scope expansion, chain-of-custody issues,
+          case closure) are surfaced in the COP for IC review without blocking
+          analysis.
+Step 4  — ISC drafts the investigation-report at recommended closure;
+          IC reviews and approves before delivery.
+Step 5  — (optional) Run Phase 16 CVE attribution; regenerate report.
+Step 6  — (optional) Generate HTML deliverable:
+          python3 scripts/gen_html_package.py /cases/<case_name>
 ```
+
+There is no `run_all.sh` anymore. The agent **is** the orchestrator. For deterministic
+re-execution (benchmark scenarios), invoke each `run_*.sh` script directly in numerical
+order from the [Phase Catalog](skills/triage-methodology/SKILL.md#phase-catalog) — the
+phase scripts' self-skip guards make this idempotent.
 
 ---
 
@@ -22,7 +39,7 @@ Step 5  — (optional) Generate HTML deliverable: python3 scripts/gen_html_packa
 Before running any scripts or analysis, create a `CLAUDE.md` at the case root. This file is loaded automatically by Claude Code when you open the case directory and grounds every analysis decision in the facts you know going in.
 
 ```bash
-cp /home/sansforensics/projects/SIFTics/templates/case_claude.md /cases/<case_name>/CLAUDE.md
+cp "${SIFTICS_HOME:-/home/sansforensics/SIFTics}/templates/case_claude.md" /cases/<case_name>/CLAUDE.md
 ```
 
 Then open it and fill in what you know:
@@ -44,14 +61,26 @@ The attack window is the most critical field. Even a rough estimate ("sometime i
 
 ## Triage Scripts (`scripts/`)
 
-Scripts accept the case root as a positional argument. `run_all.sh` exports `CASE_ROOT` so child scripts inherit it automatically. Each script is also runnable standalone.
+Each script accepts the case root as a positional argument. Each is independently
+runnable, idempotent, and self-skipping (re-running on a fully-analyzed case is a no-op).
+Each sources `audit_log.sh` automatically and writes hash-chained entries to
+`<case_root>/analysis/forensic_audit.jsonl`.
+
+The agent invokes these via the [`triage-methodology`](skills/triage-methodology/SKILL.md)
+skill, which encodes the sequencing logic, break conditions, and skip rules. Manual
+invocation is also supported:
 
 ```bash
-# Run full pipeline
-bash scripts/run_all.sh /cases/<case_name>
-
-# Run individual phase
+# Run a single phase
 bash scripts/run_ntfs.sh /cases/<case_name>
+
+# Run a sequence by hand (deterministic re-execution / benchmark mode)
+for s in run_ntfs run_registry run_eventlogs run_artifacts run_execution \
+         run_hunting run_credaccess run_antiforensics run_browser run_ransomware \
+         run_webserver run_email run_linux run_ioc_extract run_c2_beacon \
+         run_attack_path; do
+    bash "scripts/${s}.sh" /cases/<case_name>
+done
 ```
 
 ### Core Windows Triage (Phases 1–13)
@@ -60,7 +89,6 @@ Output lands in `<case_root>/analysis/<MACHINE>/<Category>/`.
 
 | Script | Phase | What it does |
 |--------|-------|-------------|
-| `run_all.sh` | Orchestrator | Runs all phases in order; skips completed phases |
 | `run_ntfs.sh` | 1 | MFT, Boot, LogFile, USN Journal |
 | `run_registry.sh` | 2 | System/user hives, Amcache, ShimCache, ShellBags, RegBack |
 | `run_eventlogs.sh` | 3 | All EVTX (EvtxECmd + Maps) |
@@ -100,11 +128,19 @@ Output lands in `<case_root>/analysis/<MACHINE>/<Category>/`.
 
 ## Skills (`skills/`)
 
-Domain skill files that Claude Code reads to guide tool execution. Invoke via the incident-commander skill at the start of every case.
+Domain skill files that Claude Code reads to guide tool execution. Invoke via the investigation-section-chief skill at the start of every case.
+
+> **Roles (NIMS ICS):** You — the human analyst — are the **Incident Commander (IC)**.
+> The agent runs as the **Investigation Section Chief (ISC)**, the role NIMS defines for
+> the section that conducts the investigation under the IC's authority. The ISC has
+> tactical autonomy inside its section but surfaces authority-gated decisions in the COP
+> for the IC's review. See `investigation-section-chief/SKILL.md` for the full
+> Authority Gates table.
 
 | Skill | Domain |
 |-------|--------|
-| `incident-commander` | Investigation orchestration — invoke first |
+| `investigation-section-chief` | The agent's NIMS ICS role — investigation lifecycle, COP, finding taxonomy, Authority Gates. Invoke first. |
+| `triage-methodology` | Phase sequencing & decision engine — invoked by ISC at Period 1 (replaces `run_all.sh`) |
 | `daedalus` | Adaptive artifact discovery and handler generation |
 | `windows-artifacts` | EZ Tools, Event Logs, Registry |
 | `memory-analysis` | Volatility 3, Memory Baseliner |
@@ -117,8 +153,124 @@ Domain skill files that Claude Code reads to guide tool execution. Invoke via th
 | `macos-triage` | Unified Log, FSEvents, Quarantine DB |
 | `plaso-timeline` | Cross-source super-timeline |
 | `sleuthkit` | File system triage, MFT recovery, file carving |
-| `investigation-report` | Final report generation (invoked by IC at case close) |
+| `investigation-report` | Final report generation — drafted by ISC at case closure; IC reviews and approves before delivery |
+| `hypothesis-engine` | Working-theory ledger; signal scoring at each operational period (replaces "anchoring on first plausible explanation") |
 | `cve-attribution` | Intel ICS Phase 16 — CVE attribution from completed report |
+
+---
+
+## Try It Out (judges, this section is for you)
+
+This section is the reproducibility and Try-It-Out instructions required by the
+hackathon submission rules. It assumes you have a fresh SANS SIFT Workstation
+and Claude Code installed.
+
+### 1. Install SIFTics
+
+```bash
+git clone https://github.com/rjonhaas/SIFTics.git ~/SIFTics
+export SIFTICS_HOME=~/SIFTics
+
+# Symlink skills into Claude Code's skill directory
+mkdir -p ~/.claude/skills
+for skill in ~/SIFTics/skills/*/; do
+    ln -sf "$skill" ~/.claude/skills/$(basename "$skill")
+done
+
+# Verify dependencies
+bash ~/SIFTics/scripts/install_tools.sh --check-only
+```
+
+### 2. Verify the architectural guardrails (no evidence required)
+
+```bash
+python3 ~/SIFTics/scripts/test_constraints.py
+# Reads: nothing (uses temp dir)
+# Writes: ~/SIFTics/reports/bypass_test_report.md + bypass_test_results.json
+# Tests T1–T7 architectural / prompt-based boundaries
+```
+
+Expected outcome: T2 BLOCKED, T3 DETECTED (4/4), T4 DETECTED, T5 VERIFIED-PRESENT,
+T6 DETECTED, T7 FULL-COVERAGE. T1 ALLOWED-OS-level (intentional — see report).
+
+### 3. Run the accuracy benchmark against public CTF evidence
+
+If you want to verify SIFTics' accuracy against documented ground truth, the repo
+ships two benchmark manifests for public CTF cases:
+
+| Case | Public source | Ground-truth checks |
+|---|---|---|
+| DEF CON 2019 DFIR CTF | DFA 2019 (publicly downloadable) | 21 checks across 10 phases |
+| CyberDefenders Case 166 (SpottedInTheWild) | cyberdefenders.org | 16 checks across 7 phases |
+
+Download the evidence to `/cases/<case_name>/`, then:
+
+```bash
+# Drive the pipeline (skill-driven, agent-orchestrated):
+#   Open the case directory in Claude Code and invoke /investigation-section-chief.
+#   The agent reads triage-methodology and runs phases 1-17 + 19 + 20 as evidence dictates.
+
+# Or — for deterministic re-execution against the benchmark, drive manually:
+for s in run_ntfs run_registry run_eventlogs run_artifacts run_execution \
+         run_hunting run_credaccess run_antiforensics run_browser run_ransomware \
+         run_webserver run_email run_linux run_ioc_extract run_c2_beacon \
+         run_attack_path run_anomaly_check run_memory run_pcap; do
+    bash ~/SIFTics/scripts/${s}.sh /cases/defcon2019_dfir
+done
+
+# Score against ground truth
+python3 ~/SIFTics/scripts/score_benchmark.py \
+    --case-dir /cases/defcon2019_dfir \
+    --ground-truth ~/SIFTics/benchmark/ground_truth/defcon2019.json
+```
+
+Expected outcome: 21/21 (100% recall) on DEF CON 2019, 16/16 (100% recall) on
+SpottedInTheWild. Phases 18/19/20 are new and not yet in the benchmark manifests
+(scoring infrastructure is the same; ground truth needs to be added).
+
+### 4. Demonstrate the self-correction loop
+
+The killer-demo sequence the hackathon prompt requires (at least one self-correction
+in the demo video). After the pipeline has run on a case with anti-forensic
+indicators (DEF CON 2019 has VSS deletion + log clearing, ideal):
+
+```bash
+# Phase 18 detects contradictions across artifacts
+bash ~/SIFTics/scripts/run_anomaly_check.sh /cases/defcon2019_dfir
+
+# Self-correction loop reads anomalies.csv, picks first HIGH, re-runs
+# the upstream phase, re-checks anomalies, iterates (max 3)
+bash ~/SIFTics/scripts/run_self_correct.sh /cases/defcon2019_dfir
+
+# Read the iteration trace
+cat /cases/defcon2019_dfir/analysis/self_correction.jsonl
+cat /cases/defcon2019_dfir/analysis/self_correction_report.md
+```
+
+Each iteration is recorded with timestamp, target anomaly, corrective action,
+HIGH-anomaly count delta, and success/no-change/worse outcome.
+
+### 5. Inspect the audit trail
+
+Every command run by every phase script is hash-chained:
+
+```bash
+# Verify the chain has no breaks
+bash ~/SIFTics/scripts/audit_verify.sh /cases/defcon2019_dfir/analysis/forensic_audit.jsonl
+
+# Search by tool, machine, or keyword
+bash ~/SIFTics/scripts/audit_query.sh \
+    --tool MFTECmd /cases/defcon2019_dfir/analysis/forensic_audit.jsonl
+```
+
+Any finding in the COP or report can be traced back to the exact command that
+produced it — meets the hackathon's Audit Trail Quality criterion.
+
+### 6. Read the architecture diagram
+
+See [`docs/architecture.md`](docs/architecture.md) for the full Mermaid diagram
+showing IC/ISC roles, phase scripts, evidence sources, output pipeline, and the
+explicit architectural-vs-prompt-based guardrail classification.
 
 ---
 

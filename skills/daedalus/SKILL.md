@@ -33,8 +33,8 @@ It solves three problems simultaneously:
 
 ## When to Invoke
 
-Invoked by the **Incident Commander skill** after Phase 0 (evidence inventory, hashing,
-temporal mapping) and **before** any analysis scripts run. The IC passes the case root path
+Invoked by the **Investigation Section Chief skill** after Phase 0 (evidence inventory, hashing,
+temporal mapping) and **before** any analysis scripts run. The ISC passes the case root path
 and the mounted evidence path; Daedalus returns a validated run plan.
 
 Also invoke Daedalus:
@@ -43,8 +43,9 @@ Also invoke Daedalus:
   non-standard variant of that artifact type (e.g., a non-IIS web server log)
 - When the analyst says "there's something here I don't have a script for"
 
-**Daedalus never executes analysis scripts directly.** It produces a run plan that the IC
-or the analyst executes via `run_all.sh` or by invoking individual scripts.
+**Daedalus never executes analysis scripts directly.** It produces a run plan; the ISC then
+sequences the indicated phases via the `triage-methodology` skill, which invokes the
+individual `run_*.sh` scripts.
 
 ---
 
@@ -464,13 +465,21 @@ bash -n "$new_script"   # syntax check only, never execute against evidence
 
 If the syntax check fails, fix the error and re-check before proceeding.
 
-### Step 4.6 — Register in run_all.sh
+### Step 4.6 — Register in the triage-methodology skill
 
-Add the new phase to the `PHASES` array in `run_all.sh`:
+Add a new row to the **Phase Catalog** table in `skills/triage-methodology/SKILL.md` so the
+ISC knows the new phase exists and can invoke it. Required fields:
 
-```bash
-"Phase ${NEXT_PHASE}— <Label>    |${SCRIPT_DIR}/run_<name>.sh|<PhaseFolder>|*_<signal_glob>"
-```
+| # | Script | Domain | Depends on | Completion signal | Cross-machine output |
+|---|---|---|---|---|---|
+| `${NEXT_PHASE}` | `run_<name>.sh` | `<artifact_class>` | `<phases this depends on>` | `analysis/<MACHINE>/<PhaseFolder>/*_<signal_glob>` | (if any) |
+
+Then add a one-line **skip rule** ("Skip if no `<artifact>` present") and slot the phase
+into the **Default Sequence** at the appropriate layer (Layer 1 foundation, Layer 2
+domain analysis, Layer 3 consolidation, or Layer 4 synthesis).
+
+If the phase has obvious break conditions (a finding that should reorder later phases),
+add them to the matching Break Conditions section under **[ANALYST EXTEND HERE]**.
 
 ---
 
@@ -566,7 +575,7 @@ GENERATED run_wmi_triage.sh   win_wmi_repo          (new script — no domain ma
 
 ---
 
-## Phase D6 — IC Handoff
+## Phase D6 — ISC Handoff
 
 Update `$CASE_ROOT/analysis/cop.md`:
 
@@ -576,10 +585,10 @@ Update `$CASE_ROOT/analysis/cop.md`:
    - Scripts generated: list new scripts with their phase numbers
    - Scripts skipped: list with reason
 
-2. Add any generated scripts to the COP as INFERRED findings (the script was written
+2. Add any generated scripts to the Common Operating Picture (COP) as INFERRED findings (the script was written
    based on artifact presence — run results will elevate to CONFIRMED or reveal nothing).
 
-3. Return the run plan path to the IC for execution.
+3. Return the run plan path to the ISC for execution.
 
 ---
 
@@ -622,7 +631,7 @@ Examples from existing scripts (to be added):
 ## Constraints
 
 - **Never execute scripts against evidence.** Daedalus writes and validates scripts;
-  execution is the IC's responsibility.
+  execution is the ISC's responsibility.
 - **Never modify evidence files.** All probes are read-only (`find`, `grep`, `strings`,
   `mmls` with no write flags).
 - **One gap at a time.** Generate, validate, and register each script fully before

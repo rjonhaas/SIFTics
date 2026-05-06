@@ -19,7 +19,7 @@
 #   ABSENT   <class>  —
 #   SKIP     <class>  <reason>
 #
-# The IC / Daedalus SKILL.md reads this output and builds the run plan.
+# The ISC / Daedalus SKILL.md reads this output and builds the run plan.
 
 set -uo pipefail
 
@@ -340,7 +340,7 @@ else
     absent "velociraptor_zip"
 fi
 
-# ─── Disk Images (for IC scope awareness) ───────────────────────────────────
+# ─── Disk Images (for ISC scope awareness) ───────────────────────────────────
 
 echo ""
 echo "# ── Disk Images ──"

@@ -1,10 +1,154 @@
-# SIFTics Gap Remediation — Change Log
+# SIFTics Change Log
 
-**Date:** 2026-05-04  
-**Branch:** main  
-**Scope:** All 10 callouts from code review
+> **Subsequent rename note (2026-05-05):** The `incident-commander` skill was renamed
+> to `investigation-section-chief` to reflect the NIMS ICS role hierarchy. The human
+> analyst is the Incident Commander; the agent operates as the Investigation Section
+> Chief reporting to the IC. Path references to `skills/incident-commander/...` in the
+> historical entries below refer to that name; the current path is
+> `skills/investigation-section-chief/`.
 
 ---
+
+## 2026-05-06 — Hackathon submission build (FIND EVIL!)
+
+Substantive additions targeting the hackathon's six judging criteria:
+Autonomous Execution Quality, IR Accuracy, Breadth and Depth, Constraint
+Implementation, Audit Trail Quality, Usability and Documentation.
+
+### New phase scripts
+
+- **Phase 18 — `scripts/run_anomaly_check.sh`** — cross-artifact contradiction
+  scanner. Reads CSVs already produced by Phases 1–13 + 19 + 20 and flags 10
+  classes of "doesn't add up" findings: Shimcache-present-MFT-absent (likely
+  wipe), Amcache-hash-MFT-absent, EVTX gap during attack window (log clearing),
+  Prefetch-no-EID-4688, EID-4688-no-Prefetch, IIS log gap, USN sequence jumps,
+  memory netscan IP not in disk EVTX, PCAP beacon dst not in IOC master,
+  HIGH-confidence timestomping. Output: `analysis/anomalies.csv` +
+  `anomaly_summary.txt`. Drives the self-correction loop.
+
+- **Phase 19 — `scripts/run_memory.sh`** — autonomous memory triage via Volatility 3.
+  Discovers `*.mem`/`*.raw`/`*.dmp`/`*.vmem` ≥10MB; runs psscan, pstree, cmdline,
+  netscan, svcscan, malfind (with --dump), timeliner; YARA-sweeps malfind dumps if
+  rules are present; cross-references netscan IPs against `ioc_master.csv`; produces
+  `memory_anomalies.csv` (orphan PPIDs, wrong-parent svchost/lsass/winlogon,
+  RWX VAD without file backing, IOC IP matches).
+
+- **Phase 20 — `scripts/run_pcap.sh`** — autonomous PCAP triage via tshark + Zeek
+  (Zeek optional). capinfos orientation; top-talkers + external IPs; DNS triple
+  (queries, NXDOMAIN, DGA-suspicious by length + digit ratio); HTTP requests +
+  large responses + TLS SNI; per-destination beacon scoring (interval CV,
+  denylist-aware, IOC-aware); pcap_anomalies.csv synthesis.
+
+- **`scripts/run_self_correct.sh`** — self-correction loop driver. Reads HIGH-severity
+  anomalies from Phase 18; maps each to a corrective action (re-run upstream phase
+  with adjusted scope, or add IP to IOC master + re-run extract); executes; re-runs
+  anomaly check; verifies count decreased. Hard cap: 3 iterations. Per-iteration
+  log to `analysis/self_correction.jsonl` + human-readable
+  `self_correction_report.md`. Demonstrates criterion #1 (autonomous execution
+  with self-correction).
+
+### New skill
+
+- **`skills/hypothesis-engine/SKILL.md` + `scripts/hypothesis_score.py`** — append-only
+  JSONL ledger encoding the senior-analyst pattern of carrying 2–3 working theories,
+  scoring each against new evidence, retiring on confidence drop. Confidence is
+  computed mechanically (sum of signal weights, capped at 1.0, with confirmation cap
+  on signal_against ≥0.5 and stale-decay multiplier of 0.7 per period). The script
+  has subcommands: `add`, `signal`, `score`, `report`, `retire`. Smoke-tested
+  end-to-end. Integrated into the ISC operational period structure (invoked at
+  every period boundary).
+
+### Bypass test harness for Accuracy Report
+
+- **`scripts/test_constraints.py`** — runs T1–T7 against the architectural and
+  prompt-based guardrails:
+  - T1 Write to evidence dir (prompt-based) — ALLOWED OS-level (documented limitation)
+  - T2 Destructive shell command (architectural) — BLOCKED via settings.json deny
+  - T3 Prompt injection sanitizer (architectural) — DETECTED 4/4 with 0 false positives
+  - T4 Audit log tamper detection (architectural) — DETECTED via SHA-256 chain
+  - T5 RO mount preflight (architectural) — VERIFIED-PRESENT
+  - T6 Intake hash mismatch (architectural) — DETECTED, ISC tags `coc_gap=true` (IR mode)
+  - T7 All run_*.sh source audit_log.sh (architectural) — FULL-COVERAGE
+  - Output: `reports/bypass_test_report.md` + `bypass_test_results.json`
+
+### Sanitizer hardening
+
+- **`scripts/sanitize_for_llm.py`** — replaced 15 line-anchored regexes with 22
+  substring patterns covering: instruction-override phrasing (`ignore/disregard
+  + previous/prior/all/above/preceding`), role-impersonation tags
+  (`<system>` / `[user]` / `assistant:`), direct addressing (`you are now`,
+  `you must reveal`), markdown injection (` ```system`), specific exploit
+  phrases (`exfiltrate`, `jailbreak`, `DAN mode`, `developer mode`), and
+  data-disclosure verbs (`reveal/disclose/return/print + secrets/passwords/
+  credentials`). Bypass test now catches 4/4 patterns with 0 false positives
+  on a control row.
+
+### Reframing for IR (per Rob Lee, hackathon Slack)
+
+- **CoC FAILED is no longer a blocking authority gate.** Per Rob: "In IR there
+  is no chain of custody." The ISC now logs the mismatch in COP, tags downstream
+  findings on affected evidence with `coc_gap=true`, and **continues analysis**.
+  Re-collection escalation is the IC's call; speed against the attacker beats
+  prosecution-grade rigor in IR. Updated:
+  - `skills/investigation-section-chief/SKILL.md` Authority Gates table + Phase 0B
+  - `templates/case_claude.md` Roles section + Evidence Integrity language
+
+### Triage methodology updates
+
+- **`skills/triage-methodology/SKILL.md`** — Phase Catalog extended with rows
+  for Phase 18 (anomaly check), Phase 19 (memory), Phase 20 (PCAP), and the
+  self-correction driver. Default Sequence updated: Phase 19 runs at Layer 1
+  if memory was captured inside the attack window (per ISC Phase 0C); Phase 20
+  runs in Layer 1 alongside disk parsers; Phase 18 is the new Layer 4
+  synthesis step before reporting; self-correction is Layer 5. Skip rules and
+  break conditions added for each.
+
+### Audit log migration completed
+
+- **`scripts/run_mftecmd.sh`** — the last holdout was sourced into `audit_log.sh`.
+  T7 in the bypass harness now reports FULL-COVERAGE (100% of run_*.sh scripts
+  produce hash-chained JSONL audit entries).
+
+### Architecture diagram
+
+- **`docs/architecture.md`** — Mermaid diagrams covering: top-level component
+  map (IC + ISC + skills + scripts + evidence + outputs), guardrail
+  enforcement-type table (architectural / prompt-based / audited), evidence
+  integrity sequence diagram, self-correction loop flowchart, hypothesis ledger
+  flow, file-system layout. Marks every guardrail as 🟢 architectural,
+  🟡 prompt-based, or 🔵 audited.
+
+### README updates
+
+- New **Try It Out** section with concrete steps for judges:
+  install → run bypass tests → run benchmark on public CTF evidence →
+  demonstrate self-correction loop → inspect audit trail → read architecture.
+
+### Files added
+
+- `scripts/run_anomaly_check.sh` (Phase 18)
+- `scripts/run_memory.sh` (Phase 19)
+- `scripts/run_pcap.sh` (Phase 20)
+- `scripts/run_self_correct.sh`
+- `scripts/test_constraints.py`
+- `scripts/hypothesis_score.py`
+- `skills/hypothesis-engine/SKILL.md`
+- `docs/architecture.md`
+- `reports/bypass_test_report.md` (generated)
+- `reports/bypass_test_results.json` (generated)
+
+### Files modified
+
+- `scripts/run_mftecmd.sh` (audit_log.sh sourced; log_command → wrapper)
+- `scripts/sanitize_for_llm.py` (22 hardened patterns)
+- `skills/investigation-section-chief/SKILL.md` (CoC reframe)
+- `skills/triage-methodology/SKILL.md` (Phases 18/19/20 added)
+- `templates/case_claude.md` (CoC reframe)
+- `README.md` (Try-It-Out section + hypothesis-engine in Skills table)
+
+---
+
+## 2026-05-04 — Gap Remediation
 
 ## Item 1 — Hash-Chained Audit Log
 
@@ -58,7 +202,7 @@
 
 **Files modified:**
 - `templates/case_claude.md` — added "Evidence Integrity — Intake Hashes" section above Evidence Inventory with a table for collector-provided hashes
-- `skills/incident-commander/SKILL.md` (Phase 0B) — fully replaced with three-step protocol: (1) check for intake hashes and verify if present, (2) generate if absent with COP warning, (3) verify readonly mounts. Added Chain of Custody Status section to the COP template (VERIFIED / GENERATED / FAILED).
+- `skills/incident-commander/SKILL.md` (Phase 0B) — fully replaced with three-step protocol: (1) check for intake hashes and verify if present, (2) generate if absent with Common Operating Picture (COP) warning, (3) verify readonly mounts. Added Chain of Custody Status section to the COP template (VERIFIED / GENERATED / FAILED).
 
 **Decision:** FAILED status halts analysis — a hash mismatch between collector-provided and analyst-computed hashes is a chain of custody break that must be resolved before the evidence can be used in a report.
 

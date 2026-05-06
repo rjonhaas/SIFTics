@@ -6,7 +6,7 @@ run first — they produce ground truth. The LLM reads the output, identifies su
 patterns, and follows threads (suspicious IP → memory netscan cross-ref, extracted file →
 malware-analysis, C2 URI → yara-hunting) until each finding is resolved or escalated.
 
-**Invoke this skill when the IC identifies a network evidence source, or when any other
+**Invoke this skill when the ISC identifies a network evidence source, or when any other
 skill produces an IP, domain, or URI that needs network-level validation.**
 
 ---
@@ -236,7 +236,7 @@ tshark -r <capture.pcap> -Y "smtp.req.parameter" \
 
 ## In-Skill Pivot Protocol
 
-When a finding is detected, follow the thread before escalating to the IC:
+When a finding is detected, follow the thread before escalating to the ISC:
 
 | Finding | Follow-up action within this skill |
 |---------|------------------------------------|
@@ -244,24 +244,24 @@ When a finding is detected, follow the thread before escalating to the IC:
 | HTTP object extracted | Run `file` + `sha256sum` on every extracted object; if PE/ELF → hand to malware-analysis |
 | DGA domain candidate | Check DNS answers for resolved IPs; add those IPs to IOC master |
 | Long TLS connection | Extract JA3 fingerprint; check Zeek files.log for transferred objects |
-| Cleartext credential | Note account name + password; flag for credential access section in COP |
+| Cleartext credential | Note account name + password; flag for credential access section in Common Operating Picture (COP) |
 | Large outbound POST | Inspect payload with tcpflow; note destination IP + byte volume for exfil estimate |
 
 ---
 
-## Escalation to IC (cross-skill pivots)
+## Escalation to ISC (cross-skill pivots)
 
-Classify each escalated finding as CONFIRMED, INFERRED, or CONTRADICTED per the IC Finding Taxonomy (≥2 independent artefact types = CONFIRMED; 1–2 sources = INFERRED) before writing to the COP.
+Classify each escalated finding as CONFIRMED, INFERRED, or CONTRADICTED per the ISC Finding Taxonomy (≥2 independent artefact types = CONFIRMED; 1–2 sources = INFERRED) before writing to the COP.
 
 These findings leave network-analysis and require another skill:
 
-| Finding | IC pivot |
+| Finding | ISC pivot |
 |---------|---------|
-| Confirmed C2 IP or domain | Add to IOC master; IC cross-refs with memory-analysis netscan |
-| Extracted executable file | IC tasks malware-analysis with the file path |
-| Known-bad JA3 fingerprint | IC adds JA3 hash to IOC master; look up against abuse.ch JA3 feeds for known malware family; if family identified, IC tasks yara-hunting for that family's file signatures on disk |
-| Credential in cleartext | IC updates COP under Credential Access findings |
-| New external IP not in IOC master | IC cross-refs against cloud-forensics CloudTrail if hybrid environment |
+| Confirmed C2 IP or domain | Add to IOC master; ISC cross-refs with memory-analysis netscan |
+| Extracted executable file | ISC tasks malware-analysis with the file path |
+| Known-bad JA3 fingerprint | ISC adds JA3 hash to IOC master; look up against abuse.ch JA3 feeds for known malware family; if family identified, ISC tasks yara-hunting for that family's file signatures on disk |
+| Credential in cleartext | ISC updates COP under Credential Access findings |
+| New external IP not in IOC master | ISC cross-refs against cloud-forensics CloudTrail if hybrid environment |
 
 ---
 

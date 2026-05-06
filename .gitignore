@@ -3,6 +3,18 @@
 # Local Claude Code session state
 .claude/
 
+# Python bytecode (from running Python helper scripts)
+__pycache__/
+*.pyc
+
+# Secrets — NEVER commit
+token.txt
+*.token
+*.pem
+*.key
+.env
+.env.*
+
 # MCP server build output
 protocol-sift-ics/mcp-server/dist/
 

@@ -7,6 +7,10 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=audit_log.sh
+source "${SCRIPT_DIR}/audit_log.sh"
+
 # Resolve CASE_ROOT: $1 argument → inherited env var → interactive prompt
 CASE_ROOT="${1:-${CASE_ROOT:-}}"
 if [[ -z "$CASE_ROOT" ]]; then
@@ -37,18 +41,9 @@ csv_has_data() {
     return 1
 }
 
+# log_command — wrapper preserving artifact-in-tool-name format; delegates to audit_log.sh
 log_command() {
-    local machine="$1" artifact="$2" cmd="$3" purpose="$4" output="$5" result="$6"
-    cat >> "${COMMAND_LOG}" <<EOF
-
-[${TIMESTAMP}] ${machine} | MFTECmd v1.3.0.0 (${artifact}) | EZ Tools
-  ${cmd}
-  > Purpose  : ${purpose}
-  > Output   : ${output}
-  > Result   : ${result}
-
---------------------------------------------------------------------------------
-EOF
+    audit_log_entry "$1" "MFTECmd v1.3.0.0 ($2) | EZ Tools" "$3" "$4" "$5" "$6" "0"
 }
 
 echo "========================================"

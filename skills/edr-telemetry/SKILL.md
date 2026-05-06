@@ -8,7 +8,7 @@ These are platform-agnostic collection mechanisms — they run on Windows, Linux
 The tools run first. The LLM reads the output, maps process trees to ATT&CK techniques,
 identifies C2 connections and malware drops, and follows threads (suspicious leaf process →
 build full parent chain, EDR network connection → cross-ref with PCAP, Velociraptor
-persistence artifact → check against windows-artifacts autoruns) before escalating to the IC.
+persistence artifact → check against windows-artifacts autoruns) before escalating to the ISC.
 
 **This skill does NOT cover:**
 - Linux host forensics from raw filesystem evidence → use `linux-host`
@@ -328,19 +328,19 @@ EOF
 
 ---
 
-## Escalation to IC (cross-skill pivots)
+## Escalation to ISC (cross-skill pivots)
 
-Classify each escalated finding as CONFIRMED, INFERRED, or CONTRADICTED per the IC Finding Taxonomy (≥2 independent artefact types = CONFIRMED; 1–2 sources = INFERRED) before writing to the COP.
+Classify each escalated finding as CONFIRMED, INFERRED, or CONTRADICTED per the ISC Finding Taxonomy (≥2 independent artefact types = CONFIRMED; 1–2 sources = INFERRED) before writing to the Common Operating Picture (COP).
 
-| Finding | IC pivot |
+| Finding | ISC pivot |
 |---------|---------|
-| Confirmed process from staging path | IC tasks `malware-analysis` with file path or process dump |
-| External IP or domain from EDR/Velociraptor | IC adds to IOC master; `network-analysis` cross-refs in PCAP |
-| Scheduled task / run key at suspicious path | IC tasks `windows-artifacts` to confirm on-disk artifact in registry/task XML |
-| Phishing execution chain confirmed | IC records T1566 + T1059 in COP; possible `yara-hunting` for matching dropper |
-| lsass.exe access confirmed | IC updates Credential Access in COP; checks for DCSync in windows-artifacts |
-| Lateral movement connection to internal IP | IC expands scope to destination host |
-| Webshell execution chain (`w3wp.exe` parent) | IC tasks `windows-artifacts` webserver phase for IIS log corroboration |
+| Confirmed process from staging path | ISC tasks `malware-analysis` with file path or process dump |
+| External IP or domain from EDR/Velociraptor | ISC adds to IOC master; `network-analysis` cross-refs in PCAP |
+| Scheduled task / run key at suspicious path | ISC tasks `windows-artifacts` to confirm on-disk artifact in registry/task XML |
+| Phishing execution chain confirmed | ISC records T1566 + T1059 in COP; possible `yara-hunting` for matching dropper |
+| lsass.exe access confirmed | ISC updates Credential Access in COP; checks for DCSync in windows-artifacts |
+| Lateral movement connection to internal IP | ISC expands scope to destination host |
+| Webshell execution chain (`w3wp.exe` parent) | ISC tasks `windows-artifacts` webserver phase for IIS log corroboration |
 
 ---
 

@@ -1179,22 +1179,22 @@ Map findings to ATT&CK as you go. Each phase of analysis surfaces specific techn
 
 ---
 
-## Escalation to IC (cross-skill pivots)
+## Escalation to ISC (cross-skill pivots)
 
-Classify each escalated finding as CONFIRMED, INFERRED, or CONTRADICTED per the IC Finding Taxonomy (≥2 independent artefact types = CONFIRMED; 1–2 sources = INFERRED) before writing to the COP.
+Classify each escalated finding as CONFIRMED, INFERRED, or CONTRADICTED per the ISC Finding Taxonomy (≥2 independent artefact types = CONFIRMED; 1–2 sources = INFERRED) before writing to the Common Operating Picture (COP).
 
-| Finding | IC pivot |
+| Finding | ISC pivot |
 |---------|---------|
-| LaunchAgent / LaunchDaemon in non-system path | IC updates Persistence in COP; `yara-hunting` sweep against the `ProgramArguments` binary |
-| Quarantine DB entry with external source URL | IC adds URL/domain to IOC master; `network-analysis` cross-ref if PCAP available |
-| Unified Log shows reverse shell or encoded payload execution | IC updates Execution in COP (T1059.004); `malware-analysis` if binary is recoverable |
-| SSH `known_hosts` contains internal hosts | IC expands scope — adds those hosts to evidence inventory |
-| TCC DB shows unexpected accessibility / screen recording grant | IC updates Credential Access / Collection in COP |
-| Binary without quarantine xattr dropped outside app bundle | IC flags Gatekeeper bypass (T1553.001); `yara-hunting` against the binary |
-| Shell history cleared or missing | IC flags Anti-Forensics; check Unified Log for timing of clearing event |
-| New local account created outside normal provisioning | IC updates Persistence / Privilege Escalation in COP |
-| External IP from shell history, network usage, or Unified Log | IC adds to IOC master; `network-analysis` cross-ref if PCAP available |
-| Staged binary in `/tmp`, `/private/tmp`, or `/dev/shm` equivalent | IC tasks `malware-analysis`; hash and preserve before triage package expires |
+| LaunchAgent / LaunchDaemon in non-system path | ISC updates Persistence in COP; `yara-hunting` sweep against the `ProgramArguments` binary |
+| Quarantine DB entry with external source URL | ISC adds URL/domain to IOC master; `network-analysis` cross-ref if PCAP available |
+| Unified Log shows reverse shell or encoded payload execution | ISC updates Execution in COP (T1059.004); `malware-analysis` if binary is recoverable |
+| SSH `known_hosts` contains internal hosts | ISC expands scope — adds those hosts to evidence inventory |
+| TCC DB shows unexpected accessibility / screen recording grant | ISC updates Credential Access / Collection in COP |
+| Binary without quarantine xattr dropped outside app bundle | ISC flags Gatekeeper bypass (T1553.001); `yara-hunting` against the binary |
+| Shell history cleared or missing | ISC flags Anti-Forensics; check Unified Log for timing of clearing event |
+| New local account created outside normal provisioning | ISC updates Persistence / Privilege Escalation in COP |
+| External IP from shell history, network usage, or Unified Log | ISC adds to IOC master; `network-analysis` cross-ref if PCAP available |
+| Staged binary in `/tmp`, `/private/tmp`, or `/dev/shm` equivalent | ISC tasks `malware-analysis`; hash and preserve before triage package expires |
 
 ---
 

@@ -5,7 +5,7 @@ Use this skill for live or imaged Linux/Unix endpoints. The tools run first — 
 ground truth from the filesystem, logs, and running process state. The LLM reads the output,
 recognizes suspicious patterns, follows threads (suspicious cron job → check file creation
 time, bash history cleared → check auth.log for timing, SUID binary → check owner and mtime),
-and escalates confirmed findings to the IC.
+and escalates confirmed findings to the ISC.
 
 **This skill covers the Linux host itself.** For Velociraptor collections or EDR telemetry
 exports (CrowdStrike, SentinelOne, Defender ATP), use the `edr-telemetry` skill instead.
@@ -211,7 +211,7 @@ fi
 | Finding | Follow-up within this skill |
 |---------|-----------------------------|
 | Suspicious file in `/tmp` or `/dev/shm` | Hash it; run `strings -a -n 8` on it; if PE/ELF, hand to malware-analysis |
-| Bash history cleared (empty or missing) | Flag anti-forensics in COP; check auth.log for timing of clearing event |
+| Bash history cleared (empty or missing) | Flag anti-forensics in Common Operating Picture (COP); check auth.log for timing of clearing event |
 | Cron job pointing to non-standard path | Check `recently_modified.txt` for creation time of that file |
 | New SSH `authorized_keys` entry | Check `ssh_logins.txt` for first successful login using that key |
 | SUID binary not in known-good set | Check `recently_modified.txt` for mtime; if modified in attack window, High confidence |
@@ -220,18 +220,18 @@ fi
 
 ---
 
-## Escalation to IC (cross-skill pivots)
+## Escalation to ISC (cross-skill pivots)
 
-Classify each escalated finding as CONFIRMED, INFERRED, or CONTRADICTED per the IC Finding Taxonomy (≥2 independent artefact types = CONFIRMED; 1–2 sources = INFERRED) before writing to the COP.
+Classify each escalated finding as CONFIRMED, INFERRED, or CONTRADICTED per the ISC Finding Taxonomy (≥2 independent artefact types = CONFIRMED; 1–2 sources = INFERRED) before writing to the COP.
 
-| Finding | IC pivot |
+| Finding | ISC pivot |
 |---------|---------|
-| Staged binary confirmed | IC tasks `malware-analysis` |
-| External IP from auth.log or bash history | IC adds to IOC master; `network-analysis` cross-ref if PCAP available |
-| New UID 0 account or SSH authorized key | IC updates Persistence and Credential Access in COP |
-| `known_hosts` reveals pivot targets | IC expands scope to those hosts |
-| Bash history shows credential harvesting | IC updates Credential Access in COP; checks other machines for same accounts |
-| Kernel module anomaly | IC flags possible rootkit; `yara-hunting` sweep against module binary |
+| Staged binary confirmed | ISC tasks `malware-analysis` |
+| External IP from auth.log or bash history | ISC adds to IOC master; `network-analysis` cross-ref if PCAP available |
+| New UID 0 account or SSH authorized key | ISC updates Persistence and Credential Access in COP |
+| `known_hosts` reveals pivot targets | ISC expands scope to those hosts |
+| Bash history shows credential harvesting | ISC updates Credential Access in COP; checks other machines for same accounts |
+| Kernel module anomaly | ISC flags possible rootkit; `yara-hunting` sweep against module binary |
 
 ---
 

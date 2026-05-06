@@ -64,7 +64,8 @@ workbook-update       # update FOR508 workbook
 
 | Domain | Skill File |
 |--------|-----------|
-| **Investigation orchestration (invoke first)** | `@~/.claude/skills/incident-commander/SKILL.md` |
+| **Investigation Section Chief — invoke first; agent's NIMS ICS role** | `@~/.claude/skills/investigation-section-chief/SKILL.md` |
+| **Triage phase sequencing (invoked by ISC at Period 1)** | `@~/.claude/skills/triage-methodology/SKILL.md` |
 | Case scope & metadata | `@./CLAUDE.md` (project working directory) |
 | Timeline generation (Plaso) | `@~/.claude/skills/plaso-timeline/SKILL.md` |
 | File system & carving (Sleuth Kit) | `@~/.claude/skills/sleuthkit/SKILL.md` |
@@ -77,6 +78,6 @@ workbook-update       # update FOR508 workbook
 | Threat hunting & IOC sweeps (YARA / Velociraptor) | `@~/.claude/skills/yara-hunting/SKILL.md` |
 | Cloud forensics (AWS GuardDuty / CloudTrail / S3) | `@~/.claude/skills/cloud-forensics/SKILL.md` |
 | macOS endpoint triage | `@~/.claude/skills/macos-triage/SKILL.md` |
-| Investigation report generation (invoked by IC) | `@~/.claude/skills/investigation-report/SKILL.md` |
+| Investigation report generation (drafted by ISC at case closure; IC reviews and approves) | `@~/.claude/skills/investigation-report/SKILL.md` |
 
 EZ Tools prefer native .NET over WINE. GUI tools (TimelineExplorer, RegistryExplorer) require WINE or the Windows analysis VM.
