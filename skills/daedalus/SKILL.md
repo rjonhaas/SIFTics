@@ -132,8 +132,8 @@ When `Known Handler` is `—`, a gap exists and Phase D4 applies.
 
 | Class | Detection probe | SIFT Tools | Known Handler |
 |-------|----------------|-----------|---------------|
-| `memory_raw` | `find "$CASE_ROOT" -name "*.mem" -o -name "*.raw" -o -name "*.vmem" \| head -1` | Volatility 3, Memory Baseliner | *(memory-analysis skill)* |
-| `memory_dump` | `find "$CASE_ROOT" -name "*.dmp" \| head -1` | Volatility 3 | *(memory-analysis skill)* |
+| `memory_raw` | `find "$CASE_ROOT" -name "*.mem" -o -name "*.raw" -o -name "*.vmem" \| head -1` | Volatility 3, Memory Baseliner, YARA | `run_memory.sh` (Phase 19) |
+| `memory_dump` | `find "$CASE_ROOT" -name "*.dmp" \| head -1` | Volatility 3 | `run_memory.sh` (Phase 19) |
 | `memory_hibernation` | `find $MNT -name "hiberfil.sys" \| head -1` | Volatility 3 hibr2bin | — |
 | `memory_pagefile` | `find $MNT -name "pagefile.sys" \| head -1` | strings, bulk_extractor | — |
 
@@ -141,8 +141,8 @@ When `Known Handler` is `—`, a gap exists and Phase D4 applies.
 
 | Class | Detection probe | SIFT Tools | Known Handler |
 |-------|----------------|-----------|---------------|
-| `pcap` | `find "$CASE_ROOT" -name "*.pcap" -o -name "*.pcapng" \| head -1` | tshark, zeek, tcpdump | *(network-analysis skill)* |
-| `zeek_logs` | `find "$CASE_ROOT" -name "conn.log" -path "*/zeek*" \| head -1` | Python, grep | *(network-analysis skill)* |
+| `pcap` | `find "$CASE_ROOT" -name "*.pcap" -o -name "*.pcapng" \| head -1` | tshark, zeek, tcpdump | `run_pcap.sh` (Phase 20) |
+| `zeek_logs` | `find "$CASE_ROOT" -name "conn.log" -path "*/zeek*" \| head -1` | Python, grep, jq | `run_pcap.sh` (Phase 20, Section N6) |
 | `netflow_nfcapd` | `find "$CASE_ROOT" -name "nfcapd.*" \| head -1` | nfdump | — |
 
 ### Database & Specialized
@@ -184,8 +184,10 @@ Every artifact class belongs to exactly one domain. Domains are the mechanism fo
 | `email` | Email client archives and message stores — any format | `run_email.sh` | `email_ost`, `email_pst`, `email_mbox`, `email_eml`, `email_thunderbird` |
 | `messaging` | Non-email communication platforms | *(gap — no script yet)* | `slack_workspace`, `teams_db` |
 | `linux_host` | Linux host artifacts — filesystem, logs, history, cron | `run_linux.sh` | `linux_ext_partition`, `linux_bash_history`, `linux_auth_log`, `linux_cron`, `linux_ssh_keys`, `linux_systemd_journal`, `linux_docker_layers` |
-| `memory_forensics` | Volatile memory captures | *(memory-analysis skill)* | `memory_raw`, `memory_dump`, `memory_hiberfil`, `memory_pagefile` |
-| `network_captures` | Packet captures and flow records | *(network-analysis skill)* | `pcap`, `zeek_logs`, `netflow_nfcapd` |
+| `memory_forensics` | Volatile memory captures | `run_memory.sh` (Phase 19) | `memory_raw`, `memory_dump`, `memory_hibernation`, `memory_pagefile` |
+| `network_captures` | Packet captures and flow records | `run_pcap.sh` (Phase 20) | `pcap`, `zeek_logs`, `netflow_nfcapd` |
+| `cross_artifact_anomaly` | Synthesizes contradictions across all prior phase outputs | `run_anomaly_check.sh` (Phase 18) | *(meta — depends on Phase 1–13 + 19 + 20 outputs)* |
+| `velociraptor_offline_collection` | Velociraptor offline collector zips and live-agent triage retrieval | `mcp_broker/tools/velociraptor.py` (typed-function gateway) + `scripts/run_detect_hunt_loop.sh` (orchestrator) | `velociraptor_zip` |
 | `ransomware` | Ransomware indicators — notes, extensions, staging | `run_ransomware.sh` | *(derived from MFT and event logs)* |
 | `c2_beacon` | Command-and-control beacon detection | `run_c2_beacon.sh` | `log_iis` *(beacon patterns in web logs)* |
 | `ioc_aggregation` | Cross-phase IOC consolidation | `run_ioc_extract.sh` | *(meta — no direct evidence dependency)* |

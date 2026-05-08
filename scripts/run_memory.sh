@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# DAEDALUS:HANDLES mem_image
-# DAEDALUS:DOMAIN windows_memory
+# DAEDALUS:HANDLES memory_raw memory_dump
+# DAEDALUS:DOMAIN memory_forensics
 # run_memory.sh — Phase 19: Autonomous memory triage via Volatility 3.
 #
 # Sections:

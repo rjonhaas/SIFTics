@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# DAEDALUS:HANDLES pcap_capture
-# DAEDALUS:DOMAIN network_capture
+# DAEDALUS:HANDLES pcap zeek_logs
+# DAEDALUS:DOMAIN network_captures
 # run_pcap.sh — Phase 20: Autonomous PCAP triage via tshark + (optional) Zeek.
 #
 # Sections:
