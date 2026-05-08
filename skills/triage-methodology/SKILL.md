@@ -76,6 +76,7 @@ bash "${SIFTICS_HOME}/scripts/<script>.sh" "${CASE_ROOT}"
 | 19 | `run_memory.sh` | windows_memory | none (uses raw `*.mem`/`*.raw`/`*.dmp`/`*.vmem`) | `analysis/<MACHINE>/Memory/psscan.csv` + `memory_anomalies.csv` | — |
 | 20 | `run_pcap.sh` | network_capture | none (uses raw `*.pcap`/`*.pcapng`) | `analysis/<MACHINE>/Network/pcap_anomalies.csv` | — |
 | — | `run_self_correct.sh` | self_correction_loop | 18 | `analysis/self_correction.jsonl` | `analysis/self_correction_report.md` |
+| — | `run_detect_hunt_loop.sh` | velociraptor_detect_hunt | 9 (or any IOC source) | `analysis/cross_host_findings.csv` + `analysis/hunt_artifacts/manifest.json` | `analysis/hunt_results/*.json` |
 
 ### Skip rules (when a phase does not apply)
 
@@ -204,6 +205,22 @@ investigation if Phase 20's output suggests a need.
 Run **19** (Memory). Then **9** (IOC Extract — picks up netscan IPs and process names).
 Skip Windows disk phases. If memory predates the attack window per ISC Phase 0C, treat
 output as baseline only — do not weight in-memory state for live C2 inferences.
+
+### Velociraptor offline-collection input
+
+A Velociraptor offline collector zip is functionally equivalent to a KAPE collection —
+both are zips of structured Windows artifacts. Drop the zip into
+`<case_root>/incoming/<host>/collection.zip`, then either:
+
+- **Manual unpack:** unzip into `<case_root>/<host>_Kape/` matching the KAPE directory
+  layout (so SIFTics phase scripts find `$MFT`, `Windows/System32/winevt/Logs/*.evtx`,
+  registry hives, etc.)
+- **MCP-broker pull:** if a Velociraptor server is configured, the ISC may invoke
+  `mcp_broker.tools.velociraptor.pull_offline_collection(client_id, output_path)` to
+  retrieve the zip directly into `<case_root>/incoming/<host>/`. The
+  `run_detect_hunt_loop.sh` orchestrator handles this.
+
+After ingestion, run the standard Layer 1–4 phases on the unpacked collection.
 
 ### Cloud-only evidence (CloudTrail/GuardDuty/S3 logs)
 No SIFTics phase script. Invoke `cloud-forensics` skill directly. Then **9** (IOC Extract)

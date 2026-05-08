@@ -1,0 +1,31 @@
+# SIFTics MCP Broker — example configuration.
+# Copy to config.yaml and fill in your environment.
+# Path resolution: $SIFTICS_MCP_CONFIG, ./mcp_broker/config/config.yaml,
+#                  ~/.config/siftics/mcp_broker.yaml
+
+velociraptor:
+  # Velociraptor API endpoint. For the hunt_lab, this would be a Velociraptor
+  # server VM you've added to the 192.168.56.0/24 network.
+  api_url: "https://192.168.56.50:8889"
+
+  # Path to a file containing your Velociraptor API key. Generate with:
+  #   velociraptor --config server.config.yaml config api_client \
+  #       --name siftics-broker --role investigator
+  # The broker reads this file; the key is never exposed to the agent.
+  api_key_path: "./mcp_broker/config/velociraptor_api_key.json"
+
+  # Most lab Velociraptor servers use self-signed certs. Set true for prod.
+  verify_tls: false
+
+  # Multi-org Velociraptor only. Default "root" if you haven't enabled orgs.
+  org_id: "root"
+
+  # HTTP timeouts and hunt-completion polling.
+  request_timeout_s: 30
+  poll_interval_s: 5
+  max_poll_iterations: 60
+
+audit:
+  # Per-call JSONL log of every MCP function invocation.
+  log_path: "./mcp_broker/audit.jsonl"
+  enabled: true

@@ -211,6 +211,51 @@ sequenceDiagram
 
 ---
 
+## Detect → Hunt loop (SIFTics + Velociraptor via MCP broker)
+
+The SIFTics findings on a primary victim get converted to Velociraptor hunt
+artifacts and pushed across the fleet — autonomous lateral hunting, with
+results ingested back into the case for cross-host correlation. The agent
+sees the broker only through the typed-function MCP catalog; it cannot exec
+arbitrary commands on the Velociraptor server.
+
+```mermaid
+flowchart LR
+    A[Primary victim<br/>win11-victim] -->|offline collector zip| B[(case_root/<br/>incoming/)]
+    B --> C[SIFTics phases 1-20<br/>+ anomaly check<br/>+ self-correct]
+    C --> D[ioc_master.csv<br/>anomalies.csv<br/>memory_anomalies.csv<br/>pcap_anomalies.csv]
+    D --> E[findings_to_hunt.py]
+    E --> F[hunt_artifacts/<br/>SIFTICS_*.yaml]
+    F -->|upload_artifact| G[MCP broker<br/>velociraptor module]
+    G -->|create_hunt + start_hunt| H[Velociraptor server]
+    H -->|distributes hunt| I[win11-victim-02<br/>win11-victim-03<br/>... fleet]
+    I -->|results| H
+    H -->|get_hunt_results| G
+    G --> J[hunt_results/<br/>cross_host_findings.csv]
+    J -->|new affected hosts ⇒ Authority Gate| K[ISC scope-expansion<br/>recorded in COP]
+    J -->|treat as new evidence| C
+```
+
+Architectural enforcement:
+
+- The agent calls a fixed catalog of 10 typed functions (see
+  `mcp_broker/README.md`). It cannot send arbitrary VQL or exec shell
+  commands on the Velociraptor server.
+- All agent-supplied strings flow through `_safe_str()` which rejects
+  VQL-reserved characters before subprocess invocation.
+- Custom artifact names must start with `SIFTICS_` or `Custom.` —
+  `upload_artifact` rejects names that would overwrite Velociraptor built-ins.
+- Velociraptor API client cert/key never enter the agent's context window;
+  loaded server-side only.
+- Every MCP call is logged to `mcp_broker/audit.jsonl` with timestamp, args
+  digest (sensitive values redacted), result summary, latency, and status.
+
+`scripts/run_detect_hunt_loop.sh` orchestrates the full sequence with a hard
+cap on iterations to prevent runaway. Mock mode (`SIFTICS_MCP_MOCK=1`) lets
+the loop run without a real Velociraptor server for development and demos.
+
+---
+
 ## Self-correction loop architecture
 
 ```mermaid

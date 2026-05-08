@@ -30,3 +30,9 @@ protocol-sift-ics/orchestrator/dist/
 
 # Auto-generated session audit log
 analysis/forensic_audit.log
+
+# MCP broker venv + per-call audit log + local config
+mcp_broker/.venv/
+mcp_broker/audit.jsonl
+mcp_broker/config/config.yaml
+mcp_broker/config/velociraptor_api_key.json

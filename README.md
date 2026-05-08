@@ -266,7 +266,53 @@ bash ~/SIFTics/scripts/audit_query.sh \
 Any finding in the COP or report can be traced back to the exact command that
 produced it — meets the hackathon's Audit Trail Quality criterion.
 
-### 6. Read the architecture diagram
+### 6. Demonstrate the detect → hunt loop (SIFTics + Velociraptor via MCP)
+
+After SIFTics has produced findings on a primary victim, push those findings
+across the fleet as Velociraptor hunts and ingest the cross-host results.
+
+**Setup the broker (one-time):**
+
+```bash
+cd ~/SIFTics
+python3 -m venv mcp_broker/.venv
+mcp_broker/.venv/bin/pip install -r mcp_broker/requirements.txt
+cp mcp_broker/config/config.example.yaml mcp_broker/config/config.yaml
+# edit config.yaml to point at your Velociraptor server + api_client.yaml
+```
+
+**Run the loop (real Velociraptor):**
+
+```bash
+PRIMARY_CLIENT_ID=C.1234abcd \
+HUNT_TIMEOUT_S=300 \
+bash ~/SIFTics/scripts/run_detect_hunt_loop.sh /cases/<case_name>
+```
+
+**Run the loop (mock mode — no Velociraptor server needed):**
+
+```bash
+SIFTICS_MCP_MOCK=1 \
+bash ~/SIFTics/scripts/run_detect_hunt_loop.sh /cases/<case_name>
+```
+
+What happens (7 steps, all audited):
+
+1. Discover the primary victim's offline-collection zip in `<case>/incoming/`
+   (or pull from Velociraptor if `PRIMARY_CLIENT_ID` set)
+2. SIFTics analyzes (deterministic phase loop or agent-driven via ISC)
+3. `findings_to_hunt.py` converts `ioc_master.csv` + `anomalies.csv` +
+   memory/PCAP anomalies into Velociraptor artifact YAML files
+4. MCP broker uploads each artifact, creates a hunt, starts it
+5. Polls until each hunt completes (bounded by `HUNT_TIMEOUT_S`)
+6. Ingests hunt results back into `<case>/analysis/cross_host_findings.csv`
+7. Surfaces any new affected hosts as scope-expansion candidates per the ISC
+   Authority Gates rules
+
+The MCP broker exposes 10 typed functions only — no shell exec, no raw VQL.
+See `mcp_broker/README.md` for the full architectural posture.
+
+### 7. Read the architecture diagram
 
 See [`docs/architecture.md`](docs/architecture.md) for the full Mermaid diagram
 showing IC/ISC roles, phase scripts, evidence sources, output pipeline, and the

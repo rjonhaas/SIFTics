@@ -398,6 +398,8 @@ the operational period:
 | Quarantine DB entry for suspicious download | Pivot to macos-triage; hash the file; consider yara-hunting |
 | Unified Log shows suspicious process execution | Pivot to macos-triage for process tree reconstruction |
 | Investigation report generated AND software version / process anomaly / archive pattern documented | Run `run_cve_attribution.sh` (Phase 16); re-invoke investigation-report skill to integrate Section 3B (draft only — IC approval required) |
+| `ioc_master.csv` populated with HIGH-confidence IOCs AND Velociraptor configured | Run `run_detect_hunt_loop.sh` to push the IOCs as fleet-wide hunts via the MCP broker. New affected hosts surfaced → Authority Gate (scope expansion) — log in COP `Decisions Pending IC Review` and continue analysis on confirmed hosts. |
+| Cross-host findings populated in `analysis/cross_host_findings.csv` (from detect-hunt loop) | Treat each new host as a scope-expansion candidate per Scope Management rules. If evidence already exists for the new host, ingest and re-run Layer 1–4. If not, surface for IC authorization. |
 
 ---
 
@@ -483,3 +485,9 @@ the IC reviews and approves before delivery.
 | Common Operating Picture | `./analysis/cop.md` |
 | Evidence hashes (chain of custody) | `./analysis/evidence_hashes.txt` |
 | Investigation report (DRAFT — from report skill) | `./reports/investigation_report.md` |
+| Hypothesis ledger (working theories) | `./analysis/hypotheses.jsonl` |
+| Anomaly findings (cross-artifact contradictions) | `./analysis/anomalies.csv` |
+| Self-correction iteration log | `./analysis/self_correction.jsonl` |
+| Hunt artifacts (Velociraptor YAML, generated from findings) | `./analysis/hunt_artifacts/*.yaml` |
+| Cross-host hunt findings (results from fleet sweep) | `./analysis/cross_host_findings.csv` |
+| MCP broker per-call audit log | `./mcp_broker/audit.jsonl` |
