@@ -75,12 +75,25 @@ invocation is also supported:
 bash scripts/run_ntfs.sh /cases/<case_name>
 
 # Run a sequence by hand (deterministic re-execution / benchmark mode)
+# Order: Layer 1 foundation (NTFS, Registry, EventLogs, Artifacts, Execution, Memory, PCAP) →
+#        Layer 2 domain analysis (Hunting, CredAccess, AntiForensics, Browser, Ransomware,
+#        WebServer, Email, Linux) → Layer 3 consolidation (IOC, C2 Beacon) →
+#        Layer 4 synthesis (Attack Path, Anomaly Check) → optional self-correction
 for s in run_ntfs run_registry run_eventlogs run_artifacts run_execution \
+         run_memory run_pcap \
          run_hunting run_credaccess run_antiforensics run_browser run_ransomware \
-         run_webserver run_email run_linux run_ioc_extract run_c2_beacon \
-         run_attack_path; do
+         run_webserver run_email run_linux \
+         run_ioc_extract run_c2_beacon \
+         run_attack_path run_anomaly_check; do
     bash "scripts/${s}.sh" /cases/<case_name>
 done
+
+# Optional: self-correct on detected anomalies (max 3 iterations)
+bash scripts/run_self_correct.sh /cases/<case_name>
+
+# Optional: push findings as Velociraptor hunts to the rest of the fleet
+SIFTICS_MCP_MOCK=1 \
+bash scripts/run_detect_hunt_loop.sh /cases/<case_name>
 ```
 
 ### Core Windows Triage (Phases 1–13)
@@ -103,13 +116,24 @@ Output lands in `<case_root>/analysis/<MACHINE>/<Category>/`.
 | `run_ransomware.sh` | 12 | Ransom notes, suspicious extensions, archive staging |
 | `run_webserver.sh` | 13 | IIS injection detection, LOLBIN downloads, webshell inventory |
 
-### Extended / Specialist Phases (14–16)
+### Extended / Specialist Phases (14–17)
 
 | Script | Phase | What it does |
 |--------|-------|-------------|
 | `run_email.sh` | 14 | PST/OST/mbox parsing via readpst; message and attachment extraction |
 | `run_linux.sh` | 15 | Linux partition analysis (ext4 via losetup); auth logs, bash history, cron, SSH keys |
 | `run_cve_attribution.sh` | 16 | CVE attribution — reads completed report + COP, invokes Claude CLI, writes `analysis/cve_attribution.md` |
+| `run_attack_path.sh` | 17 | Cross-machine attack path graph from lateral movement events; outputs CSV + Markdown + Mermaid |
+
+### Synthesis & Self-Correction (Phases 18–20)
+
+| Script | Phase | What it does |
+|--------|-------|-------------|
+| `run_anomaly_check.sh` | 18 | Cross-artifact contradiction scanner — Shimcache-MFT mismatch, EVTX gap during attack window, USN jumps, memory-vs-disk IP cross-ref, etc. Output `analysis/anomalies.csv` feeds the self-correction loop. |
+| `run_memory.sh` | 19 | Volatility 3 autonomous triage — psscan/pstree/cmdline/netscan/svcscan/malfind (with dump) + YARA over malfind dumps + memory_anomalies.csv synthesis (orphan PPID, wrong-parent svchost/lsass, RWX VAD without backing) |
+| `run_pcap.sh` | 20 | tshark + (optional) Zeek autonomous triage — top talkers, DNS triple (queries/NXDOMAIN/DGA-suspicious), HTTP, TLS SNI, per-dst-IP beacon scoring (denylist + IOC aware), pcap_anomalies.csv synthesis |
+| `run_self_correct.sh` | — | Reads HIGH-severity anomalies, picks corrective action per category, re-runs the upstream phase, re-checks anomalies, verifies the count decreased. Hard cap of 3 iterations. Per-iteration log to `analysis/self_correction.jsonl`. |
+| `run_detect_hunt_loop.sh` | — | End-to-end SIFTics → Velociraptor detect-hunt loop. Pulls offline collection from primary victim → SIFTics analysis → `findings_to_hunt.py` derives Velociraptor hunt artifacts → MCP broker pushes hunts → results ingested back into the case for cross-host correlation. Mock mode (`SIFTICS_MCP_MOCK=1`) for demo without a real Velociraptor server. |
 
 ### Utility Scripts
 
@@ -117,6 +141,15 @@ Output lands in `<case_root>/analysis/<MACHINE>/<Category>/`.
 |--------|-------------|
 | `run_mftecmd.sh` | Standalone MFT parser — parses `$MFT`, `$Boot`, `$LogFile`, `$J` for every machine under the case root |
 | `daedalus_fingerprint.sh` | Artifact discovery — probes mounted evidence for all known artifact classes; outputs a run-plan manifest |
+| `findings_to_hunt.py` | Converts SIFTics analysis output (`ioc_master.csv`, `anomalies.csv`, memory/PCAP anomalies, attack path) into Velociraptor hunt artifact YAML. Used by `run_detect_hunt_loop.sh`. |
+| `hypothesis_score.py` | CLI for the Hypothesis Engine — `add`, `signal`, `score`, `report`, `retire`. Mechanically computes confidence from signal weights (no LLM-estimated scores). Append-only JSONL ledger at `analysis/hypotheses.jsonl`. |
+| `test_constraints.py` | Bypass test harness — runs T1–T7 against architectural and prompt-based guardrails. Output: `reports/bypass_test_report.md` + `bypass_test_results.json`. The Constraint Implementation evidence for the Accuracy Report. |
+| `audit_log.sh` | Sourced by every phase script — provides hash-chained JSONL logging via `audit_log_entry()` and `log_cmd()`. Append-only `analysis/forensic_audit.jsonl`. |
+| `audit_verify.sh` | Recomputes the SHA-256 chain over `forensic_audit.jsonl` to detect tampering. Exit 0 = chain intact. |
+| `audit_query.sh` | Search the audit log by tool, machine, or keyword. |
+| `verify_readonly_mounts.sh` | Pre-flight: parses `/proc/mounts`, halts if any evidence path is mounted `rw`. |
+| `sanitize_for_llm.py` | Prompt-injection defense — 22 regex patterns; writes paired sanitized/unsanitized CSVs. Original is never modified. |
+| `score_benchmark.py` | Accuracy benchmark scorer — evaluates SIFTics output against ground-truth manifests (DEF CON 2019, SpottedInTheWild). |
 | `report_to_html.py` | Converts `reports/investigation_report.md` to a standalone dark-theme HTML report with sidebar TOC |
 | `gen_html_package.py` | Produces a customer-ready ZIP: CISO dashboard, full report, analyst evidence hub, sortable CSV tables |
 | `parse_apache_log.py` | Parses Apache combined/common access log format |
@@ -156,6 +189,41 @@ Domain skill files that Claude Code reads to guide tool execution. Invoke via th
 | `investigation-report` | Final report generation — drafted by ISC at case closure; IC reviews and approves before delivery |
 | `hypothesis-engine` | Working-theory ledger; signal scoring at each operational period (replaces "anchoring on first plausible explanation") |
 | `cve-attribution` | Intel ICS Phase 16 — CVE attribution from completed report |
+
+---
+
+## MCP Broker (`mcp_broker/`)
+
+Typed-function MCP gateway between the SIFTics agent and external services.
+Built initially to drive the SIFTics → Velociraptor detect-hunt loop; designed
+to add more wrapped services over time (REMnux, ELK, Jira, etc.) without
+expanding the agent's surface area.
+
+```
+mcp_broker/
+├── server.py            ← MCP protocol server (stdio); registers 10 typed Velociraptor functions
+├── tools/
+│   └── velociraptor.py  ← list_clients / pull_offline_collection / upload_artifact /
+│                          create_hunt / start_hunt / get_hunt_status /
+│                          get_hunt_results / wait_for_hunt / list_artifacts / get_client
+├── audit.py             ← per-call JSONL log with sensitive-arg redaction + latency
+├── config.py            ← YAML config loader; falls back to mock mode if no config
+├── auth.py              ← Velociraptor API client cert/key bundle loader (mTLS)
+└── README.md            ← install + configure + run + extending guide
+```
+
+**Architectural posture:** the agent calls a fixed catalog of typed functions — no shell
+exec, no raw VQL passthrough. All agent input flows through `_safe_str()` rejecting
+VQL-reserved characters. Custom artifact uploads must start with `SIFTICS_` or `Custom.`
+to prevent overwriting Velociraptor built-ins. Sensitive auth material is held server-side
+and never enters the agent's context window. Every MCP call is logged to
+`mcp_broker/audit.jsonl` with redacted args, result summary, and latency.
+
+**Mock mode:** set `SIFTICS_MCP_MOCK=1` to run the broker against canned responses without
+a real Velociraptor server. Used for development, demos, and CI.
+
+See `mcp_broker/README.md` for install/configure/run details, and
+`docs/architecture.md` for the detect-hunt loop architecture diagram.
 
 ---
 

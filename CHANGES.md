@@ -9,6 +9,130 @@
 
 ---
 
+## 2026-05-08 — MCP broker + Velociraptor detect-hunt loop + Daedalus alignment
+
+Builds the agent's outbound surface for autonomous fleet operations: the
+SIFTics analysis on a primary victim becomes the input to fleet-wide hunts
+that surface cross-host findings, which feed back into the case for another
+iteration. Every external call gates through a typed-function MCP gateway
+with per-call audit logging.
+
+### NEW: `mcp_broker/` — typed-function MCP gateway
+
+- **server.py** — MCP protocol server (stdio). Registers 10 typed Velociraptor
+  functions; rejects unknown tool names. Exposes the full surface as
+  `siftics_velociraptor_<name>` to the agent.
+- **tools/velociraptor.py** — implements the 10 functions (list_clients,
+  get_client, pull_offline_collection, upload_artifact, create_hunt,
+  start_hunt, get_hunt_status, get_hunt_results, wait_for_hunt,
+  list_artifacts). Wraps the `velociraptor` CLI as subprocess with
+  controlled argv (no shell=True, no string interpolation of agent input).
+  All agent strings flow through `_safe_str()` which rejects VQL-reserved
+  characters. Custom artifact uploads must start with `SIFTICS_` or
+  `Custom.` to prevent overwriting Velociraptor built-ins. Mock mode
+  (`SIFTICS_MCP_MOCK=1`) returns realistic canned responses for development
+  without a real VR server.
+- **audit.py** — per-call JSONL audit logger. Sensitive args (token,
+  password, secret, api_key, apikey) auto-redacted; long values truncated.
+  Audit failure never raises (never breaks a tool call).
+- **config.py** — YAML config loader with sensible defaults. Mock mode
+  provides an in-memory default config so no YAML is required for testing.
+- **auth.py** — Velociraptor API client cert/key bundle loader (the standard
+  `velociraptor config api_client` output format).
+- **requirements.txt + README.md + config/config.example.yaml**.
+
+### NEW: `scripts/findings_to_hunt.py`
+
+Converts SIFTics analysis outputs into Velociraptor hunt artifact YAML
+definitions. Reads `ioc_master.csv`, `anomalies.csv`,
+`<MACHINE>/Memory/memory_anomalies.csv`,
+`<MACHINE>/Network/pcap_anomalies.csv`, and `attack_path.csv`. Produces
+`SIFTICS_<case>_<type>_<sha10>` named artifacts (idempotent — repeated runs
+don't duplicate). Output: `analysis/hunt_artifacts/*.yaml` +
+`manifest.json` with provenance. Supports IOC types: ip, domain, sha256,
+path, registry, process name.
+
+### NEW: `scripts/run_detect_hunt_loop.sh`
+
+7-step end-to-end orchestrator:
+
+1. Discover/pull primary victim collection into `<case>/incoming/`
+2. Run SIFTics analysis (deterministic phase loop OR agent-driven via ISC)
+3. `findings_to_hunt.py` converts findings to Velociraptor artifacts
+4. MCP broker uploads each artifact, creates hunt, starts it
+5. Polls each hunt to completion (bounded by `HUNT_TIMEOUT_S`)
+6. Pulls hunt results into `<case>/analysis/hunt_results/`
+7. Surfaces new affected hosts as scope-expansion candidates per ISC
+   Authority Gates (does NOT autonomously add to scope — IC decides)
+
+Mock mode lets the full loop run without a real Velociraptor server —
+synthesizes a demo IOC if no findings exist yet. Smoke-tested end-to-end.
+
+### Skill updates
+
+- **triage-methodology**: Phase Catalog row added for
+  `run_detect_hunt_loop.sh` with completion signal `cross_host_findings.csv`.
+  New "Velociraptor offline-collection input" section explaining how to
+  ingest VR triage zips into the SIFTics pipeline (via MCP broker pull or
+  manual unzip).
+- **investigation-section-chief**: Cross-Skill Pivot Protocol gets new
+  entries for "ioc_master populated → run detect-hunt loop" and
+  "cross_host_findings populated → scope-expansion candidates per Authority
+  Gates". Output Paths table extended to include hunt_artifacts/,
+  hunt_results/, cross_host_findings.csv, hypotheses.jsonl, anomalies.csv,
+  self_correction.jsonl, mcp_broker/audit.jsonl.
+
+### Daedalus taxonomy alignment
+
+The new phase scripts existed but Daedalus's taxonomy still pointed at the
+old skill-based handlers. Without this fix, Daedalus would treat
+`memory_raw` / `memory_dump` / `pcap` as gaps and try to CREATE scripts
+that already exist.
+
+- **scripts/run_memory.sh**:
+  - `DAEDALUS:HANDLES`: `mem_image` → `memory_raw memory_dump`
+  - `DAEDALUS:DOMAIN`: `windows_memory` → `memory_forensics`
+- **scripts/run_pcap.sh**:
+  - `DAEDALUS:HANDLES`: `pcap_capture` → `pcap zeek_logs`
+  - `DAEDALUS:DOMAIN`: `network_capture` → `network_captures`
+- **skills/daedalus/SKILL.md**:
+  - `memory_raw` / `memory_dump` Known Handler → `run_memory.sh` (Phase 19)
+  - `pcap` / `zeek_logs` Known Handler → `run_pcap.sh` (Phase 20)
+  - Domain Taxonomy: `memory_forensics` and `network_captures` rows now
+    have owning scripts (was *(memory-analysis skill)* / *(network-analysis
+    skill)* — both are now scripted)
+  - NEW domain `cross_artifact_anomaly` owned by `run_anomaly_check.sh`
+    (Phase 18)
+  - NEW domain `velociraptor_offline_collection` owned by `mcp_broker/` +
+    `run_detect_hunt_loop.sh`
+
+### Docs
+
+- **docs/architecture.md**: new "Detect → Hunt loop" section with Mermaid
+  diagram and architectural-enforcement notes (typed-function catalog only,
+  `_safe_str()` VQL injection defense, `SIFTICS_/Custom.` namespace guard,
+  sensitive auth held server-side, per-call audit log).
+- **README.md**:
+  - Triage Scripts table reorganized: phases 1–13 (core), 14–17 (extended),
+    18–20 (synthesis & self-correction). Utility Scripts expanded to list
+    `findings_to_hunt.py`, `hypothesis_score.py`, `test_constraints.py`,
+    `audit_log.sh`, `audit_verify.sh`, `audit_query.sh`,
+    `verify_readonly_mounts.sh`, `sanitize_for_llm.py`,
+    `score_benchmark.py`.
+  - New "MCP Broker" section between Skills and Try-It-Out describing the
+    architectural posture, mock mode, and pointer to `mcp_broker/README.md`.
+  - Try-It-Out deterministic for-loop now includes phases 18/19/20 and
+    appends the optional self-correct + detect-hunt steps.
+
+### `.gitignore`
+
+- `mcp_broker/.venv/` (Python venv with mcp + httpx + pyyaml)
+- `mcp_broker/audit.jsonl` (per-call audit log; regenerated each run)
+- `mcp_broker/config/config.yaml` (local config — VR endpoint URL)
+- `mcp_broker/config/velociraptor_api_key.json` (mTLS bundle — never commit)
+
+---
+
 ## 2026-05-06 — Hackathon submission build (FIND EVIL!)
 
 Substantive additions targeting the hackathon's six judging criteria:
