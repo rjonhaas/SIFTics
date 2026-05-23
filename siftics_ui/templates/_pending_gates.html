@@ -1,0 +1,5 @@
+{% if pending %}
+  <span class="ml-1 inline-block bg-rose-700 text-white text-xs px-1.5 rounded pulse-dot text-rose-200">{{ pending|length }}</span>
+{% else %}
+  <span class="ml-1 inline-block bg-slate-700 text-slate-400 text-xs px-1.5 rounded">0</span>
+{% endif %}

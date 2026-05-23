@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{{ labels.case_header_short }} — {% block title %}SIFTics{% endblock %}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="https://unpkg.com/htmx.org@2.0.4" defer></script>
+  <script src="https://unpkg.com/htmx-ext-sse@2.2.2" defer></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .pulse-dot::before { content: ""; display: inline-block; width: .6em; height: .6em;
+                         border-radius: 50%; margin-right: .4em; vertical-align: middle;
+                         background: currentColor; box-shadow: 0 0 0 0 currentColor;
+                         animation: pulse 1.6s infinite; }
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 currentColor; }
+      70% { box-shadow: 0 0 0 .6em transparent; }
+      100% { box-shadow: 0 0 0 0 transparent; }
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-mono min-h-screen flex flex-col">
+  <header class="border-b border-slate-700 p-4 flex items-baseline gap-6">
+    <h1 class="text-xl font-bold">
+      {{ labels.case_header_name }}
+      {% if case %}— <span class="text-cyan-300">{{ case.name }}</span>{% endif %}
+    </h1>
+    {% if case %}
+      <span class="text-sm text-slate-400">
+        IC: <span class="text-slate-200">{{ case.incident_commander.name }}</span>
+        · Impact:
+        <span class="text-{{ {'critical': 'rose-400', 'high': 'orange-400',
+                              'moderate': 'amber-400', 'low': 'slate-400'}.get(case.impact_level, 'slate-400') }}">
+          {{ case.impact_level | upper }}
+        </span>
+      </span>
+    {% endif %}
+    <nav class="ml-auto flex gap-4 text-sm">
+      <a href="{{ url_for('dashboard') }}"
+         class="hover:text-cyan-300">Dashboard</a>
+      <a href="{{ url_for('gates') }}"
+         class="hover:text-cyan-300">
+         Authority Gates
+         <span id="pending-pill"
+               hx-get="{{ url_for('gates_pending_count') }}"
+               hx-trigger="sse:ic_request_approval, sse:ic_approval_signed, every 30s"
+               hx-swap="innerHTML">{% include "_pending_gates.html" %}</span>
+      </a>
+      <a href="{{ url_for('audit_view') }}"
+         class="hover:text-cyan-300">Audit chain</a>
+      <a href="{{ url_for('chat_view') }}"
+         class="hover:text-cyan-300">Chat</a>
+      <a href="{{ url_for('setup_view') }}"
+         class="hover:text-cyan-300">Setup</a>
+    </nav>
+  </header>
+
+  <main class="flex-1 p-4" hx-ext="sse" sse-connect="{{ url_for('sse_events') }}">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="text-xs text-slate-500 p-3 border-t border-slate-800 leading-snug">
+    {{ labels.framework_attribution }}
+    <br>
+    SIFTics &middot; SANS Find Evil! hackathon submission &middot;
+    audit chain: <span class="pulse-dot text-emerald-400">live</span>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% block title %}Chat{% endblock %}
+{% block content %}
+<div class="max-w-4xl mx-auto h-[calc(100vh-12rem)] flex flex-col">
+  <h2 class="text-lg mb-3 flex items-baseline justify-between">
+    Chat with the Investigation Section Chief
+    <span class="text-xs text-slate-500">runtime: {{ cfg.runtime }}</span>
+  </h2>
+
+  {% if cfg.runtime not in ("anthropic_api", "ollama", "openai_api") %}
+    <div class="bg-amber-900/40 border border-amber-700 p-3 rounded text-sm">
+      <p>The current runtime is <code>{{ cfg.runtime }}</code>, which does not host
+        an in-process chat loop. Open a terminal and run
+        <code>{{ "claude" if cfg.runtime == "claude_code" else "codex" }}</code>
+        directly — its MCP config is already wired to SIFTics.</p>
+      <p class="mt-2"><a href="{{ url_for('setup_view') }}"
+                        class="text-cyan-300 underline">Change runtime</a> if you'd
+        rather chat in this UI.</p>
+    </div>
+  {% else %}
+
+  <div id="transcript"
+       class="flex-1 overflow-y-auto bg-slate-900 rounded p-4 space-y-3 mb-3">
+    <p class="text-slate-500 text-sm italic">
+      Ask the agent to drive the investigation. Try:
+      "Walk the unanswered triage questions and propose a plan."
+    </p>
+  </div>
+
+  <form id="chat-form" class="flex gap-2"
+        onsubmit="return submitChat(event)">
+    <textarea name="message" id="message"
+              rows="2"
+              placeholder="Your message…"
+              class="flex-1 bg-slate-800 border border-slate-700 px-3 py-2 rounded font-sans text-sm resize-none"></textarea>
+    <button type="submit"
+            class="bg-cyan-600 hover:bg-cyan-500 px-4 py-2 rounded self-end">
+      Send
+    </button>
+  </form>
+
+  <script>
+    const transcript = document.getElementById("transcript");
+
+    function appendBlock(role, body, cls) {
+      const div = document.createElement("div");
+      div.className = "border-l-2 pl-3 " + cls;
+      div.innerHTML = "<div class='text-xs text-slate-500 mb-1'>" + role + "</div>" +
+                      "<div class='whitespace-pre-wrap text-sm'></div>";
+      div.querySelector("div.whitespace-pre-wrap").textContent = body;
+      transcript.appendChild(div);
+      transcript.scrollTop = transcript.scrollHeight;
+      return div;
+    }
+
+    function appendTool(toolName, args) {
+      const div = document.createElement("div");
+      div.className = "border-l-2 border-cyan-600 pl-3 text-xs";
+      div.innerHTML = "<div class='text-cyan-400'>→ tool: " + toolName + "</div>" +
+                      "<pre class='text-slate-400 overflow-auto'></pre>";
+      div.querySelector("pre").textContent = JSON.stringify(args, null, 2);
+      transcript.appendChild(div);
+      transcript.scrollTop = transcript.scrollHeight;
+    }
+
+    function appendResult(toolUseId, content) {
+      const div = document.createElement("div");
+      div.className = "border-l-2 border-slate-600 pl-3 text-xs";
+      div.innerHTML = "<div class='text-slate-500'>← result " + toolUseId + "</div>" +
+                      "<pre class='text-slate-400 overflow-auto max-h-32'></pre>";
+      div.querySelector("pre").textContent = typeof content === "string"
+        ? content.slice(0, 800) + (content.length > 800 ? "…" : "")
+        : JSON.stringify(content).slice(0, 800);
+      transcript.appendChild(div);
+      transcript.scrollTop = transcript.scrollHeight;
+    }
+
+    function submitChat(e) {
+      e.preventDefault();
+      const msg = document.getElementById("message").value.trim();
+      if (!msg) return false;
+      appendBlock("you", msg, "border-slate-600");
+      document.getElementById("message").value = "";
+
+      const formData = new FormData();
+      formData.append("message", msg);
+      fetch("{{ url_for('chat_stream') }}", { method: "POST", body: formData })
+        .then(async (r) => {
+          if (!r.ok) {
+            appendBlock("error", "HTTP " + r.status, "border-rose-600");
+            return;
+          }
+          const reader = r.body.getReader();
+          const dec = new TextDecoder();
+          let buf = "";
+          let curAssistant = null;
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buf += dec.decode(value, { stream: true });
+            let idx;
+            while ((idx = buf.indexOf("\n\n")) !== -1) {
+              const chunk = buf.slice(0, idx);
+              buf = buf.slice(idx + 2);
+              const ev = parseSSE(chunk);
+              if (!ev) continue;
+              if (ev.event === "text_delta") {
+                if (!curAssistant) {
+                  curAssistant = appendBlock("agent", "", "border-cyan-600");
+                }
+                curAssistant.querySelector("div.whitespace-pre-wrap").textContent += ev.data.text || "";
+                transcript.scrollTop = transcript.scrollHeight;
+              } else if (ev.event === "tool_use") {
+                appendTool(ev.data.tool_name, ev.data.tool_input || {});
+                curAssistant = null;
+              } else if (ev.event === "tool_result") {
+                appendResult(ev.data.tool_use_id, ev.data.content);
+                curAssistant = null;
+              } else if (ev.event === "turn_final") {
+                const note = "cost so far: $" + (ev.data.cost_usd || 0).toFixed(4) +
+                              " · model: " + (ev.data.model || "—");
+                appendBlock("turn complete", note, "border-emerald-600");
+                curAssistant = null;
+              } else if (ev.event === "budget_exceeded") {
+                appendBlock("budget exceeded", ev.data.message || "", "border-rose-700");
+              } else if (ev.event === "error") {
+                appendBlock("error", ev.data.message || "", "border-rose-700");
+              } else if (ev.event === "end") {
+                curAssistant = null;
+              }
+            }
+          }
+        });
+      return false;
+    }
+
+    function parseSSE(block) {
+      const lines = block.split("\n");
+      let event = "", data = "";
+      for (const ln of lines) {
+        if (ln.startsWith("event:")) event = ln.slice(6).trim();
+        else if (ln.startsWith("data:")) data += ln.slice(5).trim();
+      }
+      if (!event) return null;
+      let parsed = {};
+      try { parsed = JSON.parse(data); } catch (_) {}
+      return { event, data: parsed };
+    }
+  </script>
+
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,36 @@
+# Dual-label config — see docs/design/case_state_design.md §1.
+#
+# Default ("generic") uses universal IR doctrine terms (NIMS ICS, NIST SP 800-61,
+# FEMA ICS Form 209). Swap active_label_set to "cimtk" only if AG Cyber has
+# explicitly approved use of their branded names.
+
+active_label_set: generic
+
+label_sets:
+  generic:
+    case_header_name:    "Incident Common Operating Picture"
+    case_header_short:   "Incident COP"
+    systems_register:    "Affected Systems Register"
+    systems_register_short: "ASR"
+    remediation_register: "Containment & Eradication Tracker"
+    remediation_register_short: "CET"
+    triage_questionnaire: "Initial Triage Questionnaire"
+    triage_questionnaire_short: "ITQ"
+    framework_attribution: |
+      Framework structure aligned with NIMS Incident Command System (Common
+      Operating Picture, Authority Gates), NIST SP 800-61 §3.3 (Containment,
+      Eradication, Recovery), and FEMA ICS Form 209.
+
+  cimtk:
+    case_header_name:    "AIM-RADAR"
+    case_header_short:   "AIM-RADAR"
+    systems_register:    "Systems and Users Impact Tracker"
+    systems_register_short: "SUIT"
+    remediation_register: "Counter Compromise Activities"
+    remediation_register_short: "CCA"
+    triage_questionnaire: "Starting Grid"
+    triage_questionnaire_short: "Grid"
+    framework_attribution: |
+      UI structure inspired by AG Cyber's CIMTK toolkit, taught in SANS LDR553.
+      AIM-RADAR / SUIT / CCA / The Grid are © AG Cyber (Steve Armstrong-Godwin)
+      and used here with permission. Original toolkit: https://sans.org/ldr553

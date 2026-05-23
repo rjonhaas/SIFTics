@@ -1,0 +1,61 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+*.egg
+build/
+dist/
+.eggs/
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# Test / lint caches
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# SIFTics-specific — operator data, never commit
+# ------------------------------------------------
+# Case directories (live forensic data; per-case IC HMAC key lives here)
+**/case_*/
+**/cases/
+examples/run_*/
+examples/benchmark_*/
+
+# Built corpora / indices — fetched via release assets or built locally
+mcp_baseline/baseline.sqlite
+mcp_rag/index/
+
+# Cache dirs from build scripts
+_rathbun_cache/
+_rag_cache/
+
+# Local agent config (may contain API keys / passphrases)
+.config/siftics/
+agent.yaml
+
+# Process logs
+/tmp/siftics-ui.log
+*.log
+
+# Sample / smoke test artefacts
+/tmp/siftics_smoke_*/
+/tmp/siftics_phase18_*/

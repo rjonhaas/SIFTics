@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Setup{% endblock %}
+{% block content %}
+<div class="max-w-3xl mx-auto">
+  <h2 class="text-2xl mb-2">Choose your agent runtime</h2>
+  <p class="text-slate-400 mb-6">
+    SIFTics's investigation logic and MCP servers are runtime-agnostic. Pick
+    whichever LLM stack matches your environment. Per Find Evil! hackathon rules,
+    <strong>Claude Code is the primary recommended path</strong>. The other options
+    are documented for accessibility / fully-local / cost-controlled deployments.
+  </p>
+
+  <form method="POST" action="{{ url_for('setup_save') }}" class="space-y-3"
+        hx-boost="false">
+    {% for option in options %}
+      <label class="block bg-slate-900 border border-slate-700 hover:border-cyan-500 rounded p-4 cursor-pointer
+                    {% if option.value == current_runtime %}border-cyan-500{% endif %}">
+        <input type="radio" name="runtime" value="{{ option.value }}"
+               {% if option.value == current_runtime %}checked{% endif %}
+               class="mr-2">
+        <span class="font-bold text-cyan-300">{{ option.label }}</span>
+        {% if option.recommended %}
+          <span class="ml-2 text-xs bg-emerald-700 text-emerald-100 px-2 py-0.5 rounded">recommended</span>
+        {% endif %}
+        {% if not option.detected %}
+          <span class="ml-2 text-xs bg-amber-700 text-amber-100 px-2 py-0.5 rounded">setup required</span>
+        {% endif %}
+        <p class="text-sm text-slate-400 mt-1">{{ option.description }}</p>
+        {% if option.status %}
+          <p class="text-xs mt-1 {% if option.detected %}text-emerald-400{% else %}text-rose-400{% endif %}">
+            ✓ {{ option.status }}
+          </p>
+        {% endif %}
+      </label>
+    {% endfor %}
+
+    <fieldset class="bg-slate-900 border border-slate-700 rounded p-4 mt-6">
+      <legend class="px-2 text-sm text-slate-300">Anthropic API key (only used if you picked the Anthropic option)</legend>
+      <input type="password" name="anthropic_key" placeholder="sk-ant-…"
+             autocomplete="off"
+             class="w-full bg-slate-800 border border-slate-700 px-3 py-2 rounded font-mono text-sm">
+      <p class="text-xs text-slate-500 mt-2">
+        Stored in the OS keychain if available; otherwise a chmod-600 file at
+        <code>~/.config/siftics/anthropic.key</code>. Never written to git or audit logs.
+      </p>
+    </fieldset>
+
+    <fieldset class="bg-slate-900 border border-slate-700 rounded p-4">
+      <legend class="px-2 text-sm text-slate-300">Per-case budget circuit breaker</legend>
+      <label class="block text-sm">
+        Max cost per case (USD)
+        <input type="number" step="0.5" min="0" name="budget"
+               value="{{ cfg.cost_budget_per_case_usd }}"
+               class="ml-2 bg-slate-800 border border-slate-700 px-2 py-1 rounded w-24">
+      </label>
+      <p class="text-xs text-slate-500 mt-2">
+        Hard-stop: when the running total reaches this, the runtime raises
+        <code>BudgetExceeded</code> and refuses further LLM calls until you
+        raise it. Set to <code>0</code> to disable.
+      </p>
+    </fieldset>
+
+    <div class="flex gap-2 pt-2">
+      <button type="submit" class="bg-cyan-600 hover:bg-cyan-500 px-4 py-2 rounded">
+        Save configuration
+      </button>
+      <a href="{{ url_for('dashboard') }}"
+         class="px-4 py-2 text-slate-400 hover:text-slate-200">Cancel</a>
+    </div>
+  </form>
+
+  <div class="mt-8 border-t border-slate-800 pt-4 text-xs text-slate-500">
+    <p>Existing config: <code>{{ config_path or '(none yet)' }}</code></p>
+    <p>Active runtime: <code>{{ current_runtime }}</code></p>
+  </div>
+</div>
+{% endblock %}

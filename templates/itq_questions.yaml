@@ -1,0 +1,205 @@
+# Initial Triage Questionnaire seed template.
+#
+# Universal IR-doctrine phrasing; aligns with NIST SP 800-61 §3.2 (Detection
+# and Analysis) and FEMA ICS scoping methodology. The agent answers from Phase
+# outputs where possible; unanswered questions become tasks surfaced to the IC.
+#
+# Categories are ordered roughly by when the agent should drive them:
+#   scope             — bound the incident in time/space
+#   platform          — identify what's affected
+#   logs              — locate and characterise telemetry
+#   ownership         — identify owners and contacts
+#   tooling           — confirm analytic capability
+#   business_impact   — understand what's at stake
+#   containment       — assess containment readiness
+#   communication     — confirm reporting paths
+
+categories:
+
+  scope:
+    - id: ITQ-001
+      text: "Do you have the written report or ticket that initiated this investigation?"
+      priority: critical
+      default_task: "Locate and link the source ticket into the case external_tickets register."
+    - id: ITQ-002
+      text: "When was the activity first observed? (UTC, with confidence indicator)"
+      priority: critical
+      default_task: "Record earliest-observed timestamp in the case header scope.first_observed_at."
+    - id: ITQ-003
+      text: "Has a containment window been established (when did the attacker activity start vs. when did we detect it)?"
+      priority: high
+      default_task: "Triangulate first-observed vs first-malicious-activity from EVTX, MFT, and Sysmon."
+    - id: ITQ-004
+      text: "Has the incident scope been formally declared (number of systems, business units, geographies)?"
+      priority: high
+      default_task: "Draft initial scope statement; populate case.scope."
+    - id: ITQ-005
+      text: "Are there related prior incidents this may be connected to?"
+      priority: medium
+      default_task: "Query prior case archive for IOC overlap."
+
+  platform:
+    - id: ITQ-010
+      text: "What is the primary affected platform (Windows / Linux / macOS / cloud / container / mobile)?"
+      priority: critical
+      default_task: "Confirm platform from initial evidence; populate per-system rows in ASR."
+    - id: ITQ-011
+      text: "Is the platform on-premises, cloud-hosted, or hybrid?"
+      priority: critical
+      default_task: "Determine hosting; if cloud, capture provider and region."
+    - id: ITQ-012
+      text: "If cloud, where is the customer / provider responsibility boundary?"
+      priority: high
+      default_task: "Document shared-responsibility model boundary for this platform."
+    - id: ITQ-013
+      text: "Do you have a current network and architecture diagram for the affected area?"
+      priority: high
+      default_task: "Locate architecture diagram; attach to case docs."
+    - id: ITQ-014
+      text: "Are there other systems sharing data flows or service dependencies with the affected platform?"
+      priority: high
+      default_task: "Build dependency map; populate ASR rows for downstream systems."
+    - id: ITQ-015
+      text: "What is the business function the affected system performs?"
+      priority: high
+      default_task: "Record business function; informs impact rating."
+    - id: ITQ-016
+      text: "What is the system's normal user population (size, role, geography)?"
+      priority: medium
+      default_task: "Estimate user population; informs notification scope."
+
+  logs:
+    - id: ITQ-020
+      text: "What log sources are available for the affected system (Windows Event Log, Sysmon, EDR, Auditd, Apache, IIS, cloud audit, etc.)?"
+      priority: critical
+      default_task: "Enumerate available log channels; populate findings/log_inventory.md."
+    - id: ITQ-021
+      text: "Who owns or can provide each log source?"
+      priority: high
+      default_task: "Map each log source to its data owner."
+    - id: ITQ-022
+      text: "Where are the logs stored (local, centralised SIEM, cloud bucket, EDR backend)?"
+      priority: high
+      default_task: "Document log storage locations and access methods."
+    - id: ITQ-023
+      text: "How far back does each log source retain data?"
+      priority: critical
+      default_task: "Record retention window per log source; flag if shorter than incident window."
+    - id: ITQ-024
+      text: "How large is each log source (rough volume)?"
+      priority: medium
+      default_task: "Estimate log volume; informs analytic approach and time budget."
+    - id: ITQ-025
+      text: "Are the logs immutable or could they have been tampered with?"
+      priority: critical
+      default_task: "Assess log tamper-resistance (WORM storage, signed logs, write-only forwarding)."
+    - id: ITQ-026
+      text: "Is there evidence of log clearing (Sysmon 1102, EVTX rollover, auditd reset)?"
+      priority: critical
+      default_task: "Run anti-forensics phase; flag log-clearing events."
+
+  ownership:
+    - id: ITQ-030
+      text: "Who internally owns the affected system?"
+      priority: critical
+      default_task: "Identify and contact the system owner."
+    - id: ITQ-031
+      text: "If a third party manages the system or data, who are they and who owns that relationship?"
+      priority: high
+      default_task: "Identify third-party manager and internal relationship owner; capture in case header."
+    - id: ITQ-032
+      text: "Who is the data owner for any sensitive data on the affected system?"
+      priority: critical
+      default_task: "Identify data owner(s); informs CET point_of_contact field."
+    - id: ITQ-033
+      text: "Is legal counsel involved or required for this incident?"
+      priority: high
+      default_task: "Notify in-house counsel; document advice for any disclosure obligations."
+    - id: ITQ-034
+      text: "Is the incident potentially reportable under regulatory frameworks (GDPR, HIPAA, SEC, PCI-DSS, etc.)?"
+      priority: critical
+      default_task: "Identify applicable reporting obligations; capture earliest deadline."
+    - id: ITQ-035
+      text: "Is law enforcement notification appropriate or required?"
+      priority: high
+      default_task: "Consult legal and exec leadership on LE engagement."
+
+  tooling:
+    - id: ITQ-040
+      text: "Do we have the analytic tools / skills required to process the available log sources?"
+      priority: high
+      default_task: "Confirm tooling presence on SIFT VM; identify any skill gaps."
+    - id: ITQ-041
+      text: "Are there active EDR / live-response capabilities on the affected hosts?"
+      priority: high
+      default_task: "Confirm EDR agent presence; enumerate live-response capability surface."
+    - id: ITQ-042
+      text: "Is there a Velociraptor / OSQuery / equivalent for cross-host hunting available?"
+      priority: high
+      default_task: "Confirm hunt-tool availability; if absent, identify deployment options."
+    - id: ITQ-043
+      text: "What is the analyst time budget for this incident (hours of dedicated analyst capacity)?"
+      priority: medium
+      default_task: "Confirm analyst capacity; informs depth vs breadth tradeoffs."
+
+  business_impact:
+    - id: ITQ-050
+      text: "What sensitive data classes may have been exposed (PII, PHI, payment, IP, secrets, customer data)?"
+      priority: critical
+      default_task: "Enumerate exposed data classes; informs CET rows."
+    - id: ITQ-051
+      text: "Has any data been confirmed exfiltrated?"
+      priority: critical
+      default_task: "Look for exfiltration indicators in network logs and Sysmon network events."
+    - id: ITQ-052
+      text: "What is the customer-facing impact (service outage, degraded service, transparency obligations)?"
+      priority: high
+      default_task: "Assess customer-facing impact; coordinate with comms lead."
+    - id: ITQ-053
+      text: "What is the financial impact estimate (revenue loss, recovery cost, regulatory fines)?"
+      priority: medium
+      default_task: "Capture rough financial impact estimate for exec dashboard."
+
+  containment:
+    - id: ITQ-060
+      text: "Has any containment action already been taken (network isolation, account disable, credential rotation)?"
+      priority: critical
+      default_task: "Document containment actions taken to date; capture in case briefing."
+    - id: ITQ-061
+      text: "Is full network isolation of the affected system viable, or are there operational dependencies that prevent it?"
+      priority: critical
+      default_task: "Assess isolation viability; coordinate with system owner."
+    - id: ITQ-062
+      text: "Have privileged credentials potentially used by the attacker been rotated?"
+      priority: critical
+      default_task: "Identify privileged accounts at risk; build rotation plan into CET."
+    - id: ITQ-063
+      text: "Has the attacker been observed to still be active, or is the activity historical?"
+      priority: critical
+      default_task: "Determine activity recency via live-response (process tree, network connections)."
+    - id: ITQ-064
+      text: "Are eradication actions (malware removal, patching, configuration change) scheduled?"
+      priority: high
+      default_task: "Build eradication plan; capture in CET."
+
+  communication:
+    - id: ITQ-070
+      text: "Who is the Incident Commander, and is a deputy assigned?"
+      priority: critical
+      default_task: "Confirm IC + deputy assignments; populate case header."
+    - id: ITQ-071
+      text: "What is the briefing cadence (frequency, audience, channel)?"
+      priority: high
+      default_task: "Set briefing schedule; first briefing within first hour."
+    - id: ITQ-072
+      text: "Who handles external communication (press, customers, partners)?"
+      priority: high
+      default_task: "Confirm press lead; coordinate with comms / legal."
+    - id: ITQ-073
+      text: "Is there a customer-notification timeline being tracked?"
+      priority: high
+      default_task: "Track customer-notification window if applicable."
+    - id: ITQ-074
+      text: "Is there a regulator-notification timeline being tracked (e.g., 72-hour GDPR, 96-hour SEC)?"
+      priority: critical
+      default_task: "Track regulator-notification deadlines; flag earliest."

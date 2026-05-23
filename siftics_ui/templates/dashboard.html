@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+{% if not case %}
+  <div class="bg-amber-900/40 border border-amber-700 p-4 rounded">
+    <p class="text-amber-300">No case initialised in this directory.</p>
+    <p class="text-sm text-slate-400 mt-1">
+      Run <code class="text-cyan-300">sift-case-init</code> to create
+      a case under <code>$SIFTICS_CASE_DIR</code>.
+    </p>
+  </div>
+{% else %}
+<div class="grid grid-cols-12 gap-4">
+
+  <!-- Briefing -->
+  <section class="col-span-12 lg:col-span-8 bg-slate-900 rounded p-4">
+    <h2 class="text-lg mb-3 flex items-center justify-between">
+      <span>Latest briefing</span>
+      <span class="text-xs text-slate-500">
+        {% if latest_briefing %}id {{ latest_briefing.briefing_id }}{% endif %}
+      </span>
+    </h2>
+    <article id="briefing"
+             sse-swap="briefing_posted"
+             class="prose prose-invert prose-sm max-w-none whitespace-pre-wrap">
+      {% if latest_briefing %}{{ latest_briefing.summary_md }}
+      {% else %}<em class="text-slate-500">No briefings posted yet.</em>{% endif %}
+    </article>
+  </section>
+
+  <!-- Side rail -->
+  <aside class="col-span-12 lg:col-span-4 space-y-4">
+
+    <!-- ASR summary -->
+    <div class="bg-slate-900 rounded p-4"
+         id="asr-summary"
+         hx-get="{{ url_for('dashboard_asr_summary') }}"
+         hx-trigger="sse:asr_appended, sse:asr_updated"
+         hx-swap="innerHTML">
+      {% include "_asr_summary.html" %}
+    </div>
+
+    <!-- CET summary -->
+    <div class="bg-slate-900 rounded p-4"
+         id="cet-summary"
+         hx-get="{{ url_for('dashboard_cet_summary') }}"
+         hx-trigger="sse:cet_appended, sse:cet_updated"
+         hx-swap="innerHTML">
+      {% include "_cet_summary.html" %}
+    </div>
+
+    <!-- ITQ progress -->
+    <div class="bg-slate-900 rounded p-4"
+         id="itq-progress"
+         hx-get="{{ url_for('dashboard_itq_progress') }}"
+         hx-trigger="sse:itq_answered, sse:itq_updated, sse:itq_seeded"
+         hx-swap="innerHTML">
+      {% include "_itq_progress.html" %}
+    </div>
+
+    <!-- Pending gates count -->
+    <a href="{{ url_for('gates') }}"
+       class="block bg-slate-900 rounded p-4 hover:bg-slate-800 transition">
+      <h3 class="text-sm text-slate-400">Authority Gates</h3>
+      <p class="text-3xl mt-1 {% if pending_gate_count %}text-rose-400{% else %}text-slate-500{% endif %}">
+        {{ pending_gate_count }}
+      </p>
+      <p class="text-xs text-slate-500">pending decisions</p>
+    </a>
+
+    <!-- Agent runtime + cost -->
+    <div class="bg-slate-900 rounded p-4"
+         id="runtime-status"
+         hx-get="{{ url_for('dashboard_runtime_status') }}"
+         hx-trigger="sse:llm_call, sse:runtime_config_saved, every 30s"
+         hx-swap="innerHTML">
+      {% include "_runtime_status.html" %}
+    </div>
+  </aside>
+
+</div>
+{% endif %}
+{% endblock %}

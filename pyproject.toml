@@ -1,0 +1,26 @@
+[project]
+name = "siftics-find-evil"
+version = "0.1.0"
+description = "SIFTics submission for SANS Find Evil! hackathon — case state + UI + IC approval"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+  "flask>=3.0",
+  "pyyaml>=6.0",
+]
+
+[project.scripts]
+sift-case-init = "siftics.cli:case_init_main"
+sift-approve = "siftics.cli:approve_main"
+siftics-ui = "siftics_ui.cli:run_main"
+hypothesis-score = "siftics.hypothesis_engine:main"
+sift-anomaly-check = "phases.anomaly_check:main"
+sift-self-correct = "phases.self_correct:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["siftics*", "siftics_ui*"]

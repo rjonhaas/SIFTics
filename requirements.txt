@@ -1,0 +1,12 @@
+flask>=3.0
+pyyaml>=6.0
+anthropic>=0.39          # for AnthropicRuntime
+httpx>=0.27              # for OllamaRuntime + mcp_cti + mcp_broker real-mode
+keyring>=24              # OS keychain integration for API keys (optional)
+mcp>=1.2                 # FastMCP — Custom MCP Server architectural pattern
+pytest>=8                # T1-T8 bypass tests
+numpy>=1.26              # mcp_rag vector store
+evtx>=0.8                # phases/fast_evtx_attack_filter (pyevtx-rs binding)
+# Optional — install when you want full-quality semantic search:
+#   pip install sentence-transformers
+# Without it, mcp_rag falls back to a deterministic hash-bag embedder.
