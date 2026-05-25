@@ -2,10 +2,39 @@
 
 Tested on a fresh **SANS SIFT 2026.04 OVA**, on **WSL-Ubuntu-22.04 + SIFT-server-mode**, and on **Linux Mint 22 hosts**. Per Rob T. Lee (Slack 2026-05-13) both SIFT-VM and WSL-SIFT are acceptable hackathon submission targets.
 
-## 30-second path — from `git clone` to first finding
+## Express path — one command
 
 ```bash
-git clone https://github.com/rjonhaas/SIFTics.git
+git clone -b find-evil https://github.com/rjonhaas/SIFTics.git
+cd SIFTics
+./setup.sh --init-case --start-ui
+# Browse: http://127.0.0.1:8080
+```
+
+`./setup.sh` is idempotent (re-runnable) and narrates each step. Flags:
+
+| Flag | Effect |
+|---|---|
+| (none) | venv + deps + seed baseline (default — fastest) |
+| `--full-baseline` | …but fetch the ~100 MB full Rathbun DB from a GitHub Release (~30 s) |
+| `--build-baseline` | …but build the full DB locally from sources (~30 min, ~5 GB cache) |
+| `--no-baseline` | skip baseline step entirely |
+| `--init-case` | also create `~/cases/dry_run/` + IC HMAC key |
+| `--start-ui` | also launch siftics-ui on `127.0.0.1:8080` |
+
+The script:
+
+- Checks Python 3.10+ is present
+- Detects missing `python3.X-venv` and prints the exact `apt install` to run
+- Skips steps that already completed (re-running after a partial install is safe)
+- Times itself and reports total elapsed time
+
+## Manual path — the same 30 seconds, but explicit
+
+Use this when you want to see what the script automates.
+
+```bash
+git clone -b find-evil https://github.com/rjonhaas/SIFTics.git
 cd SIFTics
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e .
@@ -13,7 +42,7 @@ pip install -e .
 # Baseline DB — pick one:
 #   (a) demo / quick-start    (~50 curated rows, instant)
 ./scripts/build_baseline_db.sh --seed
-#   (b) full coverage         (~50-150 MB asset from latest GitHub release, ~30s)
+#   (b) full coverage         (~50-150 MB asset from latest GitHub release, ~30 s)
 # ./scripts/download_baseline.sh
 #   (c) build from scratch    (clones Rathbun, ~30 min, ~5 GB cache)
 # ./scripts/build_baseline_db.sh --full

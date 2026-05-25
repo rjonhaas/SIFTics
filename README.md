@@ -58,14 +58,42 @@ SIFTics turns the SIFT Workstation into a **machine-speed incident response agen
 
 Tested on a fresh **SANS SIFT Workstation 2026.04.22** OVA and on **WSL-Ubuntu-22.04 with SIFT server-mode** (per Rob T. Lee's Slack guidance, both are acceptable submission targets).
 
+### Express path — one command
+
+```bash
+git clone -b find-evil https://github.com/rjonhaas/SIFTics.git
+cd SIFTics
+./setup.sh --init-case --start-ui
+# Then open http://127.0.0.1:8080 in a browser
+```
+
+`setup.sh` is idempotent and narrates each step. Common variants:
+
+```bash
+./setup.sh                              # venv + deps + seed baseline only
+./setup.sh --full-baseline              # ...but fetch the full ~100 MB DB from a Release
+./setup.sh --build-baseline             # ...but build the full DB locally (~30 min)
+./setup.sh --init-case --start-ui       # full express: case dir + UI on 127.0.0.1:8080
+./setup.sh --help                       # all flags
+```
+
+If `setup.sh` fails on a missing system package, it prints the exact `apt install` command and exits cleanly.
+
+### Manual path — for understanding what's happening
+
 ```bash
 # 1. Clone and install
-git clone https://github.com/rjonhaas/SIFTics.git
+git clone -b find-evil https://github.com/rjonhaas/SIFTics.git
 cd SIFTics
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e .
 
-# 2. Initialise a case directory
+# 2. Baseline DB — pick one:
+./scripts/build_baseline_db.sh --seed    # demo: ~50 curated rows, instant
+# ./scripts/download_baseline.sh         # full ~100 MB Rathbun corpus from Release, ~30 s
+# ./scripts/build_baseline_db.sh --full  # full build from sources, ~30 min, ~5 GB cache
+
+# 3. Initialise a case directory
 export SIFTICS_CASE_DIR=~/cases/demo_2026_05_22
 sift-case-init \
   --case-dir "$SIFTICS_CASE_DIR" \
@@ -75,11 +103,11 @@ sift-case-init \
   --itq-template ./templates/itq_questions.yaml
 # (you will be prompted for an IC passphrase — this derives the HMAC key)
 
-# 3. Start the SIFTics web UI (optional — for the IC's browser-based COP)
+# 4. Start the SIFTics web UI
 siftics-ui run --case-dir "$SIFTICS_CASE_DIR" &
 # Now open http://127.0.0.1:8080 in a browser
 
-# 4. Drop some evidence in and start the agent
+# 5. Drop some evidence in and start the agent
 mkdir -p "$SIFTICS_CASE_DIR/evidence/win11"
 # (copy KAPE bundle / disk image / EVTX dump into evidence/win11/)
 claude  # launches Claude Code in the SIFTics MCP context
