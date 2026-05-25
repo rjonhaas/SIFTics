@@ -8,7 +8,17 @@ license = { text = "MIT" }
 dependencies = [
   "flask>=3.0",
   "pyyaml>=6.0",
+  "anthropic>=0.39",
+  "httpx>=0.27",
+  "keyring>=24",
+  "mcp>=1.2",
+  "numpy>=1.26",
+  "evtx>=0.8",
 ]
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+rag-full = ["sentence-transformers>=2.7"]
 
 [project.scripts]
 sift-case-init = "siftics.cli:case_init_main"
