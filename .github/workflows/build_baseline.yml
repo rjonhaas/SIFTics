@@ -1,0 +1,99 @@
+name: Build baseline DB
+
+# Builds the full Rathbun-derived baseline SQLite and:
+#   • on release publish  → uploads the .gz as a release asset
+#   • on manual dispatch  → uploads as a 14-day workflow artifact
+#
+# This makes the full baseline a one-curl download for cloners (via
+# scripts/download_baseline.sh) instead of a 30-minute local rebuild.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to attach the asset to (leave blank for artifact-only)."
+        required: false
+        type: string
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # required to upload release assets
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout SIFTics
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Free disk space
+        run: |
+          # Runners ship with ~10 GB of preinstalled tools we don't need.
+          sudo rm -rf /opt/hostedtoolcache /usr/share/dotnet /usr/local/lib/android || true
+          df -h /
+
+      - name: Install SIFTics
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install --upgrade pip
+          .venv/bin/pip install -e .
+
+      - name: Build baseline DB
+        run: |
+          .venv/bin/python -m mcp_baseline.build_baseline_db \
+            --output mcp_baseline/baseline.sqlite \
+            --cache-dir /tmp/_rathbun_cache
+          ls -lh mcp_baseline/baseline.sqlite
+          sqlite3 mcp_baseline/baseline.sqlite \
+            "SELECT 'files=' || COUNT(*) FROM files;
+             SELECT 'registry=' || COUNT(*) FROM registry;
+             SELECT 'services=' || COUNT(*) FROM services;
+             SELECT 'scheduled=' || COUNT(*) FROM scheduled;"
+
+      - name: Compress
+        run: |
+          gzip -9 -k mcp_baseline/baseline.sqlite
+          ls -lh mcp_baseline/baseline.sqlite*
+          sha256sum mcp_baseline/baseline.sqlite mcp_baseline/baseline.sqlite.gz \
+            > mcp_baseline/baseline.sha256
+          cat mcp_baseline/baseline.sha256
+
+      - name: Rename for asset upload
+        run: |
+          mv mcp_baseline/baseline.sqlite.gz baseline_full.sqlite.gz
+
+      - name: Upload to release (on release publish)
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            baseline_full.sqlite.gz
+            mcp_baseline/baseline.sha256
+          tag_name: ${{ github.event.release.tag_name }}
+
+      - name: Upload to specified tag (manual dispatch with tag)
+        if: github.event_name == 'workflow_dispatch' && inputs.tag != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            baseline_full.sqlite.gz
+            mcp_baseline/baseline.sha256
+          tag_name: ${{ inputs.tag }}
+
+      - name: Upload as workflow artifact (no tag specified)
+        if: github.event_name == 'workflow_dispatch' && inputs.tag == ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: baseline-sqlite-gz
+          path: |
+            baseline_full.sqlite.gz
+            mcp_baseline/baseline.sha256
+          retention-days: 14

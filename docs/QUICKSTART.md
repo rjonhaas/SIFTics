@@ -10,9 +10,13 @@ cd SIFTics
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e .
 
-# One-time seed of the demo baseline DB (~50 curated rows; full Rathbun
-# corpus available via `scripts/build_baseline_db.sh --full`)
+# Baseline DB — pick one:
+#   (a) demo / quick-start    (~50 curated rows, instant)
 ./scripts/build_baseline_db.sh --seed
+#   (b) full coverage         (~50-150 MB asset from latest GitHub release, ~30s)
+# ./scripts/download_baseline.sh
+#   (c) build from scratch    (clones Rathbun, ~30 min, ~5 GB cache)
+# ./scripts/build_baseline_db.sh --full
 
 # Initialise a case directory
 export SIFTICS_CASE_DIR=~/cases/demo
@@ -99,11 +103,24 @@ Without `sentence-transformers`, `mcp_rag` falls back to a deterministic hash-ba
 
 ## Optional — full Rathbun baseline corpus
 
+Two paths:
+
+**Fastest** — fetch the prebuilt SQLite from the latest GitHub Release:
+```bash
+./scripts/download_baseline.sh
+# ~30 seconds; ~50-150 MB compressed download
+```
+
+**From scratch** — clone Rathbun's repos and rebuild locally:
 ```bash
 ./scripts/build_baseline_db.sh --full
 # Clones AndrewRathbun/VanillaWindowsReference + VanillaWindowsRegistryHives
-# Disk: ~5 GB cached, ~200 MB DB. Time: 30+ min on first run.
+# Disk: ~5 GB cached, ~100 MB DB. Time: 30+ min on first run.
 ```
+
+The Release-asset path is what we use in CI (`.github/workflows/build_baseline.yml`)
+and what we recommend for judges who want full coverage in seconds rather than
+minutes.
 
 ## Optional — connect a real Velociraptor server
 
