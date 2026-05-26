@@ -9,7 +9,13 @@ from .app import create_app
 
 
 def run_main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(description="Run the SIFTics web UI.")
+    p = argparse.ArgumentParser(
+        description="Run the SIFTics web UI.",
+        usage="siftics-ui run [options]",
+    )
+    # Accept optional 'run' positional to match `siftics-ui run --case-dir ...`
+    p.add_argument("subcommand", nargs="?", choices=["run"],
+                   help="Subcommand (only 'run' is supported; may be omitted).")
     p.add_argument("--case-dir", type=Path,
                    help="Override $SIFTICS_CASE_DIR.")
     p.add_argument("--host", default="127.0.0.1", help="Default 127.0.0.1.")
