@@ -69,6 +69,53 @@
     </div>
   </form>
 
+  <!-- Case initialisation -->
+  <div class="mt-10 border-t border-slate-700 pt-6">
+    <h3 class="text-xl mb-1">Initialise a new case</h3>
+    <p class="text-slate-400 text-sm mb-4">
+      Creates a case directory with a header, hash-chained audit log, IC HMAC key,
+      and the 35-question ITQ seeded. Skip this if you already have a case directory.
+    </p>
+    <form hx-post="{{ url_for('setup_init_case') }}"
+          hx-target="#case-init-result"
+          hx-swap="innerHTML"
+          class="space-y-3 bg-slate-900 border border-slate-700 rounded p-4">
+      <div class="grid grid-cols-2 gap-3">
+        <label class="block text-sm">
+          Case directory
+          <input type="text" name="case_dir" placeholder="~/cases/incident_2026_05"
+                 class="mt-1 w-full bg-slate-800 border border-slate-700 px-3 py-2 rounded font-mono text-sm">
+        </label>
+        <label class="block text-sm">
+          Case ID
+          <input type="text" name="case_id" placeholder="incident_2026_05"
+                 class="mt-1 w-full bg-slate-800 border border-slate-700 px-3 py-2 rounded font-mono text-sm">
+        </label>
+        <label class="block text-sm col-span-2">
+          Incident name
+          <input type="text" name="name" placeholder="Suspected lateral movement — Corp network"
+                 class="mt-1 w-full bg-slate-800 border border-slate-700 px-3 py-2 rounded text-sm">
+        </label>
+        <label class="block text-sm">
+          Incident Commander name
+          <input type="text" name="ic_name" placeholder="{{ 'analyst' }}"
+                 class="mt-1 w-full bg-slate-800 border border-slate-700 px-3 py-2 rounded text-sm">
+        </label>
+        <label class="block text-sm">
+          IC passphrase
+          <input type="password" name="passphrase" placeholder="used to sign Authority Gates"
+                 autocomplete="new-password"
+                 class="mt-1 w-full bg-slate-800 border border-slate-700 px-3 py-2 rounded text-sm">
+        </label>
+      </div>
+      <button type="submit"
+              class="bg-emerald-700 hover:bg-emerald-600 px-4 py-2 rounded text-sm">
+        Create case
+      </button>
+    </form>
+    <div id="case-init-result" class="mt-2 text-sm"></div>
+  </div>
+
   <div class="mt-8 border-t border-slate-800 pt-4 text-xs text-slate-500">
     <p>Existing config: <code>{{ config_path or '(none yet)' }}</code></p>
     <p>Active runtime: <code>{{ current_runtime }}</code></p>

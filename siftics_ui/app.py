@@ -121,6 +121,59 @@ def create_app() -> Flask:
                                 config_path=str(runtime_config.DEFAULT_USER_CONFIG)
                                             if runtime_config.DEFAULT_USER_CONFIG.exists() else None)
 
+    @app.route("/setup/init-case", methods=["POST"])
+    def setup_init_case():
+        case_dir_raw = request.form.get("case_dir", "").strip()
+        case_id = request.form.get("case_id", "").strip()
+        name = request.form.get("name", "").strip()
+        ic_name = request.form.get("ic_name", "").strip()
+        passphrase = request.form.get("passphrase", "").strip()
+
+        errors = []
+        if not case_dir_raw:
+            errors.append("Case directory is required.")
+        if not case_id:
+            errors.append("Case ID is required.")
+        if not name:
+            errors.append("Incident name is required.")
+        if not ic_name:
+            errors.append("IC name is required.")
+        if not passphrase:
+            errors.append("IC passphrase is required.")
+        if errors:
+            return Response("<br>".join(errors), status=400, mimetype="text/html")
+
+        import os as _os
+        case_path = Path(case_dir_raw).expanduser().resolve()
+        try:
+            case_path.mkdir(parents=True, exist_ok=True)
+            _os.environ["SIFTICS_CASE_DIR"] = str(case_path)
+            itq_tmpl = Path(__file__).parent.parent / "templates" / "itq_questions.yaml"
+            case_state.init_case(
+                case_id=case_id,
+                name=name,
+                ic_name=ic_name,
+                ic_contact="",
+                itq_template=itq_tmpl if itq_tmpl.exists() else None,
+            )
+            ic_approval.init_ic_key(passphrase, ic_name=ic_name)
+        except Exception as exc:
+            return Response(f"Case init failed: {exc}", status=500, mimetype="text/html")
+
+        audit.append_event("case_init_via_ui",
+                           {"case_dir": str(case_path), "case_id": case_id, "ic_name": ic_name},
+                           actor="ic")
+        if request.headers.get("HX-Request"):
+            return Response(
+                f"<div class='text-emerald-400 p-3 rounded border border-emerald-700'>"
+                f"Case <strong>{case_id}</strong> initialised at "
+                f"<code>{case_path}</code>. "
+                f"Restart the UI with <code>--case-dir {case_path}</code> to switch to it."
+                f"</div>",
+                mimetype="text/html",
+            )
+        return redirect(url_for("dashboard"))
+
     @app.route("/setup/save", methods=["POST"])
     def setup_save():
         cfg = runtime_config.load_config(case_dir=audit.case_dir())
