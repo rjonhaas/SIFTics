@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}New Case{% endblock %}
+{% block content %}
+<div class="max-w-2xl mx-auto mt-12">
+
+  <div class="mb-8 text-center">
+    <h2 class="text-3xl font-bold mb-2">Start a new case</h2>
+    <p class="text-slate-400">
+      Creates a case directory with a header, hash-chained audit log, IC HMAC key,
+      and the 35-question Initial Triage Questionnaire seeded.
+    </p>
+  </div>
+
+  <form hx-post="{{ url_for('setup_init_case') }}"
+        hx-target="#case-init-result"
+        hx-swap="innerHTML"
+        class="bg-slate-900 border border-slate-700 rounded-lg p-6 space-y-4">
+
+    <div class="grid grid-cols-2 gap-4">
+      <label class="block text-sm col-span-2">
+        <span class="text-slate-300 font-semibold">Case directory</span>
+        <input type="text" name="case_dir" placeholder="~/cases/incident_2026_05"
+               autofocus
+               class="mt-1 w-full bg-slate-800 border border-slate-700 focus:border-cyan-500 px-3 py-2 rounded font-mono text-sm outline-none">
+      </label>
+
+      <label class="block text-sm">
+        <span class="text-slate-300 font-semibold">Case ID</span>
+        <input type="text" name="case_id" placeholder="incident_2026_05"
+               class="mt-1 w-full bg-slate-800 border border-slate-700 focus:border-cyan-500 px-3 py-2 rounded font-mono text-sm outline-none">
+      </label>
+
+      <label class="block text-sm">
+        <span class="text-slate-300 font-semibold">Incident Commander name</span>
+        <input type="text" name="ic_name" placeholder="Your name"
+               class="mt-1 w-full bg-slate-800 border border-slate-700 focus:border-cyan-500 px-3 py-2 rounded text-sm outline-none">
+      </label>
+
+      <label class="block text-sm col-span-2">
+        <span class="text-slate-300 font-semibold">Incident name</span>
+        <input type="text" name="name" placeholder="Suspected lateral movement — Corp network"
+               class="mt-1 w-full bg-slate-800 border border-slate-700 focus:border-cyan-500 px-3 py-2 rounded text-sm outline-none">
+      </label>
+
+      <label class="block text-sm col-span-2">
+        <span class="text-slate-300 font-semibold">IC passphrase</span>
+        <input type="password" name="passphrase" placeholder="Used to sign Authority Gates — choose something memorable"
+               autocomplete="new-password"
+               class="mt-1 w-full bg-slate-800 border border-slate-700 focus:border-cyan-500 px-3 py-2 rounded text-sm outline-none">
+        <span class="text-xs text-slate-500 mt-1 block">
+          This derives the HMAC key that signs IC approvals. Not stored in plaintext. Cannot be recovered — write it down.
+        </span>
+      </label>
+    </div>
+
+    <div class="pt-2 flex items-center gap-4">
+      <button type="submit"
+              class="bg-emerald-700 hover:bg-emerald-600 px-6 py-2 rounded font-semibold">
+        Create case
+      </button>
+      {% if case %}
+        <a href="{{ url_for('dashboard') }}" class="text-sm text-slate-400 hover:text-slate-200">
+          ← Back to dashboard
+        </a>
+      {% endif %}
+    </div>
+  </form>
+
+  <div id="case-init-result" class="mt-4 text-sm"></div>
+
+  <div class="mt-8 text-center text-xs text-slate-600">
+    Already have a case? Start the UI with
+    <code class="text-slate-400">--case-dir ~/cases/your_case</code>
+    and it will load automatically.
+  </div>
+
+</div>
+{% endblock %}

@@ -58,6 +58,13 @@ def create_app() -> Flask:
 
     @app.route("/")
     def index():
+        # Land on case-init if no case exists yet; otherwise go to dashboard.
+        try:
+            case_dir = audit.case_dir()
+            if not (case_dir / "case.json").exists():
+                return redirect(url_for("new_case_view"))
+        except Exception:
+            return redirect(url_for("new_case_view"))
         return redirect(url_for("dashboard"))
 
     @app.route("/dashboard")
@@ -105,6 +112,14 @@ def create_app() -> Flask:
     def audit_verify():
         ok, errors = audit.verify_chain()
         return jsonify({"ok": ok, "errors": errors})
+
+    # -----------------------------------------------------------------
+    # New case landing page
+    # -----------------------------------------------------------------
+
+    @app.route("/new-case")
+    def new_case_view():
+        return render_template("new_case.html")
 
     # -----------------------------------------------------------------
     # Setup wizard
