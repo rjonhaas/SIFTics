@@ -18,7 +18,7 @@ def run_main(argv: list[str] | None = None) -> int:
                    help="Subcommand (only 'run' is supported; may be omitted).")
     p.add_argument("--case-dir", type=Path,
                    help="Override $SIFTICS_CASE_DIR.")
-    p.add_argument("--host", default="127.0.0.1", help="Default 127.0.0.1.")
+    p.add_argument("--host", default="0.0.0.0", help="Bind address (default 0.0.0.0 — all interfaces).")
     p.add_argument("--port", type=int, default=8080)
     p.add_argument("--debug", action="store_true")
     args = p.parse_args(argv)

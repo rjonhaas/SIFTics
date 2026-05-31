@@ -219,7 +219,9 @@ fi
 
 if [[ "$START_UI" == "yes" ]]; then
     CUR_STEP=$((CUR_STEP + 1))
-    step "$CUR_STEP" "$TOTAL_STEPS" "starting siftics-ui at http://127.0.0.1:8080"
+    UI_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+    UI_IP="${UI_IP:-127.0.0.1}"
+    step "$CUR_STEP" "$TOTAL_STEPS" "starting siftics-ui at http://${UI_IP}:8080"
 
     if pgrep -f "siftics-ui run" >/dev/null; then
         skip "already running (pid $(pgrep -f 'siftics-ui run' | head -1))"
@@ -245,12 +247,15 @@ ELAPSED=$(( $(date +%s) - START_TS ))
 MINS=$((ELAPSED / 60))
 SECS=$((ELAPSED % 60))
 
+UI_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+UI_IP="${UI_IP:-127.0.0.1}"
+
 echo
 green "Setup complete in ${MINS}m ${SECS}s."
 echo
 echo "Next steps:"
 if [[ "$START_UI" == "yes" ]]; then
-    echo "  • Open the UI:        http://127.0.0.1:8080"
+    echo "  • Open the UI:        http://${UI_IP}:8080"
     echo "  • Tail UI log:        tail -F /tmp/siftics-ui.log"
 fi
 if [[ "$INIT_CASE" != "yes" ]]; then
@@ -258,6 +263,6 @@ if [[ "$INIT_CASE" != "yes" ]]; then
 fi
 echo "  • Bypass tests:       .venv/bin/python -m pytest tests/test_constraints.py -v"
 echo "  • Start the agent:    claude  → /investigation-section-chief"
-echo "  • Choose runtime:     http://127.0.0.1:8080/setup"
+echo "  • Choose runtime:     http://${UI_IP}:8080/setup"
 echo
 echo "Docs: docs/QUICKSTART.md  ·  docs/architecture.md"
