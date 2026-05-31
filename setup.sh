@@ -26,6 +26,12 @@ OPTIONS
     --case-dir DIR      Case directory path  (default: ~/cases/dry_run)
     --case-id  ID       Case identifier      (default: dry_run_YYYYMMDD)
 
+  AI runtimes (optional — prompted interactively if none specified)
+    --install-claude    Install Claude Code CLI (npm install -g @anthropic-ai/claude-code)
+    --install-codex     Install OpenAI Codex CLI (npm install -g @openai/codex)
+    --install-ollama    Install Ollama local LLM server (ollama.com/install.sh)
+    --no-runtimes       Skip the runtime prompt and install nothing
+
   Web UI
     --start-ui          Launch siftics-ui on port 8080 after setup completes
                         (binds to 0.0.0.0 — reachable from host browser)
@@ -79,18 +85,26 @@ START_UI="no"
 CASE_DIR="${SIFTICS_CASE_DIR:-$HOME/cases/dry_run}"
 CASE_ID="dry_run_$(date +%Y%m%d)"
 QUIET="no"
+INSTALL_CLAUDE="no"
+INSTALL_CODEX="no"
+INSTALL_OLLAMA="no"
+NO_RUNTIMES="no"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --full-baseline)  BASELINE_MODE="full";  shift ;;
-        --build-baseline) BASELINE_MODE="build"; shift ;;
-        --no-baseline)    BASELINE_MODE="none";  shift ;;
-        --init-case)      INIT_CASE="yes";       shift ;;
-        --start-ui)       START_UI="yes";        shift ;;
-        --case-dir)       CASE_DIR="$2";         shift 2 ;;
-        --case-id)        CASE_ID="$2";          shift 2 ;;
-        --quiet)          QUIET="yes";           shift ;;
-        -h|--help)        usage; exit 0 ;;
+        --full-baseline)   BASELINE_MODE="full";   shift ;;
+        --build-baseline)  BASELINE_MODE="build";  shift ;;
+        --no-baseline)     BASELINE_MODE="none";   shift ;;
+        --init-case)       INIT_CASE="yes";        shift ;;
+        --start-ui)        START_UI="yes";         shift ;;
+        --case-dir)        CASE_DIR="$2";          shift 2 ;;
+        --case-id)         CASE_ID="$2";           shift 2 ;;
+        --install-claude)  INSTALL_CLAUDE="yes";   shift ;;
+        --install-codex)   INSTALL_CODEX="yes";    shift ;;
+        --install-ollama)  INSTALL_OLLAMA="yes";   shift ;;
+        --no-runtimes)     NO_RUNTIMES="yes";      shift ;;
+        -q|--quiet)        QUIET="yes";            shift ;;
+        -h|--help)         usage; exit 0 ;;
         *) echo "unknown arg: $1 (use --help)" >&2; exit 2 ;;
     esac
 done
@@ -118,7 +132,7 @@ skip()  { cyan "skip${1:+ ($1)}"; }
 warn()  { yel  "warn${1:+ ($1)}"; }
 die()   { red  "fail${1:+ ($1)}"; echo; red "$2"; exit 1; }
 
-TOTAL_STEPS=5
+TOTAL_STEPS=6
 [[ "$BASELINE_MODE" == "none" ]] && TOTAL_STEPS=$((TOTAL_STEPS - 1))
 [[ "$INIT_CASE" == "yes"      ]] && TOTAL_STEPS=$((TOTAL_STEPS + 1))
 [[ "$START_UI"  == "yes"      ]] && TOTAL_STEPS=$((TOTAL_STEPS + 1))
@@ -212,11 +226,83 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Step 5 — baseline DB
+# Step 5 — AI runtime installation
+# ---------------------------------------------------------------------------
+
+# Interactive prompt when TTY and no runtime flag was passed
+if [[ "$NO_RUNTIMES" != "yes" && "$INSTALL_CLAUDE$INSTALL_CODEX$INSTALL_OLLAMA" == "nonono" && -t 0 ]]; then
+    echo
+    echo "  Install AI runtimes? (all are optional — SIFTics works with any)"
+    echo "    [1] Claude Code   claude CLI  (recommended — requires Node.js)"
+    echo "    [2] Codex CLI     openai codex (requires Node.js)"
+    echo "    [3] Ollama        local LLM server — no API key needed"
+    echo "    [a] All of the above"
+    echo "    [s] Skip  (default)"
+    echo
+    read -rp "  Selection [1/2/3/a/s]: " _rt
+    _rt="${_rt,,}"
+    [[ "$_rt" == "a" ]] && INSTALL_CLAUDE="yes" INSTALL_CODEX="yes" INSTALL_OLLAMA="yes"
+    [[ "$_rt" == *1* ]] && INSTALL_CLAUDE="yes"
+    [[ "$_rt" == *2* ]] && INSTALL_CODEX="yes"
+    [[ "$_rt" == *3* ]] && INSTALL_OLLAMA="yes"
+    echo
+fi
+
+step 5 "$TOTAL_STEPS" "AI runtimes"
+
+if [[ "$NO_RUNTIMES" == "yes" || "$INSTALL_CLAUDE$INSTALL_CODEX$INSTALL_OLLAMA" == "nonono" ]]; then
+    skip "none selected (--install-claude/codex/ollama to pre-select)"
+else
+    _rt_log=""
+
+    # Node.js — required for Claude Code and Codex
+    if [[ "$INSTALL_CLAUDE" == "yes" || "$INSTALL_CODEX" == "yes" ]]; then
+        if ! command -v node >/dev/null 2>&1; then
+            curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - >/dev/null 2>&1 \
+                && sudo apt-get install -y nodejs >/dev/null 2>&1 \
+                || { warn "Node.js install failed — skipping Claude Code / Codex"; INSTALL_CLAUDE="no"; INSTALL_CODEX="no"; }
+        fi
+    fi
+
+    if [[ "$INSTALL_CLAUDE" == "yes" ]]; then
+        if command -v claude >/dev/null 2>&1; then
+            _rt_log="${_rt_log} claude(already)"
+        else
+            npm install -g @anthropic-ai/claude-code >/dev/null 2>&1 \
+                && _rt_log="${_rt_log} claude" \
+                || _rt_log="${_rt_log} claude(FAILED)"
+        fi
+    fi
+
+    if [[ "$INSTALL_CODEX" == "yes" ]]; then
+        if command -v codex >/dev/null 2>&1; then
+            _rt_log="${_rt_log} codex(already)"
+        else
+            npm install -g @openai/codex >/dev/null 2>&1 \
+                && _rt_log="${_rt_log} codex" \
+                || _rt_log="${_rt_log} codex(FAILED)"
+        fi
+    fi
+
+    if [[ "$INSTALL_OLLAMA" == "yes" ]]; then
+        if command -v ollama >/dev/null 2>&1; then
+            _rt_log="${_rt_log} ollama(already)"
+        else
+            curl -fsSL https://ollama.com/install.sh | sh >/dev/null 2>&1 \
+                && _rt_log="${_rt_log} ollama" \
+                || _rt_log="${_rt_log} ollama(FAILED)"
+        fi
+    fi
+
+    ok "${_rt_log# }"
+fi
+
+# ---------------------------------------------------------------------------
+# Step 6 — baseline DB
 # ---------------------------------------------------------------------------
 
 if [[ "$BASELINE_MODE" != "none" ]]; then
-    step 5 "$TOTAL_STEPS" "baseline DB ($BASELINE_MODE)"
+    step 6 "$TOTAL_STEPS" "baseline DB ($BASELINE_MODE)"
 
     if [[ -s mcp_baseline/baseline.sqlite ]]; then
         size=$(du -h mcp_baseline/baseline.sqlite | cut -f1)
@@ -236,7 +322,7 @@ if [[ "$BASELINE_MODE" != "none" ]]; then
                 ;;
             build)
                 yel "(this will take ~30 minutes and ~5 GB of disk)"
-                step 5 "$TOTAL_STEPS" "baseline DB (build)"   # re-print
+                step 6 "$TOTAL_STEPS" "baseline DB (build)"   # re-print
                 "$PY" -m mcp_baseline.build_baseline_db > /tmp/siftics_baseline.log 2>&1 \
                     && ok "$(du -h mcp_baseline/baseline.sqlite | cut -f1)" \
                     || die "" "local build failed (see /tmp/siftics_baseline.log)"
@@ -246,11 +332,11 @@ if [[ "$BASELINE_MODE" != "none" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Step 6 — init case dir (optional)
+# Step 7 — init case dir (optional)
 # ---------------------------------------------------------------------------
 
-CUR_STEP=5
-[[ "$BASELINE_MODE" == "none" ]] && CUR_STEP=4
+CUR_STEP=6
+[[ "$BASELINE_MODE" == "none" ]] && CUR_STEP=5
 
 if [[ "$INIT_CASE" == "yes" ]]; then
     CUR_STEP=$((CUR_STEP + 1))

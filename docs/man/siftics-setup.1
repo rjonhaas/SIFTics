@@ -66,6 +66,28 @@ Case identifier string embedded in
 .IR case.json .
 Default:
 .BI dry_run_ YYYYMMDD .
+.SS AI runtimes
+If none of the runtime flags are passed and the session has a TTY, an
+interactive prompt asks which runtimes to install. Node.js is installed
+automatically if required.
+.TP
+.B \-\-install\-claude
+Install Claude Code CLI via npm
+.RB ( @anthropic-ai/claude-code ).
+Recommended — this is the primary agentic runtime SIFTics was built for.
+.TP
+.B \-\-install\-codex
+Install OpenAI Codex CLI via npm
+.RB ( @openai/codex ).
+.TP
+.B \-\-install\-ollama
+Install Ollama local LLM server (no API key required).
+After installation, pull a model with
+.BR "ollama pull qwen2.5-coder:32b" .
+.TP
+.B \-\-no\-runtimes
+Skip the interactive runtime prompt and install nothing.
+Use this for CI or repeated re-runs.
 .SS Web UI
 .TP
 .B \-\-start\-ui
