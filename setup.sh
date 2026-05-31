@@ -132,6 +132,28 @@ skip()  { cyan "skip${1:+ ($1)}"; }
 warn()  { yel  "warn${1:+ ($1)}"; }
 die()   { red  "fail${1:+ ($1)}"; echo; red "$2"; exit 1; }
 
+# Run a command in the background while showing an animated spinner.
+# Usage: _progress_install "Label" cmd [args...]
+# Prints its own line — call AFTER a step() that ended with echo/newline.
+_progress_install() {
+    local label="$1"; shift
+    local spinchars='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
+    local i=0
+    printf "      → %-18s " "$label"
+    "$@" &>/dev/null &
+    local pid=$!
+    while kill -0 "$pid" 2>/dev/null; do
+        printf "%s\b" "${spinchars:$((i % ${#spinchars})):1}"
+        (( i++ )) || true
+        sleep 0.1
+    done
+    printf " "
+    wait "$pid"
+    local rc=$?
+    if [[ $rc -eq 0 ]]; then green "ok"; else red "FAILED"; fi
+    return $rc
+}
+
 TOTAL_STEPS=6
 [[ "$BASELINE_MODE" == "none" ]] && TOTAL_STEPS=$((TOTAL_STEPS - 1))
 [[ "$INIT_CASE" == "yes"      ]] && TOTAL_STEPS=$((TOTAL_STEPS + 1))
@@ -253,48 +275,43 @@ step 5 "$TOTAL_STEPS" "AI runtimes"
 if [[ "$NO_RUNTIMES" == "yes" || "$INSTALL_CLAUDE$INSTALL_CODEX$INSTALL_OLLAMA" == "nonono" ]]; then
     skip "none selected (--install-claude/codex/ollama to pre-select)"
 else
-    _rt_log=""
+    echo  # newline — per-item spinner lines follow
 
     # Node.js — required for Claude Code and Codex
     if [[ "$INSTALL_CLAUDE" == "yes" || "$INSTALL_CODEX" == "yes" ]]; then
         if ! command -v node >/dev/null 2>&1; then
-            curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - >/dev/null 2>&1 \
-                && sudo apt-get install -y nodejs >/dev/null 2>&1 \
-                || { warn "Node.js install failed — skipping Claude Code / Codex"; INSTALL_CLAUDE="no"; INSTALL_CODEX="no"; }
+            _progress_install "Node.js" \
+                bash -c 'curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - \
+                         && sudo apt-get install -y nodejs' \
+            || { INSTALL_CLAUDE="no"; INSTALL_CODEX="no"; }
+        else
+            printf "      → %-18s " "Node.js"; cyan "already installed"
         fi
     fi
 
     if [[ "$INSTALL_CLAUDE" == "yes" ]]; then
         if command -v claude >/dev/null 2>&1; then
-            _rt_log="${_rt_log} claude(already)"
+            printf "      → %-18s " "Claude Code"; cyan "already installed"
         else
-            npm install -g @anthropic-ai/claude-code >/dev/null 2>&1 \
-                && _rt_log="${_rt_log} claude" \
-                || _rt_log="${_rt_log} claude(FAILED)"
+            _progress_install "Claude Code" sudo npm install -g @anthropic-ai/claude-code
         fi
     fi
 
     if [[ "$INSTALL_CODEX" == "yes" ]]; then
         if command -v codex >/dev/null 2>&1; then
-            _rt_log="${_rt_log} codex(already)"
+            printf "      → %-18s " "Codex CLI"; cyan "already installed"
         else
-            npm install -g @openai/codex >/dev/null 2>&1 \
-                && _rt_log="${_rt_log} codex" \
-                || _rt_log="${_rt_log} codex(FAILED)"
+            _progress_install "Codex CLI" sudo npm install -g @openai/codex
         fi
     fi
 
     if [[ "$INSTALL_OLLAMA" == "yes" ]]; then
         if command -v ollama >/dev/null 2>&1; then
-            _rt_log="${_rt_log} ollama(already)"
+            printf "      → %-18s " "Ollama"; cyan "already installed"
         else
-            curl -fsSL https://ollama.com/install.sh | sh >/dev/null 2>&1 \
-                && _rt_log="${_rt_log} ollama" \
-                || _rt_log="${_rt_log} ollama(FAILED)"
+            _progress_install "Ollama" bash -c 'curl -fsSL https://ollama.com/install.sh | sh'
         fi
     fi
-
-    ok "${_rt_log# }"
 fi
 
 # ---------------------------------------------------------------------------
