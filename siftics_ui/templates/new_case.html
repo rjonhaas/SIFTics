@@ -17,12 +17,25 @@
         class="bg-slate-900 border border-slate-700 rounded-lg p-6 space-y-4">
 
     <div class="grid grid-cols-2 gap-4">
-      <label class="block text-sm col-span-2">
-        <span class="text-slate-300 font-semibold">Case directory</span>
-        <input type="text" name="case_dir" placeholder="~/cases/incident_2026_05"
-               autofocus
-               class="mt-1 w-full bg-slate-800 border border-slate-700 focus:border-cyan-500 px-3 py-2 rounded font-mono text-sm outline-none">
-      </label>
+      <div class="col-span-2">
+        <span class="text-slate-300 font-semibold text-sm">Case directory</span>
+        <div class="relative mt-1">
+          <div class="flex gap-2">
+            <input type="text" name="case_dir" id="case_dir_input"
+                   placeholder="~/cases/incident_2026_05"
+                   autofocus
+                   class="w-full bg-slate-800 border border-slate-700 focus:border-cyan-500 px-3 py-2 rounded font-mono text-sm outline-none">
+            <button type="button" id="case_dir_browse"
+                    title="Browse existing cases"
+                    class="bg-slate-700 hover:bg-slate-600 border border-slate-600 px-3 py-2 rounded text-slate-300 hover:text-white">
+              &#128193;
+            </button>
+          </div>
+          <ul id="case_dir_dropdown"
+              class="hidden absolute z-10 mt-1 w-full bg-slate-800 border border-slate-600 rounded shadow-lg max-h-48 overflow-y-auto text-sm font-mono">
+          </ul>
+        </div>
+      </div>
 
       <label class="block text-sm">
         <span class="text-slate-300 font-semibold">Case ID</span>
@@ -75,4 +88,43 @@
   </div>
 
 </div>
+
+<script>
+(function () {
+  const input = document.getElementById('case_dir_input');
+  const btn   = document.getElementById('case_dir_browse');
+  const drop  = document.getElementById('case_dir_dropdown');
+
+  function closeDrop() { drop.classList.add('hidden'); drop.innerHTML = ''; }
+
+  btn.addEventListener('click', function () {
+    if (!drop.classList.contains('hidden')) { closeDrop(); return; }
+    fetch('/api/list-cases')
+      .then(r => r.json())
+      .then(data => {
+        drop.innerHTML = '';
+        if (!data.dirs.length) {
+          drop.innerHTML = '<li class="px-3 py-2 text-slate-500 italic">No existing cases found in ~/cases/</li>';
+        } else {
+          data.dirs.forEach(function (d) {
+            const li = document.createElement('li');
+            li.textContent = d;
+            li.className = 'px-3 py-2 cursor-pointer hover:bg-slate-700 text-cyan-300';
+            li.addEventListener('click', function () {
+              input.value = d;
+              closeDrop();
+              input.focus();
+            });
+            drop.appendChild(li);
+          });
+        }
+        drop.classList.remove('hidden');
+      });
+  });
+
+  document.addEventListener('click', function (e) {
+    if (!btn.contains(e.target) && !drop.contains(e.target)) closeDrop();
+  });
+})();
+</script>
 {% endblock %}

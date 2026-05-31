@@ -121,6 +121,17 @@ def create_app() -> Flask:
     def new_case_view():
         return render_template("new_case.html")
 
+    @app.route("/api/list-cases")
+    def api_list_cases():
+        base = Path(request.args.get("base", "~/cases")).expanduser()
+        try:
+            dirs = sorted(
+                str(p) for p in base.iterdir() if p.is_dir()
+            ) if base.is_dir() else []
+        except PermissionError:
+            dirs = []
+        return jsonify({"base": str(base), "dirs": dirs})
+
     # -----------------------------------------------------------------
     # Setup wizard
     # -----------------------------------------------------------------
