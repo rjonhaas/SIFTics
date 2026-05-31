@@ -118,7 +118,7 @@ skip()  { cyan "skip${1:+ ($1)}"; }
 warn()  { yel  "warn${1:+ ($1)}"; }
 die()   { red  "fail${1:+ ($1)}"; echo; red "$2"; exit 1; }
 
-TOTAL_STEPS=4
+TOTAL_STEPS=5
 [[ "$BASELINE_MODE" == "none" ]] && TOTAL_STEPS=$((TOTAL_STEPS - 1))
 [[ "$INIT_CASE" == "yes"      ]] && TOTAL_STEPS=$((TOTAL_STEPS + 1))
 [[ "$START_UI"  == "yes"      ]] && TOTAL_STEPS=$((TOTAL_STEPS + 1))
@@ -195,11 +195,28 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Step 4 — baseline DB
+# Step 4 — man pages
+# ---------------------------------------------------------------------------
+
+step 4 "$TOTAL_STEPS" "installing man page (siftics-setup)"
+
+MAN_SRC="$REPO_ROOT/docs/man/siftics-setup.1"
+MAN_DEST="/usr/local/man/man1/siftics-setup.1"
+
+if [[ -f "$MAN_DEST" ]]; then
+    skip "already installed"
+elif sudo cp "$MAN_SRC" "$MAN_DEST" 2>/dev/null && sudo mandb -q 2>/dev/null; then
+    ok "man siftics-setup"
+else
+    warn "sudo not available — skipping (run manually: sudo cp $MAN_SRC $MAN_DEST && sudo mandb)"
+fi
+
+# ---------------------------------------------------------------------------
+# Step 5 — baseline DB
 # ---------------------------------------------------------------------------
 
 if [[ "$BASELINE_MODE" != "none" ]]; then
-    step 4 "$TOTAL_STEPS" "baseline DB ($BASELINE_MODE)"
+    step 5 "$TOTAL_STEPS" "baseline DB ($BASELINE_MODE)"
 
     if [[ -s mcp_baseline/baseline.sqlite ]]; then
         size=$(du -h mcp_baseline/baseline.sqlite | cut -f1)
@@ -219,7 +236,7 @@ if [[ "$BASELINE_MODE" != "none" ]]; then
                 ;;
             build)
                 yel "(this will take ~30 minutes and ~5 GB of disk)"
-                step 4 "$TOTAL_STEPS" "baseline DB (build)"   # re-print
+                step 5 "$TOTAL_STEPS" "baseline DB (build)"   # re-print
                 "$PY" -m mcp_baseline.build_baseline_db > /tmp/siftics_baseline.log 2>&1 \
                     && ok "$(du -h mcp_baseline/baseline.sqlite | cut -f1)" \
                     || die "" "local build failed (see /tmp/siftics_baseline.log)"
@@ -229,11 +246,11 @@ if [[ "$BASELINE_MODE" != "none" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Step 5 — init case dir (optional)
+# Step 6 — init case dir (optional)
 # ---------------------------------------------------------------------------
 
-CUR_STEP=4
-[[ "$BASELINE_MODE" == "none" ]] && CUR_STEP=3
+CUR_STEP=5
+[[ "$BASELINE_MODE" == "none" ]] && CUR_STEP=4
 
 if [[ "$INIT_CASE" == "yes" ]]; then
     CUR_STEP=$((CUR_STEP + 1))
