@@ -24,6 +24,11 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
+try:
+    from siftics.audit import append_event as _audit
+except ImportError:
+    def _audit(*a, **kw): pass  # type: ignore[misc]
+
 mcp = FastMCP("siftics-baseline")
 
 _DB_ENV = "SIFTICS_BASELINE_DB"
@@ -64,9 +69,20 @@ def lookup_by_sha256(sha256: str) -> dict:
             "SELECT path, build, edition, signer, size, version "
             "FROM files WHERE sha256 = ?", (sha256.lower(),)
         ).fetchall()
-        return {"known": bool(rows), "matches": _row_list(rows)}
+        result = {"known": bool(rows), "matches": _row_list(rows)}
     finally:
         conn.close()
+    try:
+        _audit("baseline_lookup", {
+            "source_type": "deterministic",
+            "lookup_type": "sha256",
+            "sha256": sha256.lower(),
+            "known": result["known"],
+            "match_count": len(result["matches"]),
+        }, actor="mcp_baseline")
+    except RuntimeError:
+        pass
+    return result
 
 
 @mcp.tool()
@@ -91,9 +107,20 @@ def lookup_by_name_path(name: str, path: str = "") -> dict:
             result["case_path_matches_baseline"] = any(
                 path.lower() == r["path"].lower() for r in rows
             )
-        return result
     finally:
         conn.close()
+    try:
+        _audit("baseline_lookup", {
+            "source_type": "deterministic",
+            "lookup_type": "name_path",
+            "name": name,
+            "observed_path": path or None,
+            "known": result["known"],
+            "match_count": len(result["matches"]),
+        }, actor="mcp_baseline")
+    except RuntimeError:
+        pass
+    return result
 
 
 @mcp.tool()
@@ -105,14 +132,28 @@ def classify_path_anomaly(name: str, observed_path: str) -> dict:
     """
     lookup = lookup_by_name_path(name)
     if not lookup["known"]:
-        return {"anomaly": True, "reason": "name_not_in_baseline",
-                "baseline_paths": [], "observed_path": observed_path}
-    baseline_paths = sorted({m["path"].lower() for m in lookup["matches"]})
-    if observed_path.lower() in baseline_paths:
-        return {"anomaly": False, "reason": "matches_baseline_location",
-                "baseline_paths": baseline_paths, "observed_path": observed_path}
-    return {"anomaly": True, "reason": "name_exists_but_wrong_location",
-            "baseline_paths": baseline_paths, "observed_path": observed_path}
+        result = {"anomaly": True, "reason": "name_not_in_baseline",
+                  "baseline_paths": [], "observed_path": observed_path}
+    else:
+        baseline_paths = sorted({m["path"].lower() for m in lookup["matches"]})
+        if observed_path.lower() in baseline_paths:
+            result = {"anomaly": False, "reason": "matches_baseline_location",
+                      "baseline_paths": baseline_paths, "observed_path": observed_path}
+        else:
+            result = {"anomaly": True, "reason": "name_exists_but_wrong_location",
+                      "baseline_paths": baseline_paths, "observed_path": observed_path}
+    try:
+        _audit("baseline_lookup", {
+            "source_type": "deterministic",
+            "lookup_type": "path_anomaly",
+            "name": name,
+            "observed_path": observed_path,
+            "anomaly": result["anomaly"],
+            "reason": result["reason"],
+        }, actor="mcp_baseline")
+    except RuntimeError:
+        pass
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -143,9 +184,22 @@ def lookup_registry_value(hive: str, key_path: str, value_name: str = "") -> dic
                 "LIMIT 25",
                 (hive.lower(), key_path.lower())
             ).fetchall()
-        return {"known": bool(rows), "matches": _row_list(rows)}
+        result = {"known": bool(rows), "matches": _row_list(rows)}
     finally:
         conn.close()
+    try:
+        _audit("baseline_lookup", {
+            "source_type": "deterministic",
+            "lookup_type": "registry",
+            "hive": hive,
+            "key_path": key_path,
+            "value_name": value_name or None,
+            "known": result["known"],
+            "match_count": len(result["matches"]),
+        }, actor="mcp_baseline")
+    except RuntimeError:
+        pass
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -171,9 +225,21 @@ def lookup_service(name: str, image_path: str = "") -> dict:
                 "FROM services WHERE LOWER(name) = ? LIMIT 25",
                 (name.lower(),)
             ).fetchall()
-        return {"known": bool(rows), "matches": _row_list(rows)}
+        result = {"known": bool(rows), "matches": _row_list(rows)}
     finally:
         conn.close()
+    try:
+        _audit("baseline_lookup", {
+            "source_type": "deterministic",
+            "lookup_type": "service",
+            "name": name,
+            "image_path": image_path or None,
+            "known": result["known"],
+            "match_count": len(result["matches"]),
+        }, actor="mcp_baseline")
+    except RuntimeError:
+        pass
+    return result
 
 
 @mcp.tool()
@@ -186,9 +252,20 @@ def lookup_scheduled_task(task_name: str) -> dict:
             "FROM scheduled WHERE LOWER(task_name) = ? LIMIT 25",
             (task_name.lower(),)
         ).fetchall()
-        return {"known": bool(rows), "matches": _row_list(rows)}
+        result = {"known": bool(rows), "matches": _row_list(rows)}
     finally:
         conn.close()
+    try:
+        _audit("baseline_lookup", {
+            "source_type": "deterministic",
+            "lookup_type": "scheduled_task",
+            "task_name": task_name,
+            "known": result["known"],
+            "match_count": len(result["matches"]),
+        }, actor="mcp_baseline")
+    except RuntimeError:
+        pass
+    return result
 
 
 # ---------------------------------------------------------------------------

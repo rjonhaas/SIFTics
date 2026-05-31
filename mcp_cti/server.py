@@ -20,6 +20,11 @@ from typing import Any
 import httpx
 from mcp.server.fastmcp import FastMCP
 
+try:
+    from siftics.audit import append_event as _audit
+except ImportError:
+    def _audit(*a, **kw): pass  # type: ignore[misc]
+
 mcp = FastMCP("siftics-cti")
 
 # ---------------------------------------------------------------------------
@@ -84,19 +89,30 @@ def lookup_hash(sha256: str) -> dict:
     key = _cache_key({"src": "mb", "sha256": sha256.lower()})
     cached = _cache_read(key)
     if cached is not None:
-        return cached
-    try:
-        r = httpx.post("https://mb-api.abuse.ch/api/v1/",
-                        data={"query": "get_info", "hash": sha256.lower()},
-                        headers=_abusech_headers(), timeout=15)
-        data = r.json()
-    except Exception as e:
-        return {"found": False, "error": str(e)}
-    if data.get("query_status") == "ok":
-        out = {"found": True, "sample": data.get("data", [{}])[0]}
+        out = cached
     else:
-        out = {"found": False, "query_status": data.get("query_status")}
-    _cache_write(key, out)
+        try:
+            r = httpx.post("https://mb-api.abuse.ch/api/v1/",
+                            data={"query": "get_info", "hash": sha256.lower()},
+                            headers=_abusech_headers(), timeout=15)
+            data = r.json()
+        except Exception as e:
+            return {"found": False, "error": str(e)}
+        if data.get("query_status") == "ok":
+            out = {"found": True, "sample": data.get("data", [{}])[0]}
+        else:
+            out = {"found": False, "query_status": data.get("query_status")}
+        _cache_write(key, out)
+    try:
+        _audit("cti_lookup", {
+            "source_type": "deterministic",
+            "backend": "malware_bazaar",
+            "ioc_type": "sha256",
+            "ioc_value": sha256.lower(),
+            "found": out.get("found", False),
+        }, actor="mcp_cti")
+    except RuntimeError:
+        pass
     return out
 
 
@@ -109,21 +125,32 @@ def lookup_url(url: str) -> dict:
     key = _cache_key({"src": "urlhaus", "url": url})
     cached = _cache_read(key)
     if cached is not None:
-        return cached
-    try:
-        r = httpx.post("https://urlhaus-api.abuse.ch/v1/url/",
-                        data={"url": url},
-                        headers=_abusech_headers(), timeout=15)
-        data = r.json()
-    except Exception as e:
-        return {"found": False, "error": str(e)}
-    if data.get("query_status") == "ok":
-        out = {"found": True, "url_data": data,
-               "tags": data.get("tags", []),
-               "threat": data.get("threat", "")}
+        out = cached
     else:
-        out = {"found": False, "query_status": data.get("query_status")}
-    _cache_write(key, out)
+        try:
+            r = httpx.post("https://urlhaus-api.abuse.ch/v1/url/",
+                            data={"url": url},
+                            headers=_abusech_headers(), timeout=15)
+            data = r.json()
+        except Exception as e:
+            return {"found": False, "error": str(e)}
+        if data.get("query_status") == "ok":
+            out = {"found": True, "url_data": data,
+                   "tags": data.get("tags", []),
+                   "threat": data.get("threat", "")}
+        else:
+            out = {"found": False, "query_status": data.get("query_status")}
+        _cache_write(key, out)
+    try:
+        _audit("cti_lookup", {
+            "source_type": "deterministic",
+            "backend": "urlhaus",
+            "ioc_type": "url",
+            "ioc_value": url[:200],
+            "found": out.get("found", False),
+        }, actor="mcp_cti")
+    except RuntimeError:
+        pass
     return out
 
 
@@ -139,19 +166,30 @@ def lookup_ioc(ioc_value: str, ioc_type: str = "auto") -> dict:
     key = _cache_key({"src": "threatfox", "v": ioc_value.lower(), "t": ioc_type})
     cached = _cache_read(key)
     if cached is not None:
-        return cached
-    try:
-        r = httpx.post("https://threatfox-api.abuse.ch/api/v1/",
-                        data={"query": "search_ioc", "search_term": ioc_value},
-                        headers=_abusech_headers(), timeout=15)
-        data = r.json()
-    except Exception as e:
-        return {"found": False, "error": str(e)}
-    if data.get("query_status") == "ok":
-        out = {"found": True, "matches": data.get("data", [])}
+        out = cached
     else:
-        out = {"found": False, "query_status": data.get("query_status")}
-    _cache_write(key, out)
+        try:
+            r = httpx.post("https://threatfox-api.abuse.ch/api/v1/",
+                            data={"query": "search_ioc", "search_term": ioc_value},
+                            headers=_abusech_headers(), timeout=15)
+            data = r.json()
+        except Exception as e:
+            return {"found": False, "error": str(e)}
+        if data.get("query_status") == "ok":
+            out = {"found": True, "matches": data.get("data", [])}
+        else:
+            out = {"found": False, "query_status": data.get("query_status")}
+        _cache_write(key, out)
+    try:
+        _audit("cti_lookup", {
+            "source_type": "deterministic",
+            "backend": "threatfox",
+            "ioc_type": ioc_type,
+            "ioc_value": ioc_value[:200],
+            "found": out.get("found", False),
+        }, actor="mcp_cti")
+    except RuntimeError:
+        pass
     return out
 
 
@@ -161,19 +199,30 @@ def lookup_c2_ip(ip: str) -> dict:
     key = _cache_key({"src": "feodo", "ip": ip})
     cached = _cache_read(key)
     if cached is not None:
-        return cached
+        out = cached
+    else:
+        try:
+            # Feodo Tracker uses CSV/JSON exports; cheaper to do a single download
+            # per case and cache than per-IP API calls.
+            r = httpx.get(
+                "https://feodotracker.abuse.ch/downloads/ipblocklist.json",
+                headers=_abusech_headers(), timeout=15)
+            rows = r.json()
+            match = next((row for row in rows if row.get("ip_address") == ip), None)
+        except Exception as e:
+            return {"found": False, "error": str(e)}
+        out = {"found": match is not None, "match": match}
+        _cache_write(key, out)
     try:
-        # Feodo Tracker uses CSV/JSON exports; cheaper to do a single download
-        # per case and cache than per-IP API calls.
-        r = httpx.get(
-            "https://feodotracker.abuse.ch/downloads/ipblocklist.json",
-            headers=_abusech_headers(), timeout=15)
-        rows = r.json()
-        match = next((row for row in rows if row.get("ip_address") == ip), None)
-    except Exception as e:
-        return {"found": False, "error": str(e)}
-    out = {"found": match is not None, "match": match}
-    _cache_write(key, out)
+        _audit("cti_lookup", {
+            "source_type": "deterministic",
+            "backend": "feodo_tracker",
+            "ioc_type": "ip",
+            "ioc_value": ip,
+            "found": out.get("found", False),
+        }, actor="mcp_cti")
+    except RuntimeError:
+        pass
     return out
 
 
@@ -200,21 +249,32 @@ def osm_lookup_indicator(value: str, type_hint: str = "auto") -> dict:
     key = _cache_key({"src": "osm", "v": value.lower(), "t": type_hint})
     cached = _cache_read(key)
     if cached is not None:
-        return cached
+        out = cached
+    else:
+        try:
+            r = httpx.get(
+                "https://opensourcemalware.com/api/v1/indicators/search",
+                params={"value": value, "type": type_hint},
+                headers={"Authorization": f"Bearer {api_key}",
+                          "User-Agent": "SIFTics/0.1"},
+                timeout=20)
+            data = r.json()
+        except Exception as e:
+            return {"found": False, "error": str(e)}
+        out = {"found": bool(data.get("indicators")),
+               "indicators": data.get("indicators", []),
+               "related": data.get("related_objects", [])}
+        _cache_write(key, out)
     try:
-        r = httpx.get(
-            "https://opensourcemalware.com/api/v1/indicators/search",
-            params={"value": value, "type": type_hint},
-            headers={"Authorization": f"Bearer {api_key}",
-                      "User-Agent": "SIFTics/0.1"},
-            timeout=20)
-        data = r.json()
-    except Exception as e:
-        return {"found": False, "error": str(e)}
-    out = {"found": bool(data.get("indicators")),
-           "indicators": data.get("indicators", []),
-           "related": data.get("related_objects", [])}
-    _cache_write(key, out)
+        _audit("cti_lookup", {
+            "source_type": "deterministic",
+            "backend": "osm_stix",
+            "ioc_type": type_hint,
+            "ioc_value": value[:200],
+            "found": out.get("found", False),
+        }, actor="mcp_cti")
+    except RuntimeError:
+        pass
     return out
 
 
@@ -259,13 +319,26 @@ def enrich(ioc_value: str, ioc_type: str = "auto") -> dict:
         backends["osm"] = osm_lookup_indicator(ioc_value, type_hint=ioc_type)
 
     hit_count = sum(1 for v in backends.values() if v.get("found"))
-    return {
+    result = {
         "value": ioc_value,
         "type": ioc_type,
         "backends": backends,
         "any_hit": hit_count > 0,
         "hit_count": hit_count,
     }
+    try:
+        _audit("cti_lookup", {
+            "source_type": "deterministic",
+            "backend": "enrich_aggregator",
+            "ioc_type": ioc_type,
+            "ioc_value": ioc_value[:200],
+            "backends_queried": list(backends.keys()),
+            "any_hit": result["any_hit"],
+            "hit_count": hit_count,
+        }, actor="mcp_cti")
+    except RuntimeError:
+        pass
+    return result
 
 
 # ---------------------------------------------------------------------------

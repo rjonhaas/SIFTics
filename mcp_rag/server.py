@@ -24,6 +24,11 @@ from mcp.server.fastmcp import FastMCP
 from .embeddings import load_embedder
 from .store import VectorStore
 
+try:
+    from siftics.audit import append_event as _audit
+except ImportError:
+    def _audit(*a, **kw): pass  # type: ignore[misc]
+
 mcp = FastMCP("siftics-forensic-rag")
 
 _INDEX: VectorStore | None = None
@@ -87,6 +92,18 @@ def forensic_rag_search(query: str, top_k: int = 10,
     raw = s.search(qv, top_k=top_k, source_filter=source_filter)
     if rerank:
         raw = s.bm25_rerank(query, raw)
+    try:
+        _audit("rag_lookup", {
+            "source_type": "ai_enrichment",
+            "query": query[:200],
+            "top_k": top_k,
+            "source_filter": source_filter,
+            "result_count": len(raw),
+            "record_ids": [r.get("record_id") for r in raw[:5]],
+            "embedder": e.name,
+        }, actor="mcp_rag")
+    except RuntimeError:
+        pass
     return {"query": query, "count": len(raw), "results": raw,
             "rerank": rerank, "embedder": e.name}
 
