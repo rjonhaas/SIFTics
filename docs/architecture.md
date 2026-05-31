@@ -205,6 +205,10 @@ typically has 1-2 architectural and the rest prompt-based.
 4.  Layer 2 interpretation runs on extractor output
        └─> narrative_chunker, classify_binary, cross_artifact_correlator
        └─> Calls mcp_baseline + mcp_rag + mcp_cti for enrichment
+       └─> Each call emits a typed audit event:
+             mcp_rag     → rag_lookup     (source_type: "ai_enrichment")
+             mcp_baseline → baseline_lookup (source_type: "deterministic")
+             mcp_cti     → cti_lookup     (source_type: "deterministic")
 
 5.  Agent surfaces an Authority Gate proposal
        └─> ic_request_approval(gate="execute_hunt_package", ...)
@@ -239,6 +243,7 @@ typically has 1-2 architectural and the rest prompt-based.
 | Forging an approval | Skip IC review | G2 HMAC; G7 key not on MCP surface |
 | Budget runaway | Exhaust API credits | G9 circuit breaker |
 | Spoliation of original evidence | Mutate KAPE bundle / disk image | G11 read-only mounts + G12 surface review |
+| AI hallucination in enrichment claims | Agent asserts unsupported facts | RAG grounding (every enrichment backed by retrieved record); `source_type` field in audit log distinguishes `ai_enrichment` from `deterministic` lookups so analysts know what to verify (see [`accuracy_report.md §3`](accuracy_report.md)) |
 
 ## 6. What's deliberately *not* defended in v1
 

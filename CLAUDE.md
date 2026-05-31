@@ -10,7 +10,7 @@ Claude Code as an *Investigation Section Chief* under NIMS ICS doctrine, with
 cryptographically-enforced Authority Gates (HMAC-signed IC approval required
 before any active hunt fires).
 
-## Current status (as of 2026-05-28)
+## Current status (as of 2026-05-31)
 All core features are built and passing. 14/14 constraint bypass tests green.
 The repo is clean (no uncommitted changes).
 
@@ -25,11 +25,16 @@ The repo is clean (no uncommitted changes).
 - `scripts/sync_to_sift.sh` — rsync + remote restart helper
 - `scripts/bootstrap_sift_vm.sh` — full VM bootstrap script
 - CI: `.github/workflows/build_baseline.yml` — builds full Rathbun SQLite on release
+- `docs/accuracy_report.md` §3.3 + §6 — hallucination mitigation documented (RAG grounding,
+  source_type field, v2 UI badge roadmap); README item #6 added
+- `mcp_rag/`, `mcp_baseline/`, `mcp_cti/` — `source_type` audit events now written on every
+  enrichment call (`rag_lookup` / `baseline_lookup` / `cti_lookup`); docs match implementation
 
 ### Last fix
-`siftics_ui/cli.py` — argparse didn't accept `run` as a positional subcommand,
-so `siftics-ui run --case-dir …` always failed. Fixed: added `nargs=?`
-positional so both `siftics-ui run …` and `siftics-ui …` work.
+`mcp_rag/server.py`, `mcp_baseline/server.py`, `mcp_cti/server.py` — these MCP servers were
+completely invisible in `forensic_audit.jsonl`. Added `append_event` calls with `source_type:
+"ai_enrichment"` (RAG) and `source_type: "deterministic"` (baseline + CTI) so the accuracy
+report's §3.3 claim about the `source_type` field is now true rather than aspirational.
 
 ### Remaining / next tasks
 - **SIFT VM sync** — rsync to 192.168.4.52 is the last unfinished task.
