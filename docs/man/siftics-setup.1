@@ -1,0 +1,148 @@
+.TH SIFTICS\-SETUP 1 "2026-05-31" "SIFTics 0.1" "SIFTics Manual"
+.SH NAME
+siftics\-setup \- one\-shot installer and launcher for the SIFTics IR agent
+.SH SYNOPSIS
+.B ./setup.sh
+[\fIOPTIONS\fR]
+.SH DESCRIPTION
+.B setup.sh
+is the express installer for SIFTics on a SANS SIFT Workstation or any
+Ubuntu/Debian host.
+It is fully idempotent \(em re\-running is safe and skips steps that have
+already completed.
+.PP
+The script performs up to six steps, depending on flags:
+.TP
+1.
+Check system prerequisites (Python\ 3.10+, curl, venv/ensurepip).
+.TP
+2.
+Create a Python virtual environment at
+.IR .venv/ .
+.TP
+3.
+Install Python dependencies (Flask, MCP SDK, Anthropic SDK, etc.)
+via
+.BR pip\ install\ -e\ . .
+.TP
+4.
+Seed or build the Rathbun known\-good Windows baseline database.
+.TP
+5.
+\fI(optional)\fR Initialise a case directory with a hash\-chained audit log,
+IC HMAC key, and 35\-question Initial Triage Questionnaire.
+.TP
+6.
+\fI(optional)\fR Launch the SIFTics web UI on port 8080.
+.SH OPTIONS
+.SS Baseline DB
+Mutually exclusive. Default: seed a ~50\-row demo baseline (instant).
+.TP
+.B \-\-full\-baseline
+Download the full ~100\ MB Rathbun DB from the latest GitHub Release
+(~30\ s, requires network).
+.TP
+.B \-\-build\-baseline
+Build the full DB locally from Rathbun sources
+(~30\ min, ~5\ GB disk cache, requires git and network).
+.TP
+.B \-\-no\-baseline
+Skip the baseline step entirely.
+.SS Case initialisation
+.TP
+.B \-\-init\-case
+Create the case directory, hash\-chained audit log, IC HMAC key, and seed
+the 35\-question ITQ template.
+.TP
+.BI \-\-case\-dir " DIR"
+Path to the case directory.
+Default:
+.IR ~/cases/dry_run .
+Overrides
+.BR $SIFTICS_CASE_DIR .
+.TP
+.BI \-\-case\-id " ID"
+Case identifier string embedded in
+.IR case.json .
+Default:
+.BI dry_run_ YYYYMMDD .
+.SS Web UI
+.TP
+.B \-\-start\-ui
+Launch
+.B siftics\-ui
+on port 8080 after setup completes. Binds to
+.B 0.0.0.0
+so the dashboard is reachable from a host browser at
+.BI http:// <vm\-ip> :8080 .
+.SS Miscellaneous
+.TP
+.BR \-q ", " \-\-quiet
+Suppress verbose pip output; only final status lines are printed.
+.TP
+.BR \-h ", " \-\-help
+Print a usage summary and exit.
+.SH EXAMPLES
+.TP
+Express path \(em everything in one command:
+.B ./setup.sh \-\-init\-case \-\-start\-ui
+.TP
+Full baseline, custom case directory:
+.B ./setup.sh \-\-full\-baseline \-\-init\-case \-\-case\-dir ~/cases/defcon2019 \-\-case\-id defcon2019 \-\-start\-ui
+.TP
+Headless / CI (no TTY, IC key creation skipped):
+.B ./setup.sh \-\-no\-baseline \-\-init\-case
+.TP
+Re\-run after partial install (safe):
+.B ./setup.sh \-\-start\-ui
+.SH FILES
+.TP
+.I .venv/
+Python virtual environment created by the script.
+.TP
+.I mcp_baseline/baseline.sqlite
+Rathbun known\-good Windows baseline database.
+.TP
+.I ~/cases/<case\-id>/
+Case directory containing
+.IR case.json ,
+.IR forensic_audit.jsonl ,
+.IR ic_key.hmac ,
+and the ASR/CET/ITQ JSONL registers.
+.TP
+.I /tmp/siftics\-ui.log
+Web UI stdout/stderr (tail with
+.BR "tail \-F /tmp/siftics\-ui.log" ).
+.TP
+.I /tmp/siftics_*.log
+Per\-step log files written during baseline build and case initialisation.
+.SH ENVIRONMENT
+.TP
+.B SIFTICS_CASE_DIR
+If set, used as the default case directory when
+.B \-\-case\-dir
+is not supplied.
+.SH INSTALLATION
+To install this man page system\-wide:
+.PP
+.RS
+.B sudo cp docs/man/siftics\-setup.1 /usr/local/man/man1/
+.br
+.B sudo mandb
+.RE
+.PP
+Then access with:
+.B man siftics\-setup
+.SH SEE ALSO
+.BR siftics\-ui (1),
+.BR sift\-case\-init (1)
+.PP
+.I docs/QUICKSTART.md
+\(em 30\-second judge path.
+.PP
+.I docs/architecture.md
+\(em full architecture overview with trust boundary map.
+.SH AUTHORS
+SIFTics was written for the SANS \fIFind Evil!\fR Hackathon 2026.
+.br
+Submission repository: https://github.com/rjonhaas/SIFTics

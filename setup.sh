@@ -1,18 +1,70 @@
 #!/usr/bin/env bash
 # SIFTics one-shot setup — express path for hackathon judges and operators.
-#
-# Idempotent — re-running picks up where the last run left off. The README's
-# manual steps remain the canonical reference; this script just collapses them.
-#
-# Usage:
-#   ./setup.sh                      # venv + deps + seed baseline
-#   ./setup.sh --full-baseline      # ...but fetch the full DB from a GitHub Release
-#   ./setup.sh --build-baseline     # ...but build the full DB locally (~30 min)
-#   ./setup.sh --no-baseline        # skip baseline step entirely
-#   ./setup.sh --init-case          # also create ~/cases/dry_run + IC HMAC key
-#   ./setup.sh --start-ui           # also launch siftics-ui at 127.0.0.1:8080
-#   ./setup.sh --help               # this message
-#
+# Idempotent: re-running picks up where the last run left off.
+
+usage() {
+cat <<'EOF'
+USAGE
+  ./setup.sh [OPTIONS]
+
+DESCRIPTION
+  Idempotent installer for SIFTics on a SANS SIFT Workstation (or any
+  Ubuntu/Debian host). Re-running is safe — completed steps are skipped.
+
+OPTIONS
+  Baseline DB (mutually exclusive; default: --seed-baseline)
+    (no flag)           Seed a ~50-row demo baseline (instant, no network)
+    --full-baseline     Download the full ~100 MB Rathbun DB from the latest
+                        GitHub Release (~30 s, requires network)
+    --build-baseline    Build the full DB locally from Rathbun sources
+                        (~30 min, ~5 GB disk cache, requires git + network)
+    --no-baseline       Skip the baseline step entirely
+
+  Case initialisation
+    --init-case         Create the case directory, hash-chained audit log,
+                        IC HMAC key, and 35-question ITQ seed
+    --case-dir DIR      Case directory path  (default: ~/cases/dry_run)
+    --case-id  ID       Case identifier      (default: dry_run_YYYYMMDD)
+
+  Web UI
+    --start-ui          Launch siftics-ui on port 8080 after setup completes
+                        (binds to 0.0.0.0 — reachable from host browser)
+
+  Misc
+    -q, --quiet         Suppress verbose pip output
+    -h, --help          Show this help and exit
+
+EXAMPLES
+  # Express path — everything in one command:
+  ./setup.sh --init-case --start-ui
+
+  # Full baseline + case + UI:
+  ./setup.sh --full-baseline --init-case --start-ui
+
+  # Custom case directory:
+  ./setup.sh --init-case --case-dir ~/cases/defcon2019 --case-id defcon2019 --start-ui
+
+  # Headless / CI (no TTY, skip IC key):
+  ./setup.sh --no-baseline --init-case
+
+  # Re-run after a partial install (safe):
+  ./setup.sh --start-ui
+
+FILES
+  .venv/                     Python virtual environment
+  mcp_baseline/baseline.sqlite  Rathbun known-good Windows baseline DB
+  ~/cases/<case-id>/         Case directory (audit log, ASR, CET, ITQ, IC key)
+  /tmp/siftics-ui.log        Web UI stdout / stderr
+  /tmp/siftics_*.log         Per-step log files for baseline build / case init
+
+SEE ALSO
+  docs/QUICKSTART.md    30-second path for judges
+  docs/architecture.md  Full architecture overview
+  man siftics-setup     This page (after: sudo cp docs/man/siftics-setup.1 /usr/local/man/man1/)
+
+EOF
+}
+
 # Flags can be combined: ./setup.sh --full-baseline --init-case --start-ui
 
 set -euo pipefail
@@ -38,7 +90,7 @@ while [[ $# -gt 0 ]]; do
         --case-dir)       CASE_DIR="$2";         shift 2 ;;
         --case-id)        CASE_ID="$2";          shift 2 ;;
         --quiet)          QUIET="yes";           shift ;;
-        -h|--help)        sed -n '2,16p' "$0";   exit 0 ;;
+        -h|--help)        usage; exit 0 ;;
         *) echo "unknown arg: $1 (use --help)" >&2; exit 2 ;;
     esac
 done
