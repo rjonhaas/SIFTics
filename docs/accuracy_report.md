@@ -143,6 +143,20 @@ unsupported by tool output. Example archetypes:
   without there being an audit event proving it ran X.
 - **Hash-chained provenance** — fabricated findings cannot be inserted into the
   audit log without breaking the chain at `audit_verify.sh`.
+- **RAG grounding** — every semantic enrichment claim (MITRE technique alignment,
+  Sigma rule match explanation, LOLBAS context) is backed by a retrieved record
+  from `mcp_rag`. The agent is instructed to cite the returned `record_id` and
+  similarity score; uncited claims can therefore be identified by diffing the
+  agent's narrative against `forensic_audit.jsonl` `rag_lookup` events. Claims
+  that cannot be grounded in a retrieved record are the surface area Rob Lee's
+  article describes — we expect Phase 18 to catch most of them via
+  cross-artifact contradiction checks.
+- **Deterministic vs probabilistic source typing** — baseline lookups
+  (`mcp_baseline`), IOC lookups (`mcp_cti`), and Sigma rule hits (`mcp_rag`
+  Sigma path) return exact-match results, not probability-weighted completions.
+  The `source_type` field in each `forensic_audit.jsonl` event distinguishes
+  `deterministic` (hash/IP exact-match) from `ai_enrichment` (LLM reasoning
+  over retrieved context) so downstream verification can be targeted.
 
 ---
 
@@ -226,6 +240,16 @@ Honest list — these are real and accepted in v1:
    incidents that require dual approval are out of scope until v2.
 6. **No automatic key rotation for the IC HMAC key.** A long-running case
    keeps the same key until manually rotated.
+7. **No per-artifact AI/deterministic source label in the UI (v2 roadmap).**
+   The `forensic_audit.jsonl` `source_type` field distinguishes AI-enriched
+   from deterministic findings at the event level, but the SIFTics web dashboard
+   does not yet surface a `[AI]` vs `[TOOL]` badge on individual findings. An
+   analyst reviewing the ASR register cannot immediately see which enrichments
+   came from LLM reasoning vs. an exact-match tool result. Planned for v2:
+   per-finding provenance chips in the dashboard UI, mirroring the approach
+   Cyber Triage 3.18 uses for its AI Enrichment field. Until then, analysts
+   should treat all enrichment text as unverified until cross-checked against
+   the `forensic_audit.jsonl` source events.
 
 ---
 

@@ -40,6 +40,7 @@ SIFTics turns the SIFT Workstation into a **machine-speed incident response agen
 3. **Maintains a tamper-evident audit chain.** Every tool execution, every IC decision, and every action result is logged as a hash-chained JSONL row; the chain is verifiable end-to-end with `audit_verify.sh`.
 4. **Self-corrects under doctrine.** Phase-18 anomaly detection scans for cross-artifact contradictions and re-runs upstream phases up to three iterations until the contradiction count decreases.
 5. **Drives Velociraptor as an active hunt controller** (not just a parser). Findings become typed `HuntPackage` objects; approved packages execute as enterprise-wide hunts; results feed back into the COP.
+6. **Grounds AI enrichment in retrieved evidence, not model memory.** Every MITRE technique alignment, LOLBAS context note, and Sigma rule explanation is backed by a record retrieved from the embedded `mcp_rag` forensic index — not generated from training-time knowledge alone. Deterministic lookups (baseline hash checks, IOC exact-match) are typed separately from LLM enrichment in `forensic_audit.jsonl`, so analysts know exactly what to verify. See [`docs/accuracy_report.md §3`](docs/accuracy_report.md) for the full hallucination accounting.
 
 ### How SIFTics maps to the six judging criteria
 
