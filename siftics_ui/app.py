@@ -45,8 +45,7 @@ def create_app() -> Flask:
                 static_folder=str(Path(__file__).parent / "static"))
     app.config["LABELS"] = load_labels()
     app.config["EVENT_QUEUES"] = []  # list[queue.Queue] for SSE clients
-    if os.environ.get("SIFTICS_CASE_DIR"):
-        _start_audit_tailer(app)
+    _start_audit_tailer(app)
 
     @app.context_processor
     def _inject_labels() -> dict:
@@ -189,16 +188,11 @@ def create_app() -> Flask:
         audit.append_event("case_init_via_ui",
                            {"case_dir": str(case_path), "case_id": case_id, "ic_name": ic_name},
                            actor="ic")
-        if request.headers.get("HX-Request"):
-            return Response(
-                f"<div class='text-emerald-400 p-3 rounded border border-emerald-700'>"
-                f"Case <strong>{case_id}</strong> initialised at "
-                f"<code>{case_path}</code>. "
-                f"Restart the UI with <code>--case-dir {case_path}</code> to switch to it."
-                f"</div>",
-                mimetype="text/html",
-            )
-        return redirect(url_for("dashboard"))
+        if not app.config.get("AUDIT_TAILER_STARTED"):
+            _start_audit_tailer(app)
+        resp = Response("", status=204)
+        resp.headers["HX-Redirect"] = url_for("dashboard")
+        return resp
 
     @app.route("/setup/save", methods=["POST"])
     def setup_save():
@@ -505,12 +499,27 @@ def _sign_request(decision: str) -> Response:
 
 
 def _start_audit_tailer(app: Flask) -> None:
-    """Tail forensic_audit.jsonl and push every new line to all SSE queues."""
-    path = audit.audit_path()
+    """Tail forensic_audit.jsonl and push every new line to all SSE queues.
+
+    Re-reads SIFTICS_CASE_DIR each iteration so switching case dirs mid-session
+    (e.g. after /setup/init-case) is picked up without restarting the server.
+    """
+    if app.config.get("AUDIT_TAILER_STARTED"):
+        return
+    app.config["AUDIT_TAILER_STARTED"] = True
 
     def runner():
-        position = path.stat().st_size if path.exists() else 0
+        position = 0
+        last_path: Path | None = None
         while True:
+            try:
+                path = audit.audit_path()
+            except RuntimeError:
+                time.sleep(0.5)
+                continue
+            if path != last_path:
+                position = path.stat().st_size if path.exists() else 0
+                last_path = path
             if not path.exists():
                 time.sleep(0.5)
                 continue
