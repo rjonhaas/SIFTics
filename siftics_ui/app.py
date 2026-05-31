@@ -190,7 +190,7 @@ def create_app() -> Flask:
                            actor="ic")
         if not app.config.get("AUDIT_TAILER_STARTED"):
             _start_audit_tailer(app)
-        resp = Response("", status=204)
+        resp = Response("", status=200)
         resp.headers["HX-Redirect"] = url_for("dashboard")
         return resp
 
