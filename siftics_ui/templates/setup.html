@@ -4,14 +4,13 @@
 <div class="max-w-3xl mx-auto">
   <h2 class="text-2xl mb-2">Choose your agent runtime</h2>
   <p class="text-slate-400 mb-6">
-    SIFTics's investigation logic and MCP servers are runtime-agnostic. Pick
-    whichever LLM stack matches your environment. Per Find Evil! hackathon rules,
+    SIFTics's investigation logic and tool servers work with any supported AI runtime. Pick
+    whichever matches your environment. Per Find Evil! hackathon rules,
     <strong>Claude Code is the primary recommended path</strong>. The other options
-    are documented for accessibility / fully-local / cost-controlled deployments.
+    are provided for fully-local or cost-controlled deployments.
   </p>
 
-  <form method="POST" action="{{ url_for('setup_save') }}" class="space-y-3"
-        hx-boost="false">
+  <form method="POST" action="{{ url_for('setup_save') }}" class="space-y-3">
     {% for option in options %}
       <label class="block bg-slate-900 border border-slate-700 hover:border-cyan-500 rounded p-4 cursor-pointer
                     {% if option.value == current_runtime %}border-cyan-500{% endif %}">
@@ -54,9 +53,8 @@
                class="ml-2 bg-slate-800 border border-slate-700 px-2 py-1 rounded w-24">
       </label>
       <p class="text-xs text-slate-500 mt-2">
-        Hard-stop: when the running total reaches this, the runtime raises
-        <code>BudgetExceeded</code> and refuses further LLM calls until you
-        raise it. Set to <code>0</code> to disable.
+        Hard stop: when the running total reaches this, the agent refuses further
+        AI calls until you raise the limit. Set to <code>0</code> to disable.
       </p>
     </fieldset>
 

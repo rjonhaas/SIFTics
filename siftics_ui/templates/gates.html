@@ -10,7 +10,7 @@
     {% else %}
       <div class="space-y-4">
         {% for req in pending %}
-          <article class="bg-slate-900 border border-slate-700 rounded p-4">
+          <article id="gate-{{ req.request_id }}" class="bg-slate-900 border border-slate-700 rounded p-4">
             <header class="flex justify-between items-baseline">
               <h3 class="font-bold">
                 <span class="text-cyan-300">{{ req.gate }}</span>
@@ -26,34 +26,26 @@
               <pre class="text-xs bg-slate-950 p-3 mt-1 overflow-auto rounded">{{ req.action | tojson(indent=2) }}</pre>
             </details>
 
-            <form hx-post="{{ url_for('gates_sign') }}"
-                  hx-swap="outerHTML"
-                  hx-target="closest article"
-                  class="mt-4 flex gap-2 items-center">
+            <form class="gate-form mt-4 flex gap-2 items-center">
               <input type="hidden" name="request_id" value="{{ req.request_id }}">
               <input type="password"
                      name="passphrase"
-                     placeholder="IC passphrase"
+                     placeholder="Incident Commander passphrase"
                      autocomplete="off"
                      required
                      class="flex-1 bg-slate-800 border border-slate-700 px-3 py-1.5 text-sm rounded">
-              <button type="submit"
+              <button type="submit" name="action" value="approve"
                       class="bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 text-sm rounded">
-                Sign & approve
+                Sign &amp; approve
               </button>
-              <button type="button"
-                      hx-post="{{ url_for('gates_deny') }}"
-                      hx-include="closest form"
-                      hx-swap="outerHTML"
-                      hx-target="closest article"
+              <button type="submit" name="action" value="deny"
                       class="bg-rose-700 hover:bg-rose-600 px-3 py-1.5 text-sm rounded">
                 Deny
               </button>
             </form>
+            <div class="gate-error mt-2 text-xs text-rose-400 hidden"></div>
             <p class="mt-2 text-xs text-slate-500">
-              Passphrase derives the HMAC key via PBKDF2-SHA256 ({{ 200000 }} iterations).
-              Never transmitted in plaintext beyond this localhost session;
-              never logged.
+              Your passphrase derives a signing key locally — it is never sent over the network or written to any log.
             </p>
           </article>
         {% endfor %}
@@ -73,8 +65,7 @@
             <span class="text-slate-500">{{ a.decided_at }}</span>
             <span>{{ a.gate }}</span>
             <span class="text-slate-500">{{ a.request_id[:8] }}…</span>
-            <span class="ml-auto
-                         {% if a.decision == 'approved' %}text-emerald-400{% else %}text-rose-400{% endif %}">
+            <span class="ml-auto {% if a.decision == 'approved' %}text-emerald-400{% else %}text-rose-400{% endif %}">
               {{ a.decision }}
             </span>
           </li>
@@ -84,4 +75,36 @@
   </section>
 
 </div>
+
+<script>
+  document.querySelectorAll('.gate-form').forEach(function (form) {
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var action  = e.submitter ? e.submitter.value : 'approve';
+      var url     = action === 'deny' ? "{{ url_for('gates_deny') }}" : "{{ url_for('gates_sign') }}";
+      var article = form.closest('article');
+      var errEl   = article.querySelector('.gate-error');
+
+      form.querySelectorAll('button').forEach(function (b) { b.disabled = true; });
+      errEl.classList.add('hidden');
+
+      fetch(url, { method: 'POST', body: new FormData(form) })
+        .then(function (r) { return r.text().then(function (html) { return { html: html, ok: r.ok }; }); })
+        .then(function (result) {
+          if (result.ok) {
+            article.outerHTML = result.html;
+          } else {
+            errEl.textContent = result.html.replace(/<[^>]+>/g, '');
+            errEl.classList.remove('hidden');
+            form.querySelectorAll('button').forEach(function (b) { b.disabled = false; });
+          }
+        })
+        .catch(function () {
+          errEl.textContent = 'Request failed — check connection.';
+          errEl.classList.remove('hidden');
+          form.querySelectorAll('button').forEach(function (b) { b.disabled = false; });
+        });
+    });
+  });
+</script>
 {% endblock %}

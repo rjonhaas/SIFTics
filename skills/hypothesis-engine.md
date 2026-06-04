@@ -44,6 +44,103 @@ You should not:
 - Pick a winning hypothesis until at least one has confidence > 0.7 *and*
   no competing hypothesis is above 0.3.
 - Self-estimate the confidence number — let the math do it.
+
+---
+
+## Mandatory hypothesis coverage rules
+
+These rules have teeth. They are not suggestions. Violating them is the
+mechanical equivalent of anchoring, and anchoring is how agents misidentify
+suspects.
+
+### Rule 1 — Every distinct identity token gets at least one hypothesis (F-001)
+
+An *identity token* is any artifact that could be the actor's true source:
+an IP address, email address, username, device identifier, session cookie,
+MAC address, or DHCP lease entry. The moment your evidence extraction
+produces a new identity token — any new one — you must open a hypothesis
+that names that token as the actor, even if you privately believe it is
+noise.
+
+**Trigger:** immediately after any phase script returns a result containing
+an identity token not already the subject of an open hypothesis.
+
+**Mechanics:**
+
+```bash
+# You just found that 192.168.15.4 / username "jcoach" appears in HTTP cookies.
+# You already have a hypothesis for Jean / mylady.ixchel.
+# You MUST now run:
+hypothesis_score add "192.168.15.4 / jcoach is the true sender, distinct from the current primary suspect"
+# The CLI prints the new ID (e.g., H-3f9a2c1d). Capture it.
+hypothesis_score signal H-3f9a2c1d 2 "IP 192.168.15.4 and username jcoach appear in HTTP cookie fields" --audit-event <event_seq>
+```
+
+**The test you apply before moving on:** run `hypothesis_score report`
+and confirm every identity token in your evidence appears as the named
+subject in at least one open hypothesis. If the count of distinct identity
+tokens exceeds the count of subject-distinct open hypotheses, stop and
+open the missing ones before running the next phase.
+
+This rule exists because the agent will feel the new token is "probably the
+same person" or "probably irrelevant." That feeling is anchoring. The
+hypothesis ledger is the mechanism that exposes whether the feeling is
+justified.
+
+### Rule 2 — Shared-medium cases require an attribution-uncertainty hypothesis at case open (F-005)
+
+A *shared medium* is any network path where multiple physical actors could
+be the true source of observed traffic: open WiFi, shared NAT, shared VLAN,
+university or campus networks, hotel networks, residential gateways serving
+multiple users, or any environment where the IP-to-person mapping is not
+one-to-one.
+
+**Trigger:** at case open, before running any HOT-path phase script or
+answering ITQ questions beyond the scope category (ITQ-001..005), check
+whether any network-origin evidence was collected from a shared medium. If
+yes, open the attribution-uncertainty hypothesis immediately.
+
+```bash
+hypothesis_score add "An unknown actor used the shared network medium; the observed IP/account evidence cannot yet be attributed to a specific physical person or device"
+# Capture the printed ID (e.g., H-7c3d9e1a).
+hypothesis_score signal H-7c3d9e1a 2 "Evidence originates from a shared-medium network; physical attribution not yet established" --audit-event <event_seq>
+```
+
+**This hypothesis may only be retired — using an explicit retire call with
+--reason — after BOTH of the following are satisfied:**
+
+1. A device-binding record (DHCP binding with MAC, 802.11 association log,
+   VPN cert, or equivalent) ties the IP to a specific physical device at
+   the time of the event.
+2. Evidence places a specific person at that device at that time.
+
+Until both conditions are met, retirement is not permitted regardless of
+how low the confidence score falls. This is retire-by-rule, not
+retire-by-score.
+
+**Nitroba example:**
+```
+Open at case start (IDs illustrative — use what the CLI returns):
+  H-aa1bb2cc: "Jean / mylady.ixchel sent the harassing email"
+  H-dd3ee4ff: "192.168.15.4 / jcoach is the true sender"
+  H-ff5aa6bb: "Unknown actor used open WiFi; no physical attribution yet"
+
+H-ff5aa6bb stays open until 802.11 association logs or DHCP binding records
+tie a device to a specific person at 192.168.15.4 at the relevant timestamp.
+```
+
+### Hypothesis coverage checklist — run before every IC briefing
+
+Before calling `briefing_post()`, confirm all of the following:
+
+- [ ] `hypothesis_score report` shows at least one open hypothesis per
+      distinct identity token extracted from evidence.
+- [ ] If evidence is network-origin from a shared medium, the
+      attribution-uncertainty hypothesis is still open OR has been retired
+      with an explicit physical-attribution audit event cited.
+- [ ] No hypothesis open for more than one phase cycle has zero signals.
+- [ ] The briefing text names the top three open hypotheses by ID and
+      confidence, not just the leading one.
 - Add the same signal twice to inflate confidence.
 
 ## CLI

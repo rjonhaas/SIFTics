@@ -47,18 +47,21 @@ report's §3.3 claim about the `source_type` field is now true rather than aspir
 - **Demo video** — storyboard is in `docs/demo_video.md`; YouTube link TBD.
 - **GitHub release** — tag `find-evil-v1`, trigger CI to publish baseline asset.
 
+## Operator preferences
+- **Always do a full stop/start cycle when restarting the UI.** Kill any running `siftics-ui` process first (`pkill -f "siftics-ui run"` or by PID), confirm port 8080 is free (`ss -tlnp | grep 8080`), then bring it back up with `./setup.sh --start-ui`. Never assume the existing process picked up new changes.
+
 ## How to pick up
 
 ```bash
-cd /home/zeus/Desktop/find_evil
+cd /home/sansforensics/SIFTics
 source .venv/bin/activate
 
 # Verify everything still passes
 .venv/bin/python -m pytest tests/test_constraints.py -v
 
-# Start the UI (case dir already exists at ~/cases/dry_run)
-SIFTICS_CASE_DIR=~/cases/dry_run siftics-ui run --case-dir ~/cases/dry_run
-# Browse: http://127.0.0.1:8080
+# Kill everything, then bring back up
+./kill_all.sh && ./setup.sh
+# Browse: http://192.168.2.149:8080
 ```
 
 ## Key files for judges / graders
@@ -74,6 +77,6 @@ SIFTICS_CASE_DIR=~/cases/dry_run siftics-ui run --case-dir ~/cases/dry_run
 ## Local machine notes
 - Working dir: `/home/zeus/Desktop/find_evil`
 - Venv: `.venv/` (Python 3.12)
-- Case dir: `~/cases/dry_run/`
+- Case dir: `~/Desktop/cases/`
 - SIFT VM target: `192.168.4.52` (may need to be started)
 - SSH now enabled on this machine (`sudo systemctl status ssh`)

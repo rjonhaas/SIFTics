@@ -6,14 +6,20 @@
   <div class="mb-8 text-center">
     <h2 class="text-3xl font-bold mb-2">Start a new case</h2>
     <p class="text-slate-400">
-      Creates a case directory with a header, hash-chained audit log, IC HMAC key,
-      and the 35-question Initial Triage Questionnaire seeded.
+      Creates a case folder with a tamper-evident audit log, a signing key for
+      approvals, and 43 triage questions pre-loaded to guide the investigation.
     </p>
   </div>
 
-  <form hx-post="{{ url_for('setup_init_case') }}"
-        hx-target="#case-init-result"
-        hx-swap="innerHTML"
+  {% if errors %}
+  <div class="mb-4 bg-rose-900/40 border border-rose-700 text-rose-200 rounded p-3 text-sm">
+    <ul class="list-disc list-inside space-y-1">
+      {% for e in errors %}<li>{{ e }}</li>{% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <form id="new-case-form" method="post" action="{{ url_for('setup_init_case') }}"
         class="bg-slate-900 border border-slate-700 rounded-lg p-6 space-y-4">
 
     <div class="grid grid-cols-2 gap-4">
@@ -23,6 +29,7 @@
           <div class="flex gap-2">
             <input type="text" name="case_dir" id="case_dir_input"
                    placeholder="~/cases/incident_2026_05"
+                   value="{{ form.case_dir if form else '' }}"
                    autofocus
                    class="w-full bg-slate-800 border border-slate-700 focus:border-cyan-500 px-3 py-2 rounded font-mono text-sm outline-none">
             <button type="button" id="case_dir_browse"
@@ -40,18 +47,21 @@
       <label class="block text-sm">
         <span class="text-slate-300 font-semibold">Case ID</span>
         <input type="text" name="case_id" placeholder="incident_2026_05"
+               value="{{ form.case_id if form else '' }}"
                class="mt-1 w-full bg-slate-800 border border-slate-700 focus:border-cyan-500 px-3 py-2 rounded font-mono text-sm outline-none">
       </label>
 
       <label class="block text-sm">
-        <span class="text-slate-300 font-semibold">Incident Commander name</span>
+        <span class="text-slate-300 font-semibold">Incident Commander</span>
         <input type="text" name="ic_name" placeholder="Your name"
+               value="{{ form.ic_name if form else '' }}"
                class="mt-1 w-full bg-slate-800 border border-slate-700 focus:border-cyan-500 px-3 py-2 rounded text-sm outline-none">
       </label>
 
       <label class="block text-sm col-span-2">
         <span class="text-slate-300 font-semibold">Incident name</span>
         <input type="text" name="name" placeholder="Suspected lateral movement — Corp network"
+               value="{{ form.name if form else '' }}"
                class="mt-1 w-full bg-slate-800 border border-slate-700 focus:border-cyan-500 px-3 py-2 rounded text-sm outline-none">
       </label>
 
@@ -61,7 +71,7 @@
                autocomplete="new-password"
                class="mt-1 w-full bg-slate-800 border border-slate-700 focus:border-cyan-500 px-3 py-2 rounded text-sm outline-none">
         <span class="text-xs text-slate-500 mt-1 block">
-          This derives the HMAC key that signs IC approvals. Not stored in plaintext. Cannot be recovered — write it down.
+          Used to sign Incident Commander approvals. Never stored in plaintext. Cannot be recovered if lost — write it down.
         </span>
       </label>
     </div>
@@ -91,30 +101,27 @@
 
 <script>
 (function () {
-  const input = document.getElementById('case_dir_input');
-  const btn   = document.getElementById('case_dir_browse');
-  const drop  = document.getElementById('case_dir_dropdown');
+  // Directory browse dropdown
+  var input = document.getElementById('case_dir_input');
+  var browseBtn = document.getElementById('case_dir_browse');
+  var drop  = document.getElementById('case_dir_dropdown');
 
   function closeDrop() { drop.classList.add('hidden'); drop.innerHTML = ''; }
 
-  btn.addEventListener('click', function () {
+  browseBtn.addEventListener('click', function () {
     if (!drop.classList.contains('hidden')) { closeDrop(); return; }
     fetch('/api/list-cases')
-      .then(r => r.json())
-      .then(data => {
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
         drop.innerHTML = '';
         if (!data.dirs.length) {
-          drop.innerHTML = '<li class="px-3 py-2 text-slate-500 italic">No existing cases found in ~/cases/</li>';
+          drop.innerHTML = '<li class="px-3 py-2 text-slate-500 italic">No existing cases in ~/cases/</li>';
         } else {
           data.dirs.forEach(function (d) {
-            const li = document.createElement('li');
+            var li = document.createElement('li');
             li.textContent = d;
             li.className = 'px-3 py-2 cursor-pointer hover:bg-slate-700 text-cyan-300';
-            li.addEventListener('click', function () {
-              input.value = d;
-              closeDrop();
-              input.focus();
-            });
+            li.addEventListener('click', function () { input.value = d; closeDrop(); input.focus(); });
             drop.appendChild(li);
           });
         }
@@ -123,8 +130,12 @@
   });
 
   document.addEventListener('click', function (e) {
-    if (!btn.contains(e.target) && !drop.contains(e.target)) closeDrop();
+    if (!browseBtn.contains(e.target) && !drop.contains(e.target)) closeDrop();
   });
+
+  // Form submission via fetch so errors appear inline
+  var resultEl = document.getElementById('case-init-result');
+  Siftics.postForm(document.getElementById('new-case-form'), '#case-init-result');
 })();
 </script>
 {% endblock %}

@@ -3,81 +3,323 @@
 {% block content %}
 {% if not case %}
   <div class="bg-amber-900/40 border border-amber-700 p-4 rounded">
-    <p class="text-amber-300">No case initialised in this directory.</p>
+    <p class="text-amber-300">No case loaded.</p>
     <p class="text-sm text-slate-400 mt-1">
-      Run <code class="text-cyan-300">sift-case-init</code> to create
-      a case under <code>$SIFTICS_CASE_DIR</code>.
+      Go to <a href="{{ url_for('cases_list') }}" class="text-cyan-300 underline">Cases</a>
+      to open one, or <a href="{{ url_for('new_case_view') }}" class="text-cyan-300 underline">+ New case</a> to create one.
     </p>
   </div>
 {% else %}
-<div class="grid grid-cols-12 gap-4">
 
-  <!-- Briefing -->
-  <section class="col-span-12 lg:col-span-8 bg-slate-900 rounded p-4">
-    <h2 class="text-lg mb-3 flex items-center justify-between">
-      <span>Latest briefing</span>
-      <span class="text-xs text-slate-500">
-        {% if latest_briefing %}id {{ latest_briefing.briefing_id }}{% endif %}
-      </span>
-    </h2>
-    <article id="briefing"
-             sse-swap="briefing_posted"
-             class="prose prose-invert prose-sm max-w-none whitespace-pre-wrap">
-      {% if latest_briefing %}{{ latest_briefing.summary_md }}
-      {% else %}<em class="text-slate-500">No briefings posted yet.</em>{% endif %}
-    </article>
-  </section>
+<!-- ── Layout: fills the viewport below the header ───────────────────── -->
+<div class="flex gap-4" style="height: calc(100vh - 8rem)">
 
-  <!-- Side rail -->
-  <aside class="col-span-12 lg:col-span-4 space-y-4">
+  <!-- Left column: agent conversation -->
+  <div class="flex flex-col flex-1 min-w-0 bg-slate-900 rounded-lg overflow-hidden">
 
-    <!-- ASR summary -->
-    <div class="bg-slate-900 rounded p-4"
-         id="asr-summary"
-         hx-get="{{ url_for('dashboard_asr_summary') }}"
-         hx-trigger="sse:asr_appended, sse:asr_updated"
-         hx-swap="innerHTML">
-      {% include "_asr_summary.html" %}
+    <!-- Begin Investigation banner (hidden once agent has started) -->
+    <div id="begin-banner" class="flex flex-col items-center justify-center flex-1 gap-4 p-8 text-center">
+      <div class="text-4xl mb-2">&#x1F50D;</div>
+      <h2 class="text-xl font-bold text-slate-100">Ready to investigate</h2>
+      <p class="text-slate-400 text-sm max-w-sm">
+        The Investigation Section Chief will survey your evidence,
+        work through the triage questions, and record findings — all
+        visible here in real time.
+      </p>
+      <button id="begin-btn" onclick="beginInvestigation()"
+              class="mt-2 bg-cyan-700 hover:bg-cyan-600 px-8 py-3 rounded-lg font-semibold text-lg">
+        Begin Investigation
+      </button>
+      <p class="text-xs text-slate-600">You can direct the agent at any time using the box below</p>
     </div>
 
-    <!-- CET summary -->
-    <div class="bg-slate-900 rounded p-4"
-         id="cet-summary"
-         hx-get="{{ url_for('dashboard_cet_summary') }}"
-         hx-trigger="sse:cet_appended, sse:cet_updated"
-         hx-swap="innerHTML">
-      {% include "_cet_summary.html" %}
+    <!-- Conversation transcript (hidden until agent starts) -->
+    <div id="transcript"
+         class="hidden flex-1 overflow-y-auto p-4 space-y-3 text-sm font-sans"></div>
+
+    <!-- Agent status bar -->
+    <div id="agent-status-bar"
+         class="px-4 py-1.5 border-t border-slate-800 text-xs text-slate-500 flex items-center gap-2 hidden">
+      <span id="agent-status-dot" class="w-2 h-2 rounded-full bg-slate-600"></span>
+      <span id="agent-status-text">idle</span>
     </div>
 
-    <!-- ITQ progress -->
-    <div class="bg-slate-900 rounded p-4"
-         id="itq-progress"
-         hx-get="{{ url_for('dashboard_itq_progress') }}"
-         hx-trigger="sse:itq_answered, sse:itq_updated, sse:itq_seeded"
-         hx-swap="innerHTML">
-      {% include "_itq_progress.html" %}
+    <!-- Input -->
+    <form id="chat-form" onsubmit="sendMessage(event)"
+          class="flex gap-2 p-3 border-t border-slate-700 flex-shrink-0">
+      <textarea id="chat-input" rows="2"
+                placeholder="Direct the agent… (Ctrl+Enter to send)"
+                class="flex-1 bg-slate-800 border border-slate-700 focus:border-cyan-500
+                       px-3 py-2 rounded text-sm resize-none outline-none font-sans"></textarea>
+      <button type="submit" id="send-btn"
+              class="bg-cyan-700 hover:bg-cyan-600 px-4 py-2 rounded text-sm font-semibold self-end">
+        Send
+      </button>
+    </form>
+  </div>
+
+  <!-- Right column: live stats -->
+  <div class="w-72 flex-shrink-0 flex flex-col gap-3 overflow-y-auto">
+
+    <!-- Investigation status -->
+    <div id="inv-status" class="bg-slate-900 rounded-lg p-3 flex items-center gap-3">
+      <span id="inv-pill" class="text-xs font-bold px-2 py-0.5 rounded-full uppercase bg-slate-700 text-slate-300">…</span>
+      <span id="inv-stats" class="text-xs text-slate-400"></span>
     </div>
 
-    <!-- Pending gates count -->
+    <!-- Phase launcher -->
+    <div class="bg-slate-900 rounded-lg p-3">
+      <h3 class="text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wide">Phase Tools</h3>
+      <div class="space-y-2">
+        {% for p in phases %}
+        <div id="phase-{{ p.id }}" class="border border-slate-700 rounded p-2">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-xs text-slate-300">{{ p.name }}</span>
+            {% if p.runnable %}
+            <button onclick="runPhase('{{ p.id }}')" id="btn-{{ p.id }}"
+                    class="text-xs bg-slate-700 hover:bg-slate-600 px-2 py-0.5 rounded flex-shrink-0">
+              Run
+            </button>
+            {% else %}
+            <span class="text-xs text-slate-600 italic">agent only</span>
+            {% endif %}
+          </div>
+          {% if p.reason %}<p class="text-xs text-slate-600 mt-1">{{ p.reason }}</p>{% endif %}
+          <div id="out-{{ p.id }}" class="hidden mt-1 text-xs font-mono text-slate-400
+                                          bg-slate-950 rounded p-1.5 max-h-20 overflow-auto"></div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Findings -->
+    <div id="asr-summary" class="bg-slate-900 rounded-lg p-3">{% include "_asr_summary.html" %}</div>
+
+    <!-- Remediation -->
+    <div id="cet-summary" class="bg-slate-900 rounded-lg p-3">{% include "_cet_summary.html" %}</div>
+
+    <!-- Triage questions -->
+    <div id="itq-progress" class="bg-slate-900 rounded-lg p-3">{% include "_itq_progress.html" %}</div>
+
+    <!-- Authority gates -->
     <a href="{{ url_for('gates') }}"
-       class="block bg-slate-900 rounded p-4 hover:bg-slate-800 transition">
-      <h3 class="text-sm text-slate-400">Authority Gates</h3>
-      <p class="text-3xl mt-1 {% if pending_gate_count %}text-rose-400{% else %}text-slate-500{% endif %}">
+       class="block bg-slate-900 rounded-lg p-3 hover:bg-slate-800 transition">
+      <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Authority Gates</h3>
+      <p class="text-2xl mt-1 {% if pending_gate_count %}text-rose-400{% else %}text-slate-500{% endif %}">
         {{ pending_gate_count }}
       </p>
       <p class="text-xs text-slate-500">pending decisions</p>
     </a>
 
-    <!-- Agent runtime + cost -->
-    <div class="bg-slate-900 rounded p-4"
-         id="runtime-status"
-         hx-get="{{ url_for('dashboard_runtime_status') }}"
-         hx-trigger="sse:llm_call, sse:runtime_config_saved, every 30s"
-         hx-swap="innerHTML">
-      {% include "_runtime_status.html" %}
+    <!-- Live activity -->
+    <div class="bg-slate-900 rounded-lg p-3">
+      <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Activity</h3>
+      <div id="activity-feed" class="space-y-1 text-xs font-mono overflow-y-auto max-h-48">
+        <p class="text-slate-600 italic">No activity yet.</p>
+      </div>
     </div>
-  </aside>
 
+    <!-- Runtime -->
+    <div id="runtime-status" class="bg-slate-900 rounded-lg p-3">{% include "_runtime_status.html" %}</div>
+
+  </div>
 </div>
+
+<script>
+  // ── Live panels ───────────────────────────────────────────────────
+  Siftics.livePanel('#asr-summary',    "{{ url_for('dashboard_asr_summary') }}",    ['asr_appended','asr_updated'], 0);
+  Siftics.livePanel('#cet-summary',    "{{ url_for('dashboard_cet_summary') }}",    ['cet_appended','cet_updated'], 0);
+  Siftics.livePanel('#itq-progress',   "{{ url_for('dashboard_itq_progress') }}",   ['itq_answered','itq_updated','itq_seeded'], 0);
+  Siftics.livePanel('#runtime-status', "{{ url_for('dashboard_runtime_status') }}", ['llm_call','runtime_config_saved'], 30000);
+
+  // ── Investigation status ──────────────────────────────────────────
+  var STATE_STYLES = {
+    fresh:    { cls: 'bg-slate-700 text-slate-300',     label: 'Ready' },
+    active:   { cls: 'bg-cyan-700 text-cyan-100',       label: 'Active' },
+    complete: { cls: 'bg-emerald-700 text-emerald-100', label: 'Complete' },
+  };
+  function refreshStatus() {
+    fetch('/api/investigation/status').then(function(r){return r.json();}).then(function(d){
+      var s = STATE_STYLES[d.state] || STATE_STYLES.fresh;
+      var pill = document.getElementById('inv-pill');
+      pill.className = 'text-xs font-bold px-2 py-0.5 rounded-full uppercase ' + s.cls;
+      pill.textContent = s.label;
+      var parts = [];
+      if (d.llm_calls)    parts.push(d.llm_calls + ' calls');
+      if (d.itq_answered) parts.push(d.itq_answered + ' questions');
+      if (d.asr_count)    parts.push(d.asr_count + ' findings');
+      document.getElementById('inv-stats').textContent = parts.join(' · ');
+    }).catch(function(){});
+  }
+  refreshStatus();
+  Siftics.onSSE('llm_call', refreshStatus);
+  Siftics.onSSE('asr_appended', refreshStatus);
+  Siftics.onSSE('itq_answered', refreshStatus);
+  setInterval(refreshStatus, 60000);
+
+  // ── Activity feed ─────────────────────────────────────────────────
+  var TYPE_STYLES = { llm_call:'text-cyan-400', itq_answered:'text-emerald-400',
+    asr_appended:'text-rose-400', ic_request_approval:'text-orange-400',
+    briefing_posted:'text-slate-300', phase_complete:'text-emerald-300' };
+  function refreshActivity() {
+    fetch('/api/activity/feed').then(function(r){return r.json();}).then(function(evts){
+      var feed = document.getElementById('activity-feed');
+      if (!evts.length) return;
+      feed.innerHTML = '';
+      evts.forEach(function(e){
+        var div = document.createElement('div');
+        var cls = TYPE_STYLES[e.type] || 'text-slate-500';
+        var ts  = e.ts ? e.ts.slice(11,19) : '';
+        div.innerHTML = "<span class='text-slate-700'>" + ts + "</span> " +
+                        "<span class='" + cls + "'>" + e.label + "</span>" +
+                        (e.detail ? " <span class='text-slate-600'>" + e.detail + "</span>" : "");
+        feed.appendChild(div);
+      });
+      feed.scrollTop = feed.scrollHeight;
+    }).catch(function(){});
+  }
+  refreshActivity();
+  ['llm_call','itq_answered','asr_appended','ic_request_approval',
+   'briefing_posted','phase_complete'].forEach(function(ev){ Siftics.onSSE(ev, refreshActivity); });
+
+  // ── Phase runner ──────────────────────────────────────────────────
+  function runPhase(id) {
+    var btn = document.getElementById('btn-' + id);
+    var out = document.getElementById('out-' + id);
+    btn.disabled = true; btn.textContent = '…';
+    out.classList.remove('hidden'); out.textContent = 'Running…';
+    fetch('/api/phase/run/' + id, {method:'POST'})
+      .then(function(r){return r.json();})
+      .then(function(d){
+        out.textContent = d.output || '(no output)';
+        btn.textContent = d.ok ? '✓' : '✗';
+        btn.className = btn.className.replace('bg-slate-700', d.ok ? 'bg-emerald-800' : 'bg-rose-900');
+        refreshActivity(); refreshStatus();
+      }).catch(function(){ out.textContent = 'Failed.'; btn.disabled = false; btn.textContent = 'Run'; });
+  }
+
+  // ── Agent streaming ───────────────────────────────────────────────
+  var transcript = document.getElementById('transcript');
+  var beginBanner = document.getElementById('begin-banner');
+  var statusBar   = document.getElementById('agent-status-bar');
+  var agentRunning = false;
+
+  function showTranscript() {
+    beginBanner.classList.add('hidden');
+    transcript.classList.remove('hidden');
+    statusBar.classList.remove('hidden');
+  }
+
+  function setRunning(running) {
+    agentRunning = running;
+    var dot  = document.getElementById('agent-status-dot');
+    var text = document.getElementById('agent-status-text');
+    var send = document.getElementById('send-btn');
+    dot.className  = 'w-2 h-2 rounded-full ' + (running ? 'bg-cyan-400 animate-pulse' : 'bg-slate-600');
+    text.textContent = running ? 'agent working…' : 'idle';
+    send.disabled  = running;
+  }
+
+  function appendMsg(role, borderCls) {
+    var wrap = document.createElement('div');
+    wrap.className = 'border-l-2 pl-3 py-0.5 ' + borderCls;
+    var lbl = document.createElement('div');
+    lbl.className = 'text-xs text-slate-500 mb-0.5'; lbl.textContent = role;
+    var body = document.createElement('div');
+    body.className = 'whitespace-pre-wrap leading-snug';
+    wrap.appendChild(lbl); wrap.appendChild(body);
+    transcript.appendChild(wrap);
+    transcript.scrollTop = transcript.scrollHeight;
+    return body;
+  }
+
+function streamAgent(url, formData) {
+    if (agentRunning) return;
+    showTranscript();
+    setRunning(true);
+
+    fetch(url, {method:'POST', body: formData})
+      .then(function(r) {
+        if (!r.ok) { appendMsg('error','border-rose-700').textContent='HTTP '+r.status; setRunning(false); return; }
+        var reader = r.body.getReader(), dec = new TextDecoder(), buf = '', cur = null;
+        function pump() {
+          return reader.read().then(function(chunk) {
+            if (chunk.done) { setRunning(false); refreshActivity(); refreshStatus(); return; }
+            buf += dec.decode(chunk.value, {stream:true});
+            var nl;
+            while ((nl = buf.indexOf('\n')) !== -1) {
+              var line = buf.slice(0, nl).trim(); buf = buf.slice(nl+1);
+              if (!line.startsWith('data: ')) continue;
+              var evt; try { evt = JSON.parse(line.slice(6)); } catch(_){ continue; }
+              var t = evt.type;
+              if (t === 'ui') { cur = null; continue; }
+              if (t === 'system' && evt.subtype === 'init') {
+                var sifticsTools = (evt.tools||[]).filter(function(x){ return x.startsWith('siftics'); });
+                var msg = sifticsTools.length
+                  ? 'SIFTics tools loaded: ' + sifticsTools.join(', ')
+                  : 'Initialising…';
+                appendMsg('system', 'border-slate-800').textContent = msg;
+                cur = null; continue;
+              }
+              if (t === 'assistant') {
+                (evt.message && evt.message.content || []).forEach(function(c) {
+                  if (c.type === 'text' && c.text) {
+                    if (!cur) cur = appendMsg('agent', 'border-cyan-800');
+                    cur.textContent += c.text;
+                    transcript.scrollTop = transcript.scrollHeight;
+                  }
+                  // tool_use intentionally suppressed — visible in activity feed
+                });
+                continue;
+              }
+              if (t === 'result') {
+                cur = null;
+                var cost = evt.total_cost_usd ? ' · $' + evt.total_cost_usd.toFixed(4) : '';
+                appendMsg('turn complete' + cost, 'border-emerald-900').textContent = evt.result || '';
+                continue;
+              }
+              if (t === 'error') { cur = null; appendMsg('error','border-rose-700').textContent = evt.message||JSON.stringify(evt); }
+            }
+            return pump();
+          });
+        }
+        return pump();
+      })
+      .catch(function(err){ appendMsg('error','border-rose-700').textContent='Connection failed: '+err.message; setRunning(false); });
+  }
+
+  function beginInvestigation() {
+    var btn = document.getElementById('begin-btn');
+    if (btn) btn.disabled = true;
+    streamAgent("{{ url_for('api_agent_start') }}", new FormData());
+  }
+
+  function sendMessage(e) {
+    e.preventDefault();
+    var inp = document.getElementById('chat-input');
+    var msg = inp.value.trim();
+    if (!msg || agentRunning) return;
+    appendMsg('you', 'border-slate-700').textContent = msg;
+    inp.value = '';
+    var fd = new FormData(); fd.append('message', msg);
+    streamAgent("{{ url_for('api_agent_message') }}", fd);
+  }
+
+  document.getElementById('chat-input').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      document.getElementById('chat-form').dispatchEvent(new Event('submit', {bubbles:true, cancelable:true}));
+    }
+  });
+
+  // Update begin button if session exists
+  fetch("{{ url_for('api_agent_status') }}")
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      var btn = document.getElementById('begin-btn');
+      if (btn && d.has_session) btn.textContent = 'Resume Investigation';
+    });
+</script>
+
 {% endif %}
 {% endblock %}

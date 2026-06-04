@@ -8,8 +8,8 @@ active_label_set: generic
 
 label_sets:
   generic:
-    case_header_name:    "Incident Common Operating Picture"
-    case_header_short:   "Incident COP"
+    case_header_name:    "Incident Overview"
+    case_header_short:   "SIFTics"
     systems_register:    "Affected Systems Register"
     systems_register_short: "ASR"
     remediation_register: "Containment & Eradication Tracker"

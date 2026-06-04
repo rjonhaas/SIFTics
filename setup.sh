@@ -23,7 +23,7 @@ OPTIONS
   Case initialisation
     --init-case         Create the case directory, hash-chained audit log,
                         IC HMAC key, and 35-question ITQ seed
-    --case-dir DIR      Case directory path  (default: ~/cases/dry_run)
+    --case-dir DIR      Case directory path  (default: ~/Desktop/cases/dry_run)
     --case-id  ID       Case identifier      (default: dry_run_YYYYMMDD)
 
   AI runtimes (optional — prompted interactively if none specified)
@@ -33,33 +33,34 @@ OPTIONS
     --no-runtimes       Skip the runtime prompt and install nothing
 
   Web UI
-    --start-ui          Launch siftics-ui on port 8080 after setup completes
+    --start-ui          Launch siftics-ui on port 8080 after setup completes (default: ON)
                         (binds to 0.0.0.0 — reachable from host browser)
+    --no-ui             Skip launching the UI
 
   Misc
     -q, --quiet         Suppress verbose pip output
     -h, --help          Show this help and exit
 
 EXAMPLES
-  # Express path — everything in one command:
-  ./setup.sh --init-case --start-ui
+  # Express path — UI starts automatically, no flags needed:
+  ./setup.sh
 
   # Full baseline + case + UI:
-  ./setup.sh --full-baseline --init-case --start-ui
+  ./setup.sh --full-baseline --init-case
 
   # Custom case directory:
-  ./setup.sh --init-case --case-dir ~/cases/defcon2019 --case-id defcon2019 --start-ui
+  ./setup.sh --init-case --case-dir ~/Desktop/cases/defcon2019 --case-id defcon2019
 
-  # Headless / CI (no TTY, skip IC key):
-  ./setup.sh --no-baseline --init-case
+  # Headless / CI (no TTY, skip IC key, no UI):
+  ./setup.sh --no-baseline --init-case --no-ui
 
-  # Re-run after a partial install (safe):
-  ./setup.sh --start-ui
+  # Re-run after a partial install (safe, UI restarts too):
+  ./setup.sh
 
 FILES
   .venv/                     Python virtual environment
   mcp_baseline/baseline.sqlite  Rathbun known-good Windows baseline DB
-  ~/cases/<case-id>/         Case directory (audit log, ASR, CET, ITQ, IC key)
+  ~/Desktop/cases/<case-id>/         Case directory (audit log, ASR, CET, ITQ, IC key)
   /tmp/siftics-ui.log        Web UI stdout / stderr
   /tmp/siftics_*.log         Per-step log files for baseline build / case init
 
@@ -81,9 +82,9 @@ set -euo pipefail
 
 BASELINE_MODE="seed"        # seed | full | build | none
 INIT_CASE="no"
-START_UI="no"
-CASE_DIR="${SIFTICS_CASE_DIR:-$HOME/cases/dry_run}"
-CASE_ID="dry_run_$(date +%Y%m%d)"
+START_UI="yes"
+CASE_DIR="${SIFTICS_CASE_DIR:-$HOME/Desktop/cases}"
+CASE_ID="case_$(date +%Y%m%d)"
 QUIET="no"
 INSTALL_CLAUDE="no"
 INSTALL_CODEX="no"
@@ -97,6 +98,7 @@ while [[ $# -gt 0 ]]; do
         --no-baseline)     BASELINE_MODE="none";   shift ;;
         --init-case)       INIT_CASE="yes";        shift ;;
         --start-ui)        START_UI="yes";         shift ;;
+        --no-ui)           START_UI="no";          shift ;;
         --case-dir)        CASE_DIR="$2";          shift 2 ;;
         --case-id)         CASE_ID="$2";           shift 2 ;;
         --install-claude)  INSTALL_CLAUDE="yes";   shift ;;
@@ -398,8 +400,7 @@ if [[ "$START_UI" == "yes" ]]; then
     if pgrep -f "siftics-ui run" >/dev/null; then
         skip "already running (pid $(pgrep -f 'siftics-ui run' | head -1))"
     else
-        export SIFTICS_CASE_DIR="$CASE_DIR"
-        nohup .venv/bin/siftics-ui run --case-dir "$CASE_DIR" \
+        nohup .venv/bin/siftics-ui run \
             > /tmp/siftics-ui.log 2>&1 &
         UI_PID=$!
         sleep 2
@@ -429,6 +430,8 @@ echo "Next steps:"
 if [[ "$START_UI" == "yes" ]]; then
     echo "  • Open the UI:        http://${UI_IP}:8080"
     echo "  • Tail UI log:        tail -F /tmp/siftics-ui.log"
+else
+    echo "  • Start the UI:       ./setup.sh   (or: .venv/bin/siftics-ui run &)"
 fi
 if [[ "$INIT_CASE" != "yes" ]]; then
     echo "  • Create a case:      see README QUICKSTART, or rerun with --init-case"

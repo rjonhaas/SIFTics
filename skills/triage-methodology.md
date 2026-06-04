@@ -23,6 +23,11 @@ run, when, based on the Initial Triage Questionnaire (ITQ).
 | `containment` (ITQ-060..064) | `run_artifacts.sh` · `run_execution.sh` · `run_credaccess.sh` |
 | `communication` (ITQ-070..074) | IC-driven |
 
+**Note — network/pcap evidence:** When the evidence set contains pcap, pcapng,
+or network flow files, see the **Network/pcap evidence** section below. The
+network hot-path runs before Windows host phases when both evidence types are
+present.
+
 ## Hot-path-first ordering
 
 When you start a case:
@@ -83,3 +88,119 @@ You stop a case when one of these is true:
 Do not stop just because findings have plateaued for 30 minutes. The Hypothesis
 Engine's signal scoring should drive that decision — not the absence of new
 findings, which often just means you're not looking in the right place yet.
+
+---
+
+## Network/pcap evidence — hot-path, identity-token extraction, and victim identification
+
+This section applies when the evidence set contains any pcap, pcapng, or
+network flow file (NFCAP, Zeek conn.log, Suricata eve.json). It has equal
+standing with the Windows host-artifact hot-path above.
+
+### Extended ITQ category table — network row
+
+| ITQ category | Phase action |
+|---|---|
+| `network` — evidence enumeration | Enumerate all pcap/flow files; record in case header scope (ITQ-080 equivalent). |
+| `network` — identity extraction | Extract all session-layer identity tokens before any hypothesis is opened. |
+| `network` — anonymous services | Check whether any flow contacted a known anonymous email/communication service. |
+| `network` — HTTP POST bodies | Carve POST bodies when trigger conditions below are met. |
+| `network` — victim identification | Identify victim from RCPT TO, POST body destination, or carved message content. |
+
+The network category is **not optional** when pcap is present. It runs before
+any hypothesis is opened. Reason: session-layer identifiers (cookies, POST
+bodies, SMTP headers) are the cheapest evidence to collect and the easiest
+to miss if a working theory forms first.
+
+### Network hot-path ordering
+
+When pcap or network flow files are present, run these steps **before**
+`fast_evtx_attack_filter` (or as the entire hot-path if no Windows host
+artifacts exist):
+
+**Step N-1 — identity-token extraction (MANDATORY, HOT)**
+
+Before calling `hypothesis_score add` for the first time, perform an
+exhaustive pass over all session-layer identifiers in the pcap. Extract and
+record every distinct value found in:
+
+- HTTP `Cookie:` and `Set-Cookie:` headers (full cookie string)
+- HTTP form POST bodies — all field names and values
+- SMTP `MAIL FROM:`, `RCPT TO:`, `X-Originating-IP:` headers
+- DNS PTR/A responses (map every layer-3 IP to its resolved hostname)
+- Any header containing an email address or username token
+
+Write every token as a finding note in the ASR or case notes before
+proceeding. Do not filter or deduplicate before recording — deduplication
+happens at analysis time.
+
+**This step must complete before the Hypothesis Engine is called.** This
+overrides the hypothesis-engine.md directive "open a hypothesis the moment
+you have a coherent story" — for network cases, token extraction takes
+precedence over early hypothesis opening.
+
+*Nitroba example:* `jcoach@gmail.com` in HTTP Cookie fields and
+`badguy@hotmail.com` in HTTP POST bodies are both identity tokens. Both
+must be recorded before any theory about sender identity is scored.
+
+**Step N-2 — flow summary (HOT)**
+
+Summarise all flows (src_ip, dst_ip, dst_port, bytes, timestamps). Flag any
+IP that contacted a known anonymisation service (Tor exit nodes via mcp_cti,
+or anonymous email services such as Guerrilla Mail, Mailinator, 10minutemail,
+AnonEmail). Note: `mcp_rag/anon_email_providers.json` is aspirational — if
+absent, use mcp_cti for Tor and manually note any anonymous email services
+observed in DNS queries or HTTP Host headers.
+
+**Step N-3 — HTTP POST body carving (HOT when triggered)**
+
+Run HTTP POST body carving when **any one** of these triggers fires:
+
+| Trigger | Action |
+|---|---|
+| Any flow contacted a known anonymous email service | Carve all HTTP streams in that flow's 30-minute window |
+| Any identity token is a cookie containing an email domain not matching the organisation's own domain | Carve all streams sharing that src_ip |
+| Case involves threat, harassment, extortion, or anonymous communication | Carve as mandatory step N-3 (not optional) |
+| Any SMTP flow is present | Carve and extract SMTP MAIL FROM / RCPT TO / message body |
+
+Carving must extract: full POST body, destination URL, Content-Type, and
+any email addresses or free-text message content found in the body.
+
+**Note on tooling:** `run_identity_token_extract.sh`, `run_http_carve.sh`,
+and `run_flow_summary.sh` are not yet implemented in `phases/`. Until they
+exist, perform these steps manually using tshark, Wireshark, or equivalent
+tools already on the SIFT workstation. Document each command run and its
+output in the case notes so the audit trail is preserved.
+
+### Mandatory victim/target identification (Rule PCAP-3)
+
+**Victim identity is a prerequisite gate.** No case phase may be marked
+complete and no Authority Gate for external reporting may be proposed until
+the victim has been identified or explicitly declared unrecoverable.
+
+Answer this before any external-reporting Authority Gate:
+```
+itq_answer("ITQ-085", "<victim identity or 'unknown — sources consulted: RCPT TO, POST body, carved content'>", source="agent")
+```
+
+If ITQ-085 does not exist in the seeded grid (it may not in older cases),
+record the victim identity in a briefing with the heading **VICTIM IDENTITY:**
+and note it as an open item in the case header until it can be formally added.
+
+Typical evidence sources: SMTP `RCPT TO:`, HTTP POST body destination fields
+(`to=`, `recipient=`, `email=`), free-text in carved POST bodies.
+
+Do not declare victim unknown until steps N-1 through N-3 above have all run.
+
+### Shared-medium null hypothesis (required for all network cases)
+
+Before the first `hypothesis_score add` call, assess whether the network
+origin is a shared medium (open WiFi, campus network, NAT gateway, hotel WiFi,
+or any environment where the IP does not map one-to-one to a physical person).
+
+If yes: open the attribution-uncertainty hypothesis as required by
+hypothesis-engine.md Rule 2 before scoring any other hypothesis.
+
+This is not optional. The open WiFi / shared NAT scenario is the most common
+defence against IP-based attribution and must be addressed explicitly in the
+hypothesis ledger, not assumed away.

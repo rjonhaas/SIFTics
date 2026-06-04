@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}Report{% endblock %}
+{% block content %}
+<div class="max-w-4xl mx-auto">
+
+  <!-- Header bar -->
+  <div class="flex items-center justify-between mb-6">
+    <h2 class="text-xl font-bold">Case Report</h2>
+    <a href="{{ url_for('report_download') }}"
+       class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded text-sm font-semibold">
+      &#x2B07; Download Markdown
+    </a>
+  </div>
+
+  {% if not header %}
+  <div class="bg-amber-900/40 border border-amber-700 p-4 rounded text-sm text-amber-300">
+    No case loaded.
+  </div>
+  {% else %}
+
+  <!-- Case summary card -->
+  <div class="bg-slate-900 border border-slate-700 rounded-lg p-5 mb-6">
+    <h3 class="text-lg font-bold text-slate-100 mb-3">{{ header.name }}</h3>
+    <div class="grid grid-cols-2 gap-x-8 gap-y-1 text-sm">
+      <div><span class="text-slate-500">Case ID</span><span class="ml-3 text-slate-200">{{ header.case_id }}</span></div>
+      <div><span class="text-slate-500">Impact</span>
+        <span class="ml-3 font-bold
+          {% if header.impact_level == 'critical' %}text-rose-400
+          {% elif header.impact_level == 'high' %}text-orange-400
+          {% elif header.impact_level == 'moderate' %}text-amber-400
+          {% else %}text-slate-400{% endif %}">
+          {{ header.impact_level | upper }}
+        </span>
+      </div>
+      <div><span class="text-slate-500">Commander</span><span class="ml-3 text-slate-200">{{ header.incident_commander.name }}</span></div>
+      <div><span class="text-slate-500">Opened</span><span class="ml-3 text-slate-200">{{ header.opened_at[:10] }}</span></div>
+      <div><span class="text-slate-500">Triage</span><span class="ml-3 text-slate-200">{{ itq.answered }} / {{ itq.total }} questions answered</span></div>
+      <div><span class="text-slate-500">Findings</span><span class="ml-3 text-slate-200">{{ findings | length }} affected system{{ 's' if findings | length != 1 else '' }}</span></div>
+    </div>
+  </div>
+
+  <!-- Affected systems -->
+  {% if findings %}
+  <section class="mb-6">
+    <h3 class="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3">Affected Systems</h3>
+    <div class="space-y-3">
+      {% for f in findings %}
+      <div class="bg-slate-900 border border-slate-700 rounded-lg p-4">
+        <div class="flex items-baseline justify-between mb-2">
+          <span class="font-bold text-slate-100">{{ f.serial_no }} — {{ f.system_identifier }}</span>
+          <span class="text-xs px-2 py-0.5 rounded-full
+            {% if f.impact_rating == 'critical' %}bg-rose-900 text-rose-300
+            {% elif f.impact_rating == 'high' %}bg-orange-900 text-orange-300
+            {% else %}bg-amber-900 text-amber-300{% endif %}">
+            {{ f.impact_rating }}
+          </span>
+        </div>
+        <p class="text-sm text-slate-300 mb-2">{{ f.impact_description }}</p>
+        {% if f.how_determined %}
+        <p class="text-xs text-slate-500">{{ f.how_determined }}</p>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  <!-- Briefings -->
+  {% if briefings %}
+  <section class="mb-6">
+    <h3 class="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3">
+      Briefings ({{ briefings | length }})
+    </h3>
+    <div class="space-y-4">
+      {% for b in briefings %}
+      <details {% if loop.last %}open{% endif %}
+               class="bg-slate-900 border border-slate-700 rounded-lg">
+        <summary class="px-4 py-3 cursor-pointer text-sm text-slate-300 hover:text-slate-100
+                        flex items-center justify-between">
+          <span>{{ b.briefing_id }}</span>
+          <span class="text-slate-600 text-xs">{{ b.posted_at[:10] if b.posted_at else '' }}</span>
+        </summary>
+        <div class="px-4 pb-4 pt-1 prose prose-invert prose-sm max-w-none
+                    prose-headings:text-slate-200 prose-p:text-slate-300
+                    prose-li:text-slate-300 prose-code:text-cyan-300
+                    prose-table:text-slate-300 prose-strong:text-slate-200
+                    prose-blockquote:text-slate-400">
+          <pre class="whitespace-pre-wrap text-sm text-slate-300 font-sans leading-relaxed">{{ b.summary_md }}</pre>
+        </div>
+      </details>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  <!-- Triage Q&A -->
+  {% if itq_answered %}
+  <section class="mb-6">
+    <details class="bg-slate-900 border border-slate-700 rounded-lg">
+      <summary class="px-4 py-3 cursor-pointer text-sm text-slate-300 hover:text-slate-100">
+        Triage Questions — {{ itq_answered | length }} answered
+      </summary>
+      <div class="px-4 pb-4 space-y-3 mt-2">
+        {% for q in itq_answered %}
+        <div class="border-l-2 border-slate-700 pl-3">
+          <p class="text-xs text-slate-500 mb-0.5">{{ q.question_id }} — {{ q.question }}</p>
+          <p class="text-sm text-slate-300">{{ q.answer }}</p>
+        </div>
+        {% endfor %}
+      </div>
+    </details>
+  </section>
+  {% endif %}
+
+  {% if not briefings and not findings %}
+  <div class="text-center py-16 text-slate-500">
+    <p class="text-lg mb-2">No report content yet.</p>
+    <p class="text-sm">Start an investigation from the
+      <a href="{{ url_for('dashboard') }}" class="text-cyan-400 underline">Dashboard</a>
+      and the agent will post briefings as findings are recorded.
+    </p>
+  </div>
+  {% endif %}
+
+  {% endif %}
+</div>
+{% endblock %}

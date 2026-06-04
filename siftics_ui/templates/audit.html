@@ -3,9 +3,7 @@
 {% block content %}
 <div class="flex justify-between items-baseline mb-4">
   <h2 class="text-lg">Forensic audit chain</h2>
-  <button hx-post="{{ url_for('audit_verify') }}"
-          hx-swap="innerHTML"
-          hx-target="#verify-result"
+  <button id="verify-btn"
           class="bg-cyan-700 hover:bg-cyan-600 px-3 py-1.5 text-sm rounded">
     Verify chain
   </button>
@@ -40,18 +38,26 @@
 </div>
 
 <script>
-  // Render verify result as nicely-formatted JSON
-  document.body.addEventListener("htmx:afterSwap", (e) => {
-    if (e.detail.target.id !== "verify-result") return;
-    try {
-      const data = JSON.parse(e.detail.target.textContent);
-      e.detail.target.innerHTML = data.ok
-        ? "<span class='text-emerald-400'>✓ chain intact — " +
-          "no tampering detected</span>"
-        : "<div class='text-rose-400'>✗ chain broken</div>" +
-          "<pre class='text-xs mt-2 text-rose-300'>" +
-          (data.errors || []).join("\n") + "</pre>";
-    } catch (_) {}
+  var btn = document.getElementById('verify-btn');
+  var resultEl = document.getElementById('verify-result');
+  btn.addEventListener('click', function () {
+    btn.disabled = true;
+    btn.textContent = 'Verifying…';
+    fetch("{{ url_for('audit_verify') }}", { method: 'POST' })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        resultEl.innerHTML = data.ok
+          ? "<span class='text-emerald-400'>&#x2713; chain intact — no tampering detected</span>"
+          : "<div class='text-rose-400'>&#x2717; chain broken</div>" +
+            "<pre class='text-xs mt-2 text-rose-300'>" + (data.errors || []).join('\n') + "</pre>";
+      })
+      .catch(function () {
+        resultEl.innerHTML = "<span class='text-rose-400'>&#x26A0; Verify request failed.</span>";
+      })
+      .finally(function () {
+        btn.disabled = false;
+        btn.textContent = 'Verify chain';
+      });
   });
 </script>
 {% endblock %}
