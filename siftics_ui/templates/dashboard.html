@@ -275,7 +275,7 @@ function streamAgent(url, formData) {
               if (t === 'result') {
                 cur = null;
                 var cost = evt.total_cost_usd ? ' · $' + evt.total_cost_usd.toFixed(4) : '';
-                appendMsg('turn complete' + cost, 'border-emerald-900').textContent = evt.result || '';
+                if (cost) appendMsg('turn complete' + cost, 'border-emerald-900');
                 continue;
               }
               if (t === 'error') { cur = null; appendMsg('error','border-rose-700').textContent = evt.message||JSON.stringify(evt); }

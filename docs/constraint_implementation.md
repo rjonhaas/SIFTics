@@ -46,6 +46,16 @@ SIFTics's rules cannot be ignored because the offending function calls **never r
 python -m pytest tests/test_constraints.py -v
 ```
 
+### When do Authority Gates fire?
+
+The three gated MCP actions (`execute_hunt_package`, `escalate_to_cold`, `isolate_host`) are **response-side actions** that only arise in live, active investigations with fleet EDR and reachable endpoints. For static offline forensic image analysis — the primary use case demonstrated in the NIST CFReDS walkthrough — none of these actions are ever called, by design.
+
+This is intentional, not a gap. Read-only forensic analysis (mounting images, running phase scripts, querying the COP) carries **no blast radius**: the worst a misaligned agent can do is write a wrong finding to a local JSONL file, which the IC can correct. Gating every phase script invocation would add friction with no safety value.
+
+The gates exist for the moment an investigation pivots from *analysis* to *active containment* — fleet-wide hunts, cold-path deep forensics on live hosts, or network isolation orders. Those are the decisions that cannot be undone and warrant cryptographic IC sign-off.
+
+**In offline DFIR demos:** the gate mechanism is fully exercised by the bypass-attempt tests (T5, T6, T8a–T8g). Judges wanting to see a live gate flow can trigger one manually — call `request_approval` from the `mcp_ic_approval` surface, then open `http://localhost:8080/gates` to approve it with the IC passphrase.
+
 ---
 
 ## 3. The 4 prompt-based guardrails (honestly labelled)

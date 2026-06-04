@@ -635,6 +635,9 @@ def _stream_agent(cmd: list, env: dict, case_path: Path):
     if not lock.acquire(blocking=False):
         yield "data: " + json.dumps({"type": "error", "message": "Agent is already running."}) + "\n\n"
         return
+    # Accumulate token usage across all assistant turns so we can write a
+    # single llm_call audit event when the result event arrives.
+    _usage = {"input": 0, "cached_read": 0, "cached_creation": 0, "output": 0, "model": ""}
     try:
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                 text=True, env=env)
@@ -650,6 +653,43 @@ def _stream_agent(cmd: list, env: dict, case_path: Path):
                 sess = _read_session(case_path)
                 sess["session_id"] = evt["session_id"]
                 _write_session(case_path, sess)
+            elif evt.get("type") == "assistant":
+                msg = evt.get("message", {})
+                if not _usage["model"] and msg.get("model"):
+                    _usage["model"] = msg["model"]
+                u = msg.get("usage") or {}
+                _usage["input"] += int(u.get("input_tokens", 0))
+                _usage["cached_read"] += int(u.get("cache_read_input_tokens", 0))
+                _usage["cached_creation"] += int(u.get("cache_creation_input_tokens", 0))
+                _usage["output"] += int(u.get("output_tokens", 0))
+            elif evt.get("type") == "result":
+                try:
+                    cost_usd = float(
+                        evt.get("total_cost_usd") or evt.get("cost_usd") or 0.0
+                    )
+                    inp = _usage["input"]
+                    hit_rate = round(_usage["cached_read"] / inp, 4) if inp else 0.0
+                    old_case = os.environ.get("SIFTICS_CASE_DIR")
+                    os.environ["SIFTICS_CASE_DIR"] = str(case_path)
+                    try:
+                        audit.append_event("llm_call", {
+                            "model": _usage["model"] or "claude-code",
+                            "task_class": "investigator",
+                            "purpose": "claude_code_agent_turn",
+                            "input_tokens": inp,
+                            "cached_read_tokens": _usage["cached_read"],
+                            "cached_creation_tokens": _usage["cached_creation"],
+                            "output_tokens": _usage["output"],
+                            "cost_usd": round(cost_usd, 6),
+                            "cache_hit_rate": hit_rate,
+                        }, actor="claude_code_agent")
+                    finally:
+                        if old_case is None:
+                            os.environ.pop("SIFTICS_CASE_DIR", None)
+                        else:
+                            os.environ["SIFTICS_CASE_DIR"] = old_case
+                except Exception:
+                    pass
             yield "data: " + json.dumps(evt) + "\n\n"
         proc.wait()
     finally:
@@ -717,8 +757,10 @@ def _runtime_status() -> dict:
         pass
     budget = cfg.cost_budget_per_case_usd
     pct = (cur_cost / budget * 100.0) if budget > 0 else 0.0
+    # The agent is always run via `claude` subprocess regardless of agent.yaml;
+    # reflect the actual runtime label rather than the config value.
     return {
-        "runtime": cfg.runtime,
+        "runtime": "claude_code",
         "budget_usd": budget,
         "spent_usd": round(cur_cost, 4),
         "pct": round(pct, 1),
