@@ -156,6 +156,21 @@ def create_app() -> Flask:
         lines.append(f"**Opened:** {header.get('opened_at', '')[:10]}  ")
         lines.append(f"**Impact:** {header.get('impact_level', '').upper()}  \n")
 
+        # Evidence findings chain
+        try:
+            from siftics import findings as findings_lib
+            evidence_findings = findings_lib.finding_list()
+        except Exception:
+            evidence_findings = []
+        if evidence_findings:
+            lines.append("---\n## Evidence Findings\n")
+            for ef in evidence_findings:
+                lines.append(f"### {ef.get('finding_id')} — {ef.get('claim', '')}")
+                lines.append(f"**Artifact:** `{ef.get('artifact_path', '')}` in `{ef.get('artifact_source', '')}`  ")
+                lines.append(f"**Tool:** {ef.get('tool', '')}  ")
+                lines.append(f"**Command:** `{ef.get('command', '')}`  ")
+                lines.append(f"**Output:**\n```\n{ef.get('output_excerpt', '')}\n```\n")
+
         if findings:
             lines.append("---\n## Affected Systems\n")
             for f in findings:
@@ -178,6 +193,15 @@ def create_app() -> Flask:
         filename = f"report_{header.get('case_id', 'case')}.md"
         return Response(md, mimetype="text/markdown",
                         headers={"Content-Disposition": f"attachment; filename={filename}"})
+
+    @app.route("/findings")
+    def findings_view():
+        from siftics import findings as findings_lib
+        try:
+            rows = findings_lib.finding_list()
+        except Exception:
+            rows = []
+        return render_template("findings.html", findings=rows)
 
     @app.route("/audit")
     def audit_view():
@@ -478,6 +502,7 @@ def create_app() -> Flask:
             "baseline_lookup":      "Baseline hash check",
             "cti_lookup":           "CTI IOC lookup",
             "briefing_posted":      "Briefing posted",
+            "finding_recorded":     "Evidence finding recorded",
             "case_initialised":     "Case initialised",
             "itq_seeded":           "ITQ seeded",
             "phase_started":        "Phase started",
@@ -498,6 +523,8 @@ def create_app() -> Flask:
                 detail = f"${cost:.4f}" if cost else ""
             elif e["type"] in ("phase_started", "phase_complete"):
                 detail = payload.get("phase_id", "")
+            elif e["type"] == "finding_recorded":
+                detail = payload.get("finding_id", "")
             readable.append({
                 "ts": e["ts"],
                 "type": e["type"],

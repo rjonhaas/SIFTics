@@ -160,7 +160,8 @@
   // ── Activity feed ─────────────────────────────────────────────────
   var TYPE_STYLES = { llm_call:'text-cyan-400', itq_answered:'text-emerald-400',
     asr_appended:'text-rose-400', ic_request_approval:'text-orange-400',
-    briefing_posted:'text-slate-300', phase_complete:'text-emerald-300' };
+    briefing_posted:'text-slate-300', phase_complete:'text-emerald-300',
+    finding_recorded:'text-violet-400' };
   function refreshActivity() {
     fetch('/api/activity/feed').then(function(r){return r.json();}).then(function(evts){
       var feed = document.getElementById('activity-feed');
@@ -180,7 +181,7 @@
   }
   refreshActivity();
   ['llm_call','itq_answered','asr_appended','ic_request_approval',
-   'briefing_posted','phase_complete'].forEach(function(ev){ Siftics.onSSE(ev, refreshActivity); });
+   'briefing_posted','phase_complete','finding_recorded'].forEach(function(ev){ Siftics.onSSE(ev, refreshActivity); });
 
   // ── Phase runner ──────────────────────────────────────────────────
   function runPhase(id) {

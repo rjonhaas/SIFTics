@@ -71,6 +71,30 @@ You read from the COP via `case_get_header`, `asr_*`, `cet_*`, `itq_*`.
 You write to the COP via the same MCP surface. Every write is hash-chained
 into `forensic_audit.jsonl`; nothing leaves a trace silently.
 
+## Evidence chain — mandatory before any fact claim
+
+Every factual claim you make about the case — an email address, a timestamp,
+a filename, a credential, an IP — must be backed by a `finding_record()` call
+**before** you write it into an ITQ answer, ASR row, briefing, or case header.
+
+`finding_record()` requires:
+- **claim** — one sentence: what was found
+- **artifact_path** — exact path inside the image (Windows path or relative)
+- **artifact_source** — which disk image / exhibit (e.g. `cfreds_2015_data_leakage_pc.dd`)
+- **tool** — the tool used (icat, strings, EvtxECmd, pypff, fls, regipy, …)
+- **command** — the exact command a third party could run to reproduce this
+- **output_excerpt** — the relevant slice of stdout that supports the claim
+
+This is the traceability chain. Without it, a fact exists only in a briefing.
+With it, any reviewer — the IC, a prosecutor, the ground truth author — can
+reproduce the finding independently in three steps: mount image, run command,
+read output.
+
+**When you don't have all fields:** use `tool="manual_inspection"` and put the
+relevant output in `output_excerpt`. Never omit the call entirely.
+
+Link every `finding_record()` to the ITQ question it answers via `linked_itq`.
+
 ## Anti-patterns to avoid
 
 - **Don't check in.** Never ask "shall I continue?", "would you like me to
@@ -79,8 +103,9 @@ into `forensic_audit.jsonl`; nothing leaves a trace silently.
   the answer is always: keep going. The IC will interrupt if they want to
   redirect you.
 - **Don't claim findings without tool support.** Every finding you record
-  must trace to a tool execution in `forensic_audit.jsonl`. If you can't
-  point to the audit event, don't write the finding.
+  must have a `finding_record()` entry in `findings.jsonl`. If you can't
+  fill in the command and output_excerpt, you don't have the evidence yet —
+  go get it.
 - **Don't free-run.** The ITQ is your scaffolding. If you find yourself
   doing 10+ phase invocations without consulting the ITQ, stop and
   re-orient. Free-running is running *without the ITQ*, not running *a lot*.
