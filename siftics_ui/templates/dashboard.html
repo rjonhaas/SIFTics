@@ -234,6 +234,27 @@
     return body;
   }
 
+  // Minimal markdown renderer — no external dependency.
+  // Handles the most common patterns the agent produces.
+  function renderMd(text) {
+    // Escape HTML entities first so we can safely inject innerHTML.
+    var s = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    // Headings: ## Heading → bold line
+    s = s.replace(/^#{1,3} (.+)$/gm, '<strong class="text-slate-100">$1</strong>');
+    // Bold **text**
+    s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    // Inline code `code`
+    s = s.replace(/`([^`]+)`/g, '<code class="bg-slate-800 px-1 rounded text-xs font-mono text-emerald-300">$1</code>');
+    // Horizontal rule ---
+    s = s.replace(/^---+$/gm, '<hr class="border-slate-700 my-1">');
+    // Newlines → <br>
+    s = s.replace(/\n/g, '<br>');
+    return s;
+  }
+
 function streamAgent(url, formData) {
     if (agentRunning) return;
     showTranscript();
@@ -263,10 +284,14 @@ function streamAgent(url, formData) {
                 cur = null; continue;
               }
               if (t === 'assistant') {
+                // Each assistant event (one per tool-use round) gets its own bubble
+                // so successive updates appear as separate lines rather than one
+                // long concatenated block.
+                cur = null;
                 (evt.message && evt.message.content || []).forEach(function(c) {
-                  if (c.type === 'text' && c.text) {
+                  if (c.type === 'text' && c.text && c.text.trim()) {
                     if (!cur) cur = appendMsg('agent', 'border-cyan-800');
-                    cur.textContent += c.text;
+                    cur.innerHTML += renderMd(c.text);
                     transcript.scrollTop = transcript.scrollHeight;
                   }
                   // tool_use intentionally suppressed — visible in activity feed
