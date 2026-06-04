@@ -727,7 +727,8 @@ def _stream_agent(cmd: list, env: dict, case_path: Path):
 
 def _make_agent_cmd(case_path: Path, prompt: str,
                     session_id: str | None = None) -> tuple[list, dict]:
-    venv_python = str(Path(__file__).parent.parent / ".venv" / "bin" / "python3")
+    venv_bin = str(Path(__file__).parent.parent / ".venv" / "bin")
+    venv_python = str(Path(venv_bin) / "python3")
     mcp_file = Path(tempfile.mktemp(suffix=".json", prefix="siftics_mcp_"))
     mcp_file.write_text(json.dumps(_mcp_config(str(case_path), venv_python)))
     # Prompt must come before variadic flags (--mcp-config consumes subsequent args).
@@ -741,7 +742,13 @@ def _make_agent_cmd(case_path: Path, prompt: str,
            "--add-dir", str(case_path)]
     if session_id:
         cmd += ["--resume", session_id]
-    return cmd, {**os.environ, "SIFTICS_CASE_DIR": str(case_path)}
+    # Prepend venv bin to PATH so the agent's bash commands resolve pip3,
+    # python3, and all venv-installed tools to the venv versions, not the
+    # system ones (which reject installs with PEP 668 on Ubuntu 23+).
+    env = {**os.environ, "SIFTICS_CASE_DIR": str(case_path)}
+    env["PATH"] = venv_bin + os.pathsep + env.get("PATH", "")
+    env["VIRTUAL_ENV"] = str(Path(venv_bin).parent)
+    return cmd, env
 
 
 # ---------------------------------------------------------------------------
