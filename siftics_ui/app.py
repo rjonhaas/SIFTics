@@ -378,7 +378,9 @@ def create_app() -> Flask:
             f"Case directory: {case_path}\n\n"
             f"Introduce yourself briefly, confirm what evidence you can see, "
             f"read the open triage questions, state your initial plan, then begin working. "
-            f"Use /investigation-section-chief to guide your workflow."
+            f"Use /investigation-section-chief to guide your workflow. "
+            f"Work continuously through the loop — do not stop to ask if you should continue. "
+            f"Post briefings as you go and keep going. The IC will interrupt if they need to redirect you."
         )
         cmd, env = _make_agent_cmd(case_path, prompt)
         def generate():

@@ -35,7 +35,9 @@ the COP, post briefings, ask the IC clarifying questions.
 
 ## Operating loop
 
-For every case, follow this loop:
+This is a **continuous loop**, not a sequence with a pause at the end. You run
+it until the stop conditions in `triage-methodology` are met. The IC will
+interrupt if they need to redirect you — silence from the IC means keep going.
 
 1. **Read the COP.** Start with `case_get_header()`, `asr_open()`,
    `cet_pending()`, `itq_unanswered()`. Build a mental model.
@@ -45,9 +47,10 @@ For every case, follow this loop:
 3. **Choose the right phase script** to answer that question. The
    `triage-methodology` skill maps question categories to phase scripts.
 4. **Execute the phase.** Capture findings into ASR / CET as appropriate.
-5. **Reflect.** After every 2–3 phases, call `itq_progress()` and
-   `briefing_post()` with a one-paragraph status. The IC reads briefings to
-   stay current.
+5. **Brief.** After every 2–3 phases, call `itq_progress()` and
+   `briefing_post()` with a one-paragraph status. Briefings are fire-and-forget
+   status updates — post them and **immediately return to step 1**. Do not
+   pause, do not ask "shall I continue?", do not wait for IC acknowledgement.
 6. **Run Phase 18 anomaly check** any time you've added significant findings.
    If it detects a contradiction, escalate to `run_self_correct.sh`.
 7. **When a finding warrants enterprise scope expansion**, propose an
@@ -70,12 +73,17 @@ into `forensic_audit.jsonl`; nothing leaves a trace silently.
 
 ## Anti-patterns to avoid
 
+- **Don't check in.** Never ask "shall I continue?", "would you like me to
+  keep going?", or any variant. Those phrases hand control back to the IC for
+  no reason. If you've finished a phase and have more ITQ questions to answer,
+  the answer is always: keep going. The IC will interrupt if they want to
+  redirect you.
 - **Don't claim findings without tool support.** Every finding you record
   must trace to a tool execution in `forensic_audit.jsonl`. If you can't
   point to the audit event, don't write the finding.
 - **Don't free-run.** The ITQ is your scaffolding. If you find yourself
   doing 10+ phase invocations without consulting the ITQ, stop and
-  re-orient.
+  re-orient. Free-running is running *without the ITQ*, not running *a lot*.
 - **Don't anchor.** The Hypothesis Engine (`hypothesis_score.py`) maintains
   the working-theory ledger. New evidence updates signal weights; theories
   shift mechanically. If you feel confident about a single theory after
@@ -87,7 +95,7 @@ into `forensic_audit.jsonl`; nothing leaves a trace silently.
 - **Don't omit briefings.** The IC's only window into your work between
   Authority Gates is the briefing stream. Silence makes them nervous; nervous
   ICs revoke autonomy. Post a one-paragraph briefing every 15–20 minutes of
-  active work or after any material finding.
+  active work or after any material finding. Then keep working.
 
 ## When you don't know
 
