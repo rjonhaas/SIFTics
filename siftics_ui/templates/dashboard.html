@@ -205,6 +205,46 @@
   var statusBar   = document.getElementById('agent-status-bar');
   var agentRunning = false;
 
+  // Transcript persistence — keyed per case so navigating to /findings
+  // and back never requires a Resume click or costs any tokens.
+  var TX_KEY = 'siftics_tx_{{ case.case_id }}';
+  var TX_MAX = 300; // cap stored messages
+
+  function snapshotTranscript() {
+    try {
+      var items = [];
+      transcript.querySelectorAll(':scope > div').forEach(function(wrap) {
+        var lbl  = wrap.querySelector('div:first-child');
+        var body = wrap.querySelector('div:last-child');
+        var border = (wrap.className.match(/border-\S+/) || ['border-slate-700'])[0];
+        items.push({ role: lbl ? lbl.textContent : '', border: border,
+                     html: body ? body.innerHTML : '' });
+      });
+      if (items.length > TX_MAX) items = items.slice(-TX_MAX);
+      sessionStorage.setItem(TX_KEY, JSON.stringify(items));
+    } catch(_) {}
+  }
+
+  function restoreTranscript() {
+    try {
+      var stored = JSON.parse(sessionStorage.getItem(TX_KEY) || 'null');
+      if (!stored || !stored.length) return false;
+      stored.forEach(function(m) {
+        var wrap = document.createElement('div');
+        wrap.className = 'border-l-2 pl-3 py-0.5 ' + m.border;
+        var lbl = document.createElement('div');
+        lbl.className = 'text-xs text-slate-500 mb-0.5'; lbl.textContent = m.role;
+        var body = document.createElement('div');
+        body.className = 'whitespace-pre-wrap leading-snug';
+        body.innerHTML = m.html;
+        wrap.appendChild(lbl); wrap.appendChild(body);
+        transcript.appendChild(wrap);
+      });
+      transcript.scrollTop = transcript.scrollHeight;
+      return true;
+    } catch(_) { return false; }
+  }
+
   function showTranscript() {
     beginBanner.classList.add('hidden');
     transcript.classList.remove('hidden');
@@ -302,6 +342,7 @@ function streamAgent(url, formData) {
                 cur = null;
                 var cost = evt.total_cost_usd ? ' · $' + evt.total_cost_usd.toFixed(4) : '';
                 if (cost) appendMsg('turn complete' + cost, 'border-emerald-900');
+                snapshotTranscript();
                 continue;
               }
               if (t === 'error') { cur = null; appendMsg('error','border-rose-700').textContent = evt.message||JSON.stringify(evt); }
@@ -325,7 +366,9 @@ function streamAgent(url, formData) {
     var inp = document.getElementById('chat-input');
     var msg = inp.value.trim();
     if (!msg || agentRunning) return;
-    appendMsg('you', 'border-slate-700').textContent = msg;
+    var userBubble = appendMsg('you', 'border-slate-700');
+    userBubble.textContent = msg;
+    snapshotTranscript();
     inp.value = '';
     var fd = new FormData(); fd.append('message', msg);
     streamAgent("{{ url_for('api_agent_message') }}", fd);
@@ -338,13 +381,19 @@ function streamAgent(url, formData) {
     }
   });
 
-  // Update begin button if session exists
-  fetch("{{ url_for('api_agent_status') }}")
-    .then(function(r){ return r.json(); })
-    .then(function(d){
-      var btn = document.getElementById('begin-btn');
-      if (btn && d.has_session) btn.textContent = 'Resume Investigation';
-    });
+  // On load: restore stored transcript (zero tokens) or fall back to banner.
+  if (restoreTranscript()) {
+    showTranscript();
+    setRunning(false);
+  } else {
+    // No stored transcript — show banner; update button text if session exists.
+    fetch("{{ url_for('api_agent_status') }}")
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        var btn = document.getElementById('begin-btn');
+        if (btn && d.has_session) btn.textContent = 'Resume Investigation';
+      });
+  }
 </script>
 
 {% endif %}
