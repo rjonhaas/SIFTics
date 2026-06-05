@@ -139,9 +139,10 @@ overrides the hypothesis-engine.md directive "open a hypothesis the moment
 you have a coherent story" — for network cases, token extraction takes
 precedence over early hypothesis opening.
 
-*Nitroba example:* `jcoachj@gmail.com` appears in Gmail `gmailchat=`
-cookie fields from `192.168.15.4`. That is the identity token. Record it
-before forming any theory about sender identity.
+A Gmail `gmailchat=` cookie value is an identity token. An SMTP `RCPT TO:`
+address is an identity token. A POST body field named `to=` or `email=` is
+an identity token. Record all of them before forming any theory about sender
+identity.
 
 **Step N-2 — flow summary (HOT)**
 
@@ -294,16 +295,11 @@ vol -f image.mem windows.cmdscan      # IN-MEMORY command history from csrss.exe
 
 **Why `consoles` and `cmdscan` are mandatory:**
 Command history lives in `csrss.exe` / `conhost.exe` memory, not in cmd.exe's
-argument list. A cmd.exe that appears clean in pstree (parented by explorer.exe,
-no suspicious args) can still have 17 commands of attacker history recoverable
+argument list. A cmd.exe that appears entirely clean in pstree — normal parent,
+no suspicious args — can still have a full attacker command history recoverable
 from `consoles`/`cmdscan`. This is where `net user`, `netsh`, and `net localgroup`
-commands show up. If you skip these, you will miss account creation and firewall
-modification evidence even when the process tree looks clean.
-
-*Webserver case lesson:* cmd.exe PID 1972, parented by explorer.exe with no
-suspicious args in pstree, was the shell where `net user user1 user1 /add`,
-`net user hacker hacker /add`, and `netsh firewall set service type=remotedesktop`
-ran. The evidence was in csrss.exe PID 524 via `cmdscan`, not in pstree.
+commands show up. If you skip these plugins you will miss account creation and
+firewall modification evidence even when the process tree looks innocent.
 
 ### Tier 2 — run when initial access or RCE is confirmed
 
@@ -375,7 +371,7 @@ python3 -m evtx /mnt/img/Windows/System32/winevt/Logs/Security.evtx \
 ```
 netsh firewall set service type=remotedesktop mode=enable scope=subnet
 netsh advfirewall firewall add rule name="RDP" dir=in action=allow protocol=TCP localport=3389
-net localgroup "Remote Desktop Users" user1 /add
+net localgroup "Remote Desktop Users" <username> /add
 ```
 
 **2. Registry — Windows Firewall rules** (on-disk or in-memory via printkey):
@@ -412,8 +408,9 @@ because the journal is circular and overwrites more slowly than the MFT. This is
 the last resort for recovering evidence of dropped-and-deleted payloads.
 
 **Do not skip this step** when you find temporary files in the access log that
-are absent from the disk. The fourth dropper in the webserver case (tmpbiwuc.php)
-was findable via this path.
+are absent from the disk. Dropped-and-deleted payloads that are gone from
+MFT are often still recoverable here because the journal is circular and
+overwrites more slowly.
 
 ### Setup.evtx for installed-software evidence
 

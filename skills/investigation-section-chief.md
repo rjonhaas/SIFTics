@@ -85,7 +85,7 @@ a filename, a credential, an IP — must be backed by a `finding_record()` call
 `finding_record()` requires:
 - **claim** — one sentence: what was found
 - **artifact_path** — exact path inside the image (Windows path or relative)
-- **artifact_source** — which disk image / exhibit (e.g. `cfreds_2015_data_leakage_pc.dd`)
+- **artifact_source** — which disk image / exhibit (e.g. `disk_image.dd`, `memory.mem`)
 - **tool** — the tool used (icat, strings, EvtxECmd, pypff, fls, regipy, …)
 - **command** — the exact command a third party could run to reproduce this
 - **output_excerpt** — the relevant slice of stdout that supports the claim
@@ -180,7 +180,7 @@ hypothesis_score add "<host or theory statement>"
 
 Record the coverage result in the next briefing:
 > "Hypothesis coverage: 3 hosts, 2 theories — all covered."
-> or "Opened H-xxxx for 192.168.15.4 — had no hypothesis yet."
+> or "Opened H-xxxx for host-B — had no hypothesis yet."
 
 **This is a loop step, not guidance.** Insert it between steps 4 and 5 of
 the operating loop. If `hypothesis_score report` shows zero hypotheses at
@@ -209,11 +209,11 @@ a guilt conclusion.
 specific mechanism of the attack. Not merely sharing the same subnet or
 having generic suspicious indicators.
 
-**Nitroba example:** The attack was delivered via anonymous email. A host
-observed researching anonymous email services (DNS queries to guerrillamail,
-mailinator, etc., or browser history showing anonymous mail articles) has
-direct operational alignment with the attack vector. That host moves to the
-front of the queue. Keeping it secondary at that point is anchoring.
+**Example:** If the attack vector is anonymous email, a host observed
+researching anonymous email services (DNS queries to guerrillamail, mailinator,
+etc., or browser history showing anonymous mail articles) has direct operational
+alignment. That host moves to the front of the queue. Keeping it secondary at
+that point is anchoring.
 
 **Mechanics:**
 
