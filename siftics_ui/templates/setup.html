@@ -109,6 +109,149 @@
       </p>
     </fieldset>
 
+    <fieldset class="bg-slate-900 border border-rose-900/50 rounded p-4">
+      <legend class="px-2 text-sm text-rose-300">Response targets — Authority Gate destinations (all optional)</legend>
+
+      <div class="bg-rose-950/30 border border-rose-900 rounded p-3 mb-3 text-xs text-rose-300">
+        <strong>Higher blast radius than CTI integrations.</strong> These are the
+        systems that Authority Gates fire against. The <code>containment_action</code>
+        gate produces a structured action checklist as its universal output —
+        the targets below upgrade the checklist from "manual action required"
+        to "executable" when configured and enabled. Keys are stored in the OS
+        keychain, identical to the CTI vault above.
+      </div>
+
+      <!-- Velociraptor -->
+      <div class="mt-3 pt-3 border-t border-slate-800">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-sm font-semibold text-slate-200">Velociraptor</span>
+          {% if cfg.response_targets.velociraptor.enabled %}
+            <span class="text-xs bg-emerald-800 text-emerald-200 px-2 py-0.5 rounded">enabled</span>
+          {% else %}
+            <span class="text-xs bg-slate-700 text-slate-400 px-2 py-0.5 rounded">disabled</span>
+          {% endif %}
+          <span class="text-xs text-slate-500 ml-auto">Authority Gate: <code>execute_hunt_package</code> + host isolation in <code>containment_action</code></span>
+        </div>
+        <label class="flex items-center gap-2 mb-2 text-xs text-slate-400">
+          <input type="checkbox" name="velociraptor_enabled"
+                 {% if cfg.response_targets.velociraptor.enabled %}checked{% endif %}>
+          Enable Velociraptor target
+        </label>
+        <input type="text" name="velociraptor_url"
+               placeholder="https://velo.example.com:8000"
+               value="{{ cfg.response_targets.velociraptor.api_url }}"
+               class="w-full bg-slate-800 border border-slate-700 px-3 py-1.5 rounded font-mono text-xs mb-1">
+        <input type="text" name="velociraptor_client_cert"
+               placeholder="Path to client cert (~/.config/siftics/velociraptor/client.pem)"
+               value="{{ cfg.response_targets.velociraptor.client_cert_path }}"
+               class="w-full bg-slate-800 border border-slate-700 px-3 py-1.5 rounded font-mono text-xs mb-1">
+        <input type="text" name="velociraptor_client_key"
+               placeholder="Path to client key (file should be chmod 0600)"
+               value="{{ cfg.response_targets.velociraptor.client_key_path }}"
+               class="w-full bg-slate-800 border border-slate-700 px-3 py-1.5 rounded font-mono text-xs mb-1">
+        <input type="text" name="velociraptor_ca_cert"
+               placeholder="Path to server CA cert (optional)"
+               value="{{ cfg.response_targets.velociraptor.ca_cert_path }}"
+               class="w-full bg-slate-800 border border-slate-700 px-3 py-1.5 rounded font-mono text-xs">
+        <p class="text-xs text-slate-500 mt-1">
+          Cert file <em>paths</em> live in <code>agent.yaml</code> (not sensitive). The cert files
+          themselves should be <code>chmod 0600</code>, owner = analyst.
+        </p>
+      </div>
+
+      <!-- Elastic SIEM -->
+      <div class="mt-4 pt-3 border-t border-slate-800">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-sm font-semibold text-slate-200">Elastic SIEM</span>
+          {% if cfg.response_targets.elastic.enabled %}
+            <span class="text-xs bg-emerald-800 text-emerald-200 px-2 py-0.5 rounded">enabled</span>
+          {% else %}
+            <span class="text-xs bg-slate-700 text-slate-400 px-2 py-0.5 rounded">disabled</span>
+          {% endif %}
+          {% if targets_status.elastic_api_key %}
+            <span class="text-xs bg-emerald-800 text-emerald-200 px-2 py-0.5 rounded">key set</span>
+          {% else %}
+            <span class="text-xs bg-slate-700 text-slate-400 px-2 py-0.5 rounded">key not set</span>
+          {% endif %}
+          <span class="text-xs text-slate-500 ml-auto">Authority Gate: <code>publish_intel</code> destination</span>
+        </div>
+        <label class="flex items-center gap-2 mb-2 text-xs text-slate-400">
+          <input type="checkbox" name="elastic_enabled"
+                 {% if cfg.response_targets.elastic.enabled %}checked{% endif %}>
+          Enable Elastic SIEM target
+        </label>
+        <input type="text" name="elastic_url"
+               placeholder="https://es.example.com:9200"
+               value="{{ cfg.response_targets.elastic.url }}"
+               class="w-full bg-slate-800 border border-slate-700 px-3 py-1.5 rounded font-mono text-xs mb-1">
+        <input type="text" name="elastic_index"
+               placeholder="Index name (default: siftics-iocs)"
+               value="{{ cfg.response_targets.elastic.index }}"
+               class="w-full bg-slate-800 border border-slate-700 px-3 py-1.5 rounded font-mono text-xs mb-1">
+        <input type="password" name="elastic_api_key"
+               placeholder="{{ 'leave blank to keep existing' if targets_status.elastic_api_key else 'Elastic API key' }}"
+               autocomplete="off"
+               class="w-full bg-slate-800 border border-slate-700 px-3 py-1.5 rounded font-mono text-xs">
+        <p class="text-xs text-slate-500 mt-1">
+          API key stored in OS keychain. Type <code class="text-rose-400">CLEAR</code> to remove.
+        </p>
+      </div>
+
+      <!-- Entra ID -->
+      <div class="mt-4 pt-3 border-t border-slate-800">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-sm font-semibold text-slate-200">Microsoft Entra ID</span>
+          {% if cfg.response_targets.entra_id.enabled %}
+            <span class="text-xs bg-emerald-800 text-emerald-200 px-2 py-0.5 rounded">enabled</span>
+          {% else %}
+            <span class="text-xs bg-slate-700 text-slate-400 px-2 py-0.5 rounded">disabled</span>
+          {% endif %}
+          {% if cfg.response_targets.entra_id.live_mode %}
+            <span class="text-xs bg-rose-800 text-rose-200 px-2 py-0.5 rounded">LIVE mode</span>
+          {% else %}
+            <span class="text-xs bg-slate-700 text-slate-400 px-2 py-0.5 rounded">stub mode (recommended)</span>
+          {% endif %}
+          {% if targets_status.entra_client_secret %}
+            <span class="text-xs bg-emerald-800 text-emerald-200 px-2 py-0.5 rounded">secret set</span>
+          {% endif %}
+          <span class="text-xs text-slate-500 ml-auto">Authority Gate: identity actions in <code>containment_action</code></span>
+        </div>
+        <label class="flex items-center gap-2 mb-1 text-xs text-slate-400">
+          <input type="checkbox" name="entra_enabled"
+                 {% if cfg.response_targets.entra_id.enabled %}checked{% endif %}>
+          Enable Entra ID target
+        </label>
+        <label class="flex items-center gap-2 mb-2 text-xs text-rose-400">
+          <input type="checkbox" name="entra_live"
+                 {% if cfg.response_targets.entra_id.live_mode %}checked{% endif %}>
+          <strong>LIVE mode</strong> — actually call Graph API on gate approval (default: OFF, logs intent only)
+        </label>
+        <input type="text" name="entra_tenant"
+               placeholder="Tenant ID (GUID)"
+               value="{{ cfg.response_targets.entra_id.tenant_id }}"
+               class="w-full bg-slate-800 border border-slate-700 px-3 py-1.5 rounded font-mono text-xs mb-1">
+        <input type="text" name="entra_client_id"
+               placeholder="App registration client ID"
+               value="{{ cfg.response_targets.entra_id.client_id }}"
+               class="w-full bg-slate-800 border border-slate-700 px-3 py-1.5 rounded font-mono text-xs mb-1">
+        <input type="password" name="entra_client_secret"
+               placeholder="{{ 'leave blank to keep existing' if targets_status.entra_client_secret else 'App registration client secret' }}"
+               autocomplete="off"
+               class="w-full bg-slate-800 border border-slate-700 px-3 py-1.5 rounded font-mono text-xs">
+        <p class="text-xs text-slate-500 mt-1">
+          v1 ships in <strong>stub mode</strong> — gate approval logs intent to the
+          audit chain but does not call Graph API. Toggle LIVE mode only against
+          a Graph app registration you control (Domain.ReadWrite.All + User.ReadWrite.All).
+        </p>
+      </div>
+
+      <p class="text-xs text-slate-500 mt-4 pt-3 border-t border-slate-800">
+        All three targets are optional. The <code>containment_action</code> gate
+        always produces a structured action checklist; configured targets upgrade
+        checklist items from "manual" to "executable" but never the inverse.
+      </p>
+    </fieldset>
+
     <div class="flex gap-2 pt-2">
       <button type="submit" class="bg-cyan-600 hover:bg-cyan-500 px-4 py-2 rounded">
         Save configuration

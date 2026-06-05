@@ -338,11 +338,17 @@ def create_app() -> Flask:
             name: runtime_config.integration_key_present(getattr(cfg.integrations, name))
             for name in ("shodan", "virustotal", "osm")
         }
+        # Probe response target credential presence (only the keyring-backed ones)
+        targets_status = {
+            "elastic_api_key": runtime_config.integration_key_present(cfg.response_targets.elastic.api_key),
+            "entra_client_secret": runtime_config.integration_key_present(cfg.response_targets.entra_id.client_secret),
+        }
         return render_template("setup.html",
                                 cfg=cfg,
                                 options=options,
                                 current_runtime=cfg.runtime,
                                 integrations_status=integrations_status,
+                                targets_status=targets_status,
                                 config_path=str(runtime_config.DEFAULT_USER_CONFIG)
                                             if runtime_config.DEFAULT_USER_CONFIG.exists() else None)
 
@@ -409,7 +415,7 @@ def create_app() -> Flask:
             anthropic_key_location = runtime_config.save_anthropic_key(cfg.anthropic, key)
 
         # Integration keys — Shodan / VirusTotal / OSM
-        # We accept blank as "no change" and a special CLEAR token as "remove".
+        # Blank = no change; CLEAR = remove.
         integration_locations: dict[str, str] = {}
         for name, fallback_file in [
             ("shodan", "shodan.key"),
@@ -425,6 +431,59 @@ def create_app() -> Flask:
                 integration_locations[name] = runtime_config.save_integration_key(
                     ikey, field, fallback_file)
 
+        # Response targets — Velociraptor / Elastic / Entra ID
+        # Non-secret fields (URL, cert paths, tenant ID, etc.) go in agent.yaml.
+        # Secret fields (Elastic API key, Entra client secret) go in keyring.
+        targets_form = {
+            "velociraptor_enabled": "velociraptor_enabled" in request.form,
+            "velociraptor_url": (request.form.get("velociraptor_url") or "").strip(),
+            "velociraptor_client_cert": (request.form.get("velociraptor_client_cert") or "").strip(),
+            "velociraptor_client_key": (request.form.get("velociraptor_client_key") or "").strip(),
+            "velociraptor_ca_cert": (request.form.get("velociraptor_ca_cert") or "").strip(),
+            "elastic_enabled": "elastic_enabled" in request.form,
+            "elastic_url": (request.form.get("elastic_url") or "").strip(),
+            "elastic_index": (request.form.get("elastic_index") or "").strip(),
+            "entra_enabled": "entra_enabled" in request.form,
+            "entra_live": "entra_live" in request.form,
+            "entra_tenant": (request.form.get("entra_tenant") or "").strip(),
+            "entra_client_id": (request.form.get("entra_client_id") or "").strip(),
+        }
+        rt = cfg.response_targets
+        rt.velociraptor.enabled = targets_form["velociraptor_enabled"]
+        if targets_form["velociraptor_url"]:
+            rt.velociraptor.api_url = targets_form["velociraptor_url"]
+        if targets_form["velociraptor_client_cert"]:
+            rt.velociraptor.client_cert_path = targets_form["velociraptor_client_cert"]
+        if targets_form["velociraptor_client_key"]:
+            rt.velociraptor.client_key_path = targets_form["velociraptor_client_key"]
+        if targets_form["velociraptor_ca_cert"]:
+            rt.velociraptor.ca_cert_path = targets_form["velociraptor_ca_cert"]
+        rt.elastic.enabled = targets_form["elastic_enabled"]
+        if targets_form["elastic_url"]:
+            rt.elastic.url = targets_form["elastic_url"]
+        if targets_form["elastic_index"]:
+            rt.elastic.index = targets_form["elastic_index"]
+        rt.entra_id.enabled = targets_form["entra_enabled"]
+        rt.entra_id.live_mode = targets_form["entra_live"]
+        if targets_form["entra_tenant"]:
+            rt.entra_id.tenant_id = targets_form["entra_tenant"]
+        if targets_form["entra_client_id"]:
+            rt.entra_id.client_id = targets_form["entra_client_id"]
+
+        # Keyring-backed secrets for response targets
+        target_secret_locations: dict[str, str] = {}
+        for name, ikey, fallback_file in [
+            ("elastic_api_key", rt.elastic.api_key, "elastic.key"),
+            ("entra_client_secret", rt.entra_id.client_secret, "entra_client_secret.key"),
+        ]:
+            field = (request.form.get(name) or "").strip()
+            if field == "CLEAR":
+                runtime_config.clear_integration_key(ikey)
+                target_secret_locations[name] = "cleared"
+            elif field:
+                target_secret_locations[name] = runtime_config.save_integration_key(
+                    ikey, field, fallback_file)
+
         path = runtime_config.save_config(cfg)
 
         # Audit the LOCATIONS, never the key values.
@@ -433,7 +492,14 @@ def create_app() -> Flask:
                              "budget_usd": cfg.cost_budget_per_case_usd,
                              "config_path": str(path),
                              "anthropic_key_location": anthropic_key_location,
-                             "integration_keys_updated": integration_locations or None},
+                             "integration_keys_updated": integration_locations or None,
+                             "response_targets_enabled": {
+                                 "velociraptor": rt.velociraptor.enabled,
+                                 "elastic": rt.elastic.enabled,
+                                 "entra_id": rt.entra_id.enabled,
+                                 "entra_live_mode": rt.entra_id.live_mode,
+                             },
+                             "response_target_secrets_updated": target_secret_locations or None},
                             actor="ic")
         return redirect(url_for("dashboard"))
 
@@ -739,6 +805,7 @@ def _mcp_config(case_path: str, venv_python: str) -> dict:
         "siftics_cti":         {"command": venv_python, "args": ["-m", "mcp_cti.server"],         "env": env_block},
         "siftics_broker":      {"command": venv_python, "args": ["-m", "mcp_broker.server"],      "env": env_block},
         "siftics_intel":       {"command": venv_python, "args": ["-m", "mcp_intel.server"],       "env": env_block},
+        "siftics_containment": {"command": venv_python, "args": ["-m", "mcp_containment.server"], "env": env_block},
     }
     return {"mcpServers": servers}
 

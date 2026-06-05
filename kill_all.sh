@@ -28,6 +28,7 @@ kill_pattern "mcp_cti"          "mcp_cti.server"
 kill_pattern "mcp_ic_approval"  "mcp_ic_approval.server"
 kill_pattern "mcp_rag"          "mcp_rag.server"
 kill_pattern "mcp_intel"        "mcp_intel.server"
+kill_pattern "mcp_containment"  "mcp_containment.server"
 
 # Give processes a moment to exit cleanly
 [[ $killed -gt 0 ]] && sleep 2

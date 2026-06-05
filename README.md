@@ -170,6 +170,7 @@ pipx install --editable .
 ├── mcp_baseline/                    Rathbun known-good baseline lookup
 ├── mcp_ic_approval/                 Cryptographic Authority Gate MCP server
 ├── mcp_intel/                       STIX 2.1 / YARA / Sigma IOC generation — writes intel.jsonl
+├── mcp_containment/                 Response action checklists + containment_action gate (Velociraptor / Elastic / Entra ID)
 ├── phases/                          20 forensic phase scripts (existing SIFTics)
 │   ├── run_ntfs.sh
 │   ├── run_registry.sh
@@ -219,7 +220,7 @@ pipx install --editable .
 
 The single most important architectural property of SIFTics is **the agent cannot bypass Authority Gates because the MCP functions that would let it bypass simply do not exist on its tool surface.**
 
-There are **four gated actions** that require a cryptographically signed `ICApproval` before they execute: `execute_hunt_package` (deploy Velociraptor hunt), `containment_action` (network isolation), `evidence_acquisition` (live collection), and `publish_intel` (push IOCs to a Threat Intelligence Platform). Each gate is distinct — an approval for one is rejected at all others.
+There are **four gated actions** that require a cryptographically signed `ICApproval` before they execute: `execute_hunt_package` (deploy Velociraptor hunt), `containment_action` (host isolation, account revocation, password reset — Velociraptor/Entra ID/manual), `publish_intel` (push IOCs to a Threat Intelligence Platform — Elastic SIEM), and `escalate_to_cold` (deep forensic acquisition on a live host). Each gate is distinct — an approval for one is rejected at all others.
 
 Specifically:
 

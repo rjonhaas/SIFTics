@@ -126,6 +126,76 @@ class IntegrationsConfig:
 
 
 @dataclass
+class VelociraptorTarget:
+    """Velociraptor server — destination for execute_hunt_package gate.
+
+    Authentication is mutual TLS via the standard Velociraptor client
+    cert / key / CA bundle. File paths are not sensitive (just locations)
+    and live in agent.yaml; the cert files themselves are chmod 0600 on
+    disk under ~/.config/siftics/velociraptor/.
+    """
+    enabled: bool = False
+    api_url: str = ""                # e.g. https://velo.example.com:8000
+    client_cert_path: str = ""       # ~/.config/siftics/velociraptor/client.pem
+    client_key_path: str = ""        # ~/.config/siftics/velociraptor/client.key
+    ca_cert_path: str = ""           # ~/.config/siftics/velociraptor/ca.pem
+
+
+@dataclass
+class ElasticTarget:
+    """Elastic SIEM — destination for publish_intel gate (push IOCs to a
+    threat-intel index).
+
+    The api_key is stored in the OS keychain (siftics_elastic service).
+    """
+    enabled: bool = False
+    url: str = ""                    # e.g. https://es.example.com:9200
+    index: str = "siftics-iocs"
+    verify_tls: bool = True
+    api_key: IntegrationKey = field(default_factory=lambda: IntegrationKey(
+        api_key_env="SIFTICS_ELASTIC_API_KEY",
+        api_key_keyring_service="siftics_elastic",
+    ))
+
+
+@dataclass
+class EntraIDTarget:
+    """Microsoft Entra ID (Azure AD) — identity response target.
+
+    For the containment_action gate: revoke session tokens, reset password,
+    disable account. v1 is stubbed — the gate fires, the intent is logged
+    in the audit chain, but no Graph API call is made unless the operator
+    explicitly enables live mode.
+
+    Authentication uses the OAuth2 client credentials flow:
+      tenant_id: the M365 tenant GUID
+      client_id: the app registration client ID
+      client_secret: the app registration secret (keyring-stored)
+    """
+    enabled: bool = False
+    live_mode: bool = False          # False = log intent only (recommended)
+    tenant_id: str = ""
+    client_id: str = ""
+    client_secret: IntegrationKey = field(default_factory=lambda: IntegrationKey(
+        api_key_env="SIFTICS_ENTRA_CLIENT_SECRET",
+        api_key_keyring_service="siftics_entra",
+    ))
+
+
+@dataclass
+class ResponseTargetsConfig:
+    """Connection profiles for the systems that authority gates fire against.
+
+    None of these are required — gates produce a structured action checklist
+    as their universal output. The targets below upgrade the checklist from
+    "recommended actions" to "executed actions" when configured and enabled.
+    """
+    velociraptor: VelociraptorTarget = field(default_factory=VelociraptorTarget)
+    elastic: ElasticTarget = field(default_factory=ElasticTarget)
+    entra_id: EntraIDTarget = field(default_factory=EntraIDTarget)
+
+
+@dataclass
 class RuntimeConfig:
     runtime: Runtime = "claude_code"
     anthropic: AnthropicConfig = field(default_factory=AnthropicConfig)
@@ -134,6 +204,7 @@ class RuntimeConfig:
     claude_code: ClaudeCodeConfig = field(default_factory=ClaudeCodeConfig)
     codex: CodexConfig = field(default_factory=CodexConfig)
     integrations: IntegrationsConfig = field(default_factory=IntegrationsConfig)
+    response_targets: ResponseTargetsConfig = field(default_factory=ResponseTargetsConfig)
     # Per-case budget in USD; 0 disables the circuit breaker.
     # Ollama runs always have cost = 0 so this is effectively ignored.
     cost_budget_per_case_usd: float = 10.0
@@ -214,6 +285,38 @@ def _merge_integration_key(default: IntegrationKey, data: dict | None) -> Integr
     )
 
 
+def _build_response_targets(data: dict | None) -> ResponseTargetsConfig:
+    if not data:
+        return ResponseTargetsConfig()
+    defaults = ResponseTargetsConfig()
+    out = ResponseTargetsConfig()
+    if vd := data.get("velociraptor"):
+        out.velociraptor = VelociraptorTarget(
+            enabled=bool(vd.get("enabled", False)),
+            api_url=vd.get("api_url", ""),
+            client_cert_path=vd.get("client_cert_path", ""),
+            client_key_path=vd.get("client_key_path", ""),
+            ca_cert_path=vd.get("ca_cert_path", ""),
+        )
+    if ed := data.get("elastic"):
+        out.elastic = ElasticTarget(
+            enabled=bool(ed.get("enabled", False)),
+            url=ed.get("url", ""),
+            index=ed.get("index", "siftics-iocs"),
+            verify_tls=bool(ed.get("verify_tls", True)),
+            api_key=_merge_integration_key(defaults.elastic.api_key, ed.get("api_key")),
+        )
+    if nd := data.get("entra_id"):
+        out.entra_id = EntraIDTarget(
+            enabled=bool(nd.get("enabled", False)),
+            live_mode=bool(nd.get("live_mode", False)),
+            tenant_id=nd.get("tenant_id", ""),
+            client_id=nd.get("client_id", ""),
+            client_secret=_merge_integration_key(defaults.entra_id.client_secret, nd.get("client_secret")),
+        )
+    return out
+
+
 def _build_config(data: dict) -> RuntimeConfig:
     return RuntimeConfig(
         runtime=data.get("runtime", "claude_code"),
@@ -223,6 +326,7 @@ def _build_config(data: dict) -> RuntimeConfig:
         claude_code=_from_dict(ClaudeCodeConfig, data.get("claude_code")),
         codex=_from_dict(CodexConfig, data.get("codex")),
         integrations=_build_integrations(data.get("integrations")),
+        response_targets=_build_response_targets(data.get("response_targets")),
         cost_budget_per_case_usd=float(data.get("cost_budget_per_case_usd", 10.0)),
         warn_at_pct=int(data.get("warn_at_pct", 80)),
     )
@@ -241,6 +345,7 @@ def save_config(cfg: RuntimeConfig, path: Path | None = None) -> Path:
         "claude_code": _asdict_clean(cfg.claude_code),
         "codex": _asdict_clean(cfg.codex),
         "integrations": _asdict_clean(cfg.integrations),
+        "response_targets": _asdict_clean(cfg.response_targets),
     }
     target.write_text(yaml.safe_dump(out, sort_keys=False), encoding="utf-8")
     os.chmod(target, 0o600)

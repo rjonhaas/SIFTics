@@ -119,6 +119,42 @@ cfg = rc.load_config()
 rc.save_integration_key(cfg.integrations.shodan, "your-key-here", "shodan.key")
 ```
 
+## Optional — response targets (Authority Gate destinations)
+
+The `/setup` page also accepts connection profiles for the systems that
+Authority Gates fire against. These are higher blast radius than CTI lookups
+and are wired separately:
+
+| Target | Authority Gate | Use case |
+|---|---|---|
+| **Velociraptor** | `execute_hunt_package`, host isolation in `containment_action` | Fleet hunts, network quarantine, live collection |
+| **Elastic SIEM** | `publish_intel` destination | Push generated STIX/YARA/Sigma IOCs to a threat-intel index |
+| **Microsoft Entra ID** | identity actions in `containment_action` | Revoke session tokens, force password reset, disable user accounts |
+
+**Universal output: the action checklist.** When you call `containment_action`,
+the agent always produces a structured action checklist. Configured targets
+upgrade each checklist item from "manual action required" to "executable" —
+they never the inverse. A SIFTics deployment with zero targets configured
+still produces useful output: a step-by-step plan the IC executes by hand.
+
+**Security model for response targets:**
+
+- Non-secret fields (URLs, cert file paths, tenant IDs, app client IDs) live
+  in `agent.yaml` — they are configuration, not credentials
+- Secret fields (Elastic API key, Entra app client secret, Velociraptor client
+  key file) follow the same keyring-first pattern as the CTI vault
+- Velociraptor cert files (`client.pem`, `client.key`, `ca.pem`) should be
+  `chmod 0600` in `~/.config/siftics/velociraptor/`
+- Entra ID ships in **stub mode by default** — `containment_action` approval
+  logs the intent to the audit chain but does NOT call Graph API until you
+  explicitly toggle LIVE mode in `/setup`. This is deliberate: real Graph
+  calls lock users out of their work; the stub mode lets you exercise the
+  full gate workflow without risk
+
+Each target degrades gracefully when not configured. The Authority Gate still
+fires, the audit chain still records the IC's decision, and the action
+checklist still lists the steps with the manual command/UI path documented.
+
 ## Smoke test
 
 ```bash
