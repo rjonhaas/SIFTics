@@ -20,6 +20,9 @@ OPTIONS
                         (~30 min, ~5 GB disk cache, requires git + network)
     --no-baseline       Skip the baseline step entirely
 
+  Forensic RAG index (default: build if missing)
+    --no-rag            Skip the RAG index step (mcp_rag will return empty results)
+
   Case initialisation
     --init-case         Create the case directory, hash-chained audit log,
                         IC HMAC key, and 35-question ITQ seed
@@ -60,6 +63,7 @@ EXAMPLES
 FILES
   .venv/                     Python virtual environment
   mcp_baseline/baseline.sqlite  Rathbun known-good Windows baseline DB
+  mcp_rag/index/             Forensic RAG index (Sigma + ATT&CK + LOLBAS + Atomic Red Team)
   ~/Desktop/cases/<case-id>/         Case directory (audit log, ASR, CET, ITQ, IC key)
   /tmp/siftics-ui.log        Web UI stdout / stderr
   /tmp/siftics_*.log         Per-step log files for baseline build / case init
@@ -81,6 +85,7 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 
 BASELINE_MODE="seed"        # seed | full | build | none
+BUILD_RAG="yes"             # yes | no
 INIT_CASE="no"
 START_UI="yes"
 CASE_DIR="${SIFTICS_CASE_DIR:-$HOME/Desktop/cases}"
@@ -96,6 +101,7 @@ while [[ $# -gt 0 ]]; do
         --full-baseline)   BASELINE_MODE="full";   shift ;;
         --build-baseline)  BASELINE_MODE="build";  shift ;;
         --no-baseline)     BASELINE_MODE="none";   shift ;;
+        --no-rag)          BUILD_RAG="no";         shift ;;
         --init-case)       INIT_CASE="yes";        shift ;;
         --start-ui)        START_UI="yes";         shift ;;
         --no-ui)           START_UI="no";          shift ;;
@@ -156,8 +162,9 @@ _progress_install() {
     return $rc
 }
 
-TOTAL_STEPS=6
+TOTAL_STEPS=7
 [[ "$BASELINE_MODE" == "none" ]] && TOTAL_STEPS=$((TOTAL_STEPS - 1))
+[[ "$BUILD_RAG"      == "no"  ]] && TOTAL_STEPS=$((TOTAL_STEPS - 1))
 [[ "$INIT_CASE" == "yes"      ]] && TOTAL_STEPS=$((TOTAL_STEPS + 1))
 [[ "$START_UI"  == "yes"      ]] && TOTAL_STEPS=$((TOTAL_STEPS + 1))
 
@@ -351,11 +358,33 @@ if [[ "$BASELINE_MODE" != "none" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Step 7 — init case dir (optional)
+# Step 7 — forensic RAG index
 # ---------------------------------------------------------------------------
 
 CUR_STEP=6
 [[ "$BASELINE_MODE" == "none" ]] && CUR_STEP=5
+
+if [[ "$BUILD_RAG" == "yes" ]]; then
+    CUR_STEP=$((CUR_STEP + 1))
+    step "$CUR_STEP" "$TOTAL_STEPS" "forensic RAG index (Sigma + ATT&CK + LOLBAS + Atomic)"
+
+    if [[ -s mcp_rag/index/records.jsonl ]]; then
+        records=$(wc -l < mcp_rag/index/records.jsonl 2>/dev/null || echo "?")
+        skip "already present ($records records)"
+    else
+        yel "(clones 4 repos from GitHub, ~10-30 min on first run)"
+        "$PY" -m mcp_rag.build_index --output mcp_rag/index \
+            > /tmp/siftics_rag.log 2>&1 \
+            && ok "$(wc -l < mcp_rag/index/records.jsonl) records" \
+            || warn "RAG index build failed — mcp_rag will return empty results
+       (see /tmp/siftics_rag.log). Re-run with internet access to fix."
+    fi
+fi
+
+# ---------------------------------------------------------------------------
+# Step 8 — init case dir (optional)
+# ---------------------------------------------------------------------------
+
 
 if [[ "$INIT_CASE" == "yes" ]]; then
     CUR_STEP=$((CUR_STEP + 1))
@@ -388,7 +417,7 @@ if [[ "$INIT_CASE" == "yes" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Step 6 — start UI (optional)
+# Final step — start UI (optional)
 # ---------------------------------------------------------------------------
 
 if [[ "$START_UI" == "yes" ]]; then
