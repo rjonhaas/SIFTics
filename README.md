@@ -130,8 +130,33 @@ A 5-minute demo of this exact sequence runs in [`docs/demo_video.md`](docs/demo_
 
 - SIFT Workstation 2026.04 or newer (full OVA *or* WSL server-mode install — both supported)
 - Python 3.10+
-- ~4 GB free RAM, ~10 GB free disk for the bundled knowledge index
 - Claude Code (or any other Custom-MCP-capable agentic framework — `claude` CLI tested)
+
+### Recommended hardware
+
+SIFTics's compute footprint is dominated by the **forensic tools the agent
+drives** (mac_apt, Volatility, Plaso, Sleuth Kit, binwalk), not by SIFTics
+itself. The Flask UI + MCP servers + RAG index together use ~300 MB RAM.
+Right-size to your evidence:
+
+| Tier | CPU | RAM | Disk | What you can do |
+|---|---|---|---|---|
+| **Minimum** *(stock SIFT 2026.04 OVA)* | 4 vCPU | 8 GB | 50 GB free | Small CTF cases — PCAPs ≤ 100 MB, triage bundles ≤ 5 GB. Volatility against memory dumps ≤ 1 GB. Single case at a time. |
+| **Recommended** | 8 vCPU | 16 GB | 200 GB free | Full disk-image cases up to 25 GB mounted, memory dumps up to 4 GB, mac_apt FAST on macOS images, Plaso super-timelines on multi-GB EVTX. Multiple cases parallel. |
+| **Comfortable** *(what we tested on)* | 8 vCPU | 32 GB | 500 GB free | Everything above + parallel forensic-tool runs (mac_apt + Volatility + Plaso simultaneously). Full Rathbun baseline build (~30 min, ~5 GB cache, ~11 GB DB). All five evidence corpora resident. |
+| **Local LLM (Ollama)** | 16+ vCPU + GPU recommended | 64 GB (CPU-only) or 24 GB VRAM | 500 GB+ | Adds 20–60 GB for the model weights. `qwen2.5-coder:32b` (the configured default) needs ~24 GB VRAM for fast inference or ~64 GB system RAM for slow CPU inference. Without a GPU, expect 5–20× slower turn latency than Claude Code. |
+
+**Disk space breakdown** (full install):
+- SIFTics codebase + venv: ~600 MB
+- Forensic-RAG index: ~14 MB (Sigma 3,132 + ATT&CK 1,164 + Atomic Red Team 1,804 + LOLBAS 237)
+- Rathbun baseline DB: ~11 GB (seeded version is < 1 MB; full Rathbun via `--build-baseline`)
+- Per case: 2–50 GB depending on evidence type (raw `.pcap` < 100 MB; mounted disk image 20–50 GB)
+- Tool caches: `mcp_cti/cti_cache/` per case (< 5 MB), Plaso `~/.cache/plaso`, etc.
+
+**The hackathon judges' baseline** is the stock SIFT 2026.04 OVA (4 vCPU /
+8 GB / 100 GB). SIFTics's default demo case (`nitroba`, 56 MB PCAP) runs
+comfortably there. The larger reference cases (`cfreds` 21 GB disk image,
+`webserver` 25 GB extracted) need at least the **Recommended** tier.
 
 ### Install
 
