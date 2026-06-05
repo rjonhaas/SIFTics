@@ -62,8 +62,8 @@ These are *reference data*, not case evidence. Indexed into MCP backends so the 
 | **MITRE ATT&CK Enterprise** | 1,164 | `mcp_rag` | MITRE Open License | [github.com/mitre/cti](https://github.com/mitre/cti) |
 | **LOLBAS** | 237 | `mcp_rag` + direct lookups | MIT | [lolbas-project.github.io](https://lolbas-project.github.io) |
 | **Atomic Red Team** | 1,804 tests | `mcp_rag` | MIT | [github.com/redcanaryco/atomic-red-team](https://github.com/redcanaryco/atomic-red-team) |
-| **AndrewRathbun VanillaWindowsReference** | ~5 000 baseline entries | `mcp_baseline` | MIT | [github.com/AndrewRathbun/VanillaWindowsReference](https://github.com/AndrewRathbun/VanillaWindowsReference) |
-| **AndrewRathbun VanillaWindowsRegistryHives** | ~3 000 baseline keys | `mcp_baseline` | MIT | [github.com/AndrewRathbun/VanillaWindowsRegistryHives](https://github.com/AndrewRathbun/VanillaWindowsRegistryHives) |
+| **AndrewRathbun VanillaWindowsReference** | **24,594,056 file entries** | `mcp_baseline` | MIT | [github.com/AndrewRathbun/VanillaWindowsReference](https://github.com/AndrewRathbun/VanillaWindowsReference) |
+| **AndrewRathbun VanillaWindowsRegistryHives** | 0 *(v1 — hives are zipped binaries; CSV parser found no exports; registry lookup is a v2 item)* | `mcp_baseline` | MIT | [github.com/AndrewRathbun/VanillaWindowsRegistryHives](https://github.com/AndrewRathbun/VanillaWindowsRegistryHives) |
 | **abuse.ch URLhaus / MalwareBazaar / ThreatFox** | API-served | `mcp_cti` | abuse.ch terms | [abuse.ch](https://abuse.ch) |
 | **OpenSourceMalware.com STIX** | ~10 000 indicators | `mcp_cti` | OSM terms | [opensourcemalware.com](https://opensourcemalware.com) (API key required) |
 | **wagga40 Zircolite rules** | bundled with Zircolite | `phases/run_zircolite.sh` | DRL 1.0 | [github.com/wagga40/Zircolite-Rules-v2](https://github.com/wagga40/Zircolite-Rules-v2) |
