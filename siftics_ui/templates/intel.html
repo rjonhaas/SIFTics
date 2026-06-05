@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Intel{% endblock %}
+{% block content %}
+<div class="flex items-baseline gap-4 mb-4">
+  <h2 class="text-lg font-bold">Threat Intelligence</h2>
+  <span class="text-slate-500 text-sm">{{ iocs|length }} IOC{% if iocs|length != 1 %}s{% endif %} generated</span>
+  {% set draft_count = iocs|selectattr('status','eq','draft')|list|length %}
+  {% if draft_count %}
+    <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-orange-900 text-orange-300">{{ draft_count }} awaiting IC approval</span>
+  {% endif %}
+</div>
+
+{% if not iocs %}
+  <p class="text-slate-500 text-sm">No IOCs generated yet. The agent calls <code class="bg-slate-800 px-1 rounded text-emerald-300 text-xs">generate_ioc()</code> when a finding contains an actionable indicator.</p>
+{% else %}
+<div class="space-y-4">
+{% for ioc in iocs %}
+<div class="bg-slate-900 rounded-lg p-4 border border-slate-800">
+
+  <!-- Header row -->
+  <div class="flex items-baseline gap-3 mb-2 flex-wrap">
+    <span class="text-xs font-bold text-orange-400 font-mono">{{ ioc.ioc_id }}</span>
+    <span class="text-xs px-2 py-0.5 rounded font-mono
+      {% if ioc.ioc_type == 'email' %}bg-cyan-900 text-cyan-300
+      {% elif ioc.ioc_type == 'ip_address' %}bg-rose-900 text-rose-300
+      {% elif ioc.ioc_type == 'domain' %}bg-purple-900 text-purple-300
+      {% elif ioc.ioc_type == 'file_hash' %}bg-emerald-900 text-emerald-300
+      {% else %}bg-slate-700 text-slate-300{% endif %}">
+      {{ ioc.ioc_type }}
+    </span>
+    <span class="text-xs px-2 py-0.5 rounded font-bold
+      {% if ioc.status == 'published' %}bg-emerald-800 text-emerald-200
+      {% elif ioc.status == 'draft' %}bg-orange-900 text-orange-300
+      {% else %}bg-slate-700 text-slate-300{% endif %}">
+      {{ ioc.status }}
+    </span>
+    {% if ioc.finding_id %}
+      <span class="text-xs text-slate-500">← {{ ioc.finding_id }}</span>
+    {% endif %}
+    <span class="ml-auto text-xs text-slate-600">{{ ioc.generated_at }}</span>
+  </div>
+
+  <!-- IOC value + context -->
+  <p class="font-mono text-sm text-slate-100 mb-1">{{ ioc.ioc_value }}</p>
+  <p class="text-xs text-slate-400 mb-3">{{ ioc.context }}</p>
+
+  <!-- Artifact tabs -->
+  {% if ioc.artifacts %}
+  <div class="space-y-3">
+    {% if ioc.artifacts.stix %}
+    <div>
+      <div class="flex items-center justify-between mb-1">
+        <span class="text-xs font-semibold text-cyan-400">STIX 2.1</span>
+        <a href="{{ url_for('intel_artifact', ioc_id=ioc.ioc_id, fmt='stix') }}"
+           class="text-xs text-slate-500 hover:text-slate-300">↓ download</a>
+      </div>
+      <pre class="bg-slate-950 rounded p-2 text-xs font-mono text-slate-300 overflow-x-auto max-h-40 whitespace-pre">{{ ioc.artifacts.stix }}</pre>
+    </div>
+    {% endif %}
+    {% if ioc.artifacts.yara %}
+    <div>
+      <div class="flex items-center justify-between mb-1">
+        <span class="text-xs font-semibold text-emerald-400">YARA</span>
+        <a href="{{ url_for('intel_artifact', ioc_id=ioc.ioc_id, fmt='yara') }}"
+           class="text-xs text-slate-500 hover:text-slate-300">↓ download</a>
+      </div>
+      <pre class="bg-slate-950 rounded p-2 text-xs font-mono text-emerald-300 overflow-x-auto max-h-40 whitespace-pre">{{ ioc.artifacts.yara }}</pre>
+    </div>
+    {% endif %}
+    {% if ioc.artifacts.sigma %}
+    <div>
+      <div class="flex items-center justify-between mb-1">
+        <span class="text-xs font-semibold text-violet-400">Sigma</span>
+        <a href="{{ url_for('intel_artifact', ioc_id=ioc.ioc_id, fmt='sigma') }}"
+           class="text-xs text-slate-500 hover:text-slate-300">↓ download</a>
+      </div>
+      <pre class="bg-slate-950 rounded p-2 text-xs font-mono text-violet-300 overflow-x-auto max-h-40 whitespace-pre">{{ ioc.artifacts.sigma }}</pre>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if ioc.status == 'draft' %}
+  <p class="text-xs text-orange-400 mt-3">Awaiting IC approval — agent will request gate <code class="bg-slate-800 px-1 rounded">publish_intel</code> to push these artifacts.</p>
+  {% elif ioc.status == 'published' %}
+  <p class="text-xs text-emerald-500 mt-3">Published {{ ioc.published_at }}</p>
+  {% endif %}
+
+</div>
+{% endfor %}
+</div>
+{% endif %}
+{% endblock %}

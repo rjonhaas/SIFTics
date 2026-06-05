@@ -111,6 +111,16 @@
       <p class="text-xs text-slate-500">pending decisions</p>
     </a>
 
+    <!-- Intel IOCs -->
+    <a href="{{ url_for('intel_view') }}"
+       class="block bg-slate-900 rounded-lg p-3 hover:bg-slate-800 transition">
+      <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Intel / IOCs</h3>
+      <p class="text-2xl mt-1 {% if draft_ioc_count %}text-orange-400{% else %}text-slate-500{% endif %}">
+        {{ draft_ioc_count }}
+      </p>
+      <p class="text-xs text-slate-500">draft — awaiting IC approval</p>
+    </a>
+
     <!-- Live activity -->
     <div class="bg-slate-900 rounded-lg p-3">
       <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Activity</h3>
@@ -161,7 +171,8 @@
   var TYPE_STYLES = { llm_call:'text-cyan-400', itq_answered:'text-emerald-400',
     asr_appended:'text-rose-400', ic_request_approval:'text-orange-400',
     briefing_posted:'text-slate-300', phase_complete:'text-emerald-300',
-    finding_recorded:'text-violet-400' };
+    finding_recorded:'text-violet-400',
+    ioc_generated:'text-orange-400', intel_published:'text-emerald-400' };
   function refreshActivity() {
     fetch('/api/activity/feed').then(function(r){return r.json();}).then(function(evts){
       var feed = document.getElementById('activity-feed');
@@ -181,7 +192,8 @@
   }
   refreshActivity();
   ['llm_call','itq_answered','asr_appended','ic_request_approval',
-   'briefing_posted','phase_complete','finding_recorded'].forEach(function(ev){ Siftics.onSSE(ev, refreshActivity); });
+   'briefing_posted','phase_complete','finding_recorded',
+   'ioc_generated','intel_published'].forEach(function(ev){ Siftics.onSSE(ev, refreshActivity); });
 
   // ── Phase runner ──────────────────────────────────────────────────
   function runPhase(id) {

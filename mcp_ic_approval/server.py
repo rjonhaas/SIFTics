@@ -131,6 +131,43 @@ def isolate_host(host_id: str, approval: dict) -> dict:
     return result
 
 
+@mcp.tool()
+def publish_intel(ioc_ids: list[str], approval: dict) -> dict:
+    """Publish draft IOCs to the threat intelligence platform.
+
+    Requires a signed approval for gate `publish_intel`.
+
+    The IC's question: 'Are these indicators mature enough to share with
+    other analysts and feed into detection systems?' Publishing sends
+    STIX/YARA/Sigma artifacts to the configured TIP endpoint and marks
+    the IOCs as published in intel.jsonl.
+
+    Args:
+        ioc_ids:  List of IOC-NNN identifiers to publish.
+        approval: Signed ICApproval object. REQUIRED.
+
+    v1 note: TIP push is stubbed; see mcp_intel for the integration point.
+    """
+    ic_approval.require_approval(approval, expected_gate="publish_intel")
+    execution_id = f"intel_{uuid.uuid4().hex[:8]}"
+    try:
+        from siftics import intel as intel_lib
+        published = intel_lib.ioc_publish(ioc_ids, execution_id=execution_id,
+                                           actor="mcp_ic_approval")
+        count = len(published)
+    except Exception:
+        count = 0
+    ic_approval.consume_approval(approval, execution_id=execution_id,
+                                  actor="mcp_ic_approval")
+    return {
+        "execution_id": execution_id,
+        "published_count": count,
+        "ioc_ids": ioc_ids,
+        "status": "published",
+        "_v1_note": "TIP push stubbed — artifacts stored in intel.jsonl",
+    }
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

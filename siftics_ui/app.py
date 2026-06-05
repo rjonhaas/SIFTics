@@ -203,6 +203,29 @@ def create_app() -> Flask:
             rows = []
         return render_template("findings.html", findings=rows)
 
+    @app.route("/intel")
+    def intel_view():
+        from siftics import intel as intel_lib
+        try:
+            rows = intel_lib.ioc_list()
+        except Exception:
+            rows = []
+        return render_template("intel.html", iocs=rows)
+
+    @app.route("/intel/artifact/<ioc_id>/<fmt>")
+    def intel_artifact(ioc_id: str, fmt: str):
+        from siftics import intel as intel_lib
+        row = intel_lib.ioc_get(ioc_id)
+        if not row:
+            return "IOC not found", 404
+        content = row.get("artifacts", {}).get(fmt, "")
+        if not content:
+            return f"Format {fmt} not available for {ioc_id}", 404
+        mt = "application/json" if fmt == "stix" else "text/plain"
+        fname = f"{ioc_id}.{fmt}{'rule' if fmt == 'yara' else '.yaml' if fmt == 'sigma' else '.json'}"
+        return Response(content, mimetype=mt,
+                        headers={"Content-Disposition": f"attachment; filename={fname}"})
+
     @app.route("/audit")
     def audit_view():
         events = list(audit.iter_events(limit=200))
@@ -503,6 +526,8 @@ def create_app() -> Flask:
             "cti_lookup":           "CTI IOC lookup",
             "briefing_posted":      "Briefing posted",
             "finding_recorded":     "Evidence finding recorded",
+            "ioc_generated":        "IOC artifact generated",
+            "intel_published":      "Intel published",
             "case_initialised":     "Case initialised",
             "itq_seeded":           "ITQ seeded",
             "phase_started":        "Phase started",
@@ -525,6 +550,10 @@ def create_app() -> Flask:
                 detail = payload.get("phase_id", "")
             elif e["type"] == "finding_recorded":
                 detail = payload.get("finding_id", "")
+            elif e["type"] == "ioc_generated":
+                detail = payload.get("ioc_id", "") + " " + payload.get("ioc_type", "")
+            elif e["type"] == "intel_published":
+                detail = f"{payload.get('count', '')} IOCs"
             readable.append({
                 "ts": e["ts"],
                 "type": e["type"],
@@ -654,6 +683,7 @@ def _mcp_config(case_path: str, venv_python: str) -> dict:
         "siftics_rag":         {"command": venv_python, "args": ["-m", "mcp_rag.server"],         "env": env_block},
         "siftics_cti":         {"command": venv_python, "args": ["-m", "mcp_cti.server"],         "env": env_block},
         "siftics_broker":      {"command": venv_python, "args": ["-m", "mcp_broker.server"],      "env": env_block},
+        "siftics_intel":       {"command": venv_python, "args": ["-m", "mcp_intel.server"],       "env": env_block},
     }
     return {"mcpServers": servers}
 
@@ -772,6 +802,7 @@ def _dashboard_context() -> dict:
         "cet": _cet_summary(),
         "itq": case_state.itq_progress(),
         "pending_gate_count": len(_list_pending_gates()),
+        "draft_ioc_count": _draft_ioc_count(),
         "runtime": _runtime_status(),
         "cfg": cfg,
         "phases": PHASES,
@@ -852,6 +883,14 @@ def _cet_summary() -> dict:
         "high_priority": sum(1 for r in pending if r.get("priority_order", 99) <= 3),
         "recent": sorted(rows, key=lambda r: r.get("written_at", ""), reverse=True)[:5],
     }
+
+
+def _draft_ioc_count() -> int:
+    try:
+        from siftics import intel as intel_lib
+        return intel_lib.ioc_count(status="draft")
+    except Exception:
+        return 0
 
 
 def _list_pending_gates() -> list[dict]:

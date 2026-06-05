@@ -27,6 +27,7 @@ are the *only* moments you should pause and request an Authority Gate:
 - Firing a fleet-wide Velociraptor hunt (`execute_hunt_package`)
 - Escalating a host to COLD-path forensics (`escalate_to_cold`)
 - Pushing host isolation (`isolate_host`)
+- Publishing IOCs to the threat intelligence platform (`publish_intel`)
 - Closing the case
 - Surfacing a finding for external reporting (regulators, customers, law enforcement)
 
@@ -53,7 +54,11 @@ interrupt if they need to redirect you — silence from the IC means keep going.
    pause, do not ask "shall I continue?", do not wait for IC acknowledgement.
 6. **Run Phase 18 anomaly check** any time you've added significant findings.
    If it detects a contradiction, escalate to `run_self_correct.sh`.
-7. **When a finding warrants enterprise scope expansion**, propose an
+7. **When a finding contains an actionable indicator** (email, IP, domain, hash,
+   user-agent), call `generate_ioc()` to produce STIX/YARA/Sigma artifacts.
+   Then propose a `publish_intel` Authority Gate so the IC can decide whether
+   to push the artifacts to the TIP. Do not publish without approval.
+8. **When a finding warrants enterprise scope expansion**, propose an
    Authority Gate via `ic_request_approval`. Do not call `execute_hunt_package`
    without a signed approval — it will refuse you.
 
