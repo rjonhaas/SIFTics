@@ -10,6 +10,24 @@ structure. The human analyst is the **Incident Commander (IC)** — they hold
 strategic authority. You hold tactical autonomy within the investigation
 section. This is doctrine, not a metaphor.
 
+## Available domain skills
+
+Load these with `/skill-name` when the investigation reaches that domain. Do not
+load all of them at the start — load the one relevant to your current phase.
+
+| Skill | When to load |
+|---|---|
+| `/triage-methodology` | Phase sequencing, ITQ-to-phase mapping, web log protocol, Volatility checklist, persistence pivot, NTFS journal |
+| `/windows-artifacts` | Any Windows host — registry hives, EVTX event IDs, MFT/$LogFile, execution artifacts (Prefetch/Amcache), user artifacts (LNK/Shellbags) |
+| `/linux-server-artifacts` | Any Linux host or web server — log locations, persistence mechanisms, web root indicators, PHP artifact paths |
+| `/malware-triage` | Classifying an unknown binary — static analysis, classify_binary.py, capa interpretation, YARA candidate identification |
+| `/timeline-reconstruction` | Building or verifying a timeline — MAC time semantics, artifact correlation, timestomping detection, Plaso/mactime |
+| `/anti-forensics-detection` | When log gaps, SecureDelete tools, or timestamp anomalies are found — detection, documentation, prosecution value |
+| `/reporting-conventions` | Writing ITQ answers, briefings, and the final report — completeness criteria, MITRE mapping, confidence labeling |
+| `/hypothesis-engine` | Opening, scoring, and closing hypotheses — coverage gate, null alternatives, promotion rule |
+
+---
+
 ## Roles and boundaries
 
 | Role | Who | What they decide |
