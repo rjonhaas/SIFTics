@@ -166,7 +166,7 @@ pipx install --editable .
 ├── mcp_case/                        Case-state MCP server (asr_append, itq_answer,
 │                                     finding_record, etc.) — writes findings.jsonl
 ├── mcp_rag/                         Embedded forensic RAG (sqlite-vec, 6,337 records)
-├── mcp_cti/                         OSM STIX + abuse.ch IOC lookups
+├── mcp_cti/                         IOC enrichment — abuse.ch (always on) + Shodan/VirusTotal/OSM (keyring-gated)
 ├── mcp_baseline/                    Rathbun known-good baseline lookup
 ├── mcp_ic_approval/                 Cryptographic Authority Gate MCP server
 ├── mcp_intel/                       STIX 2.1 / YARA / Sigma IOC generation — writes intel.jsonl
@@ -236,6 +236,45 @@ python -m pytest tests/test_constraints.py -v
 ```
 
 T8a–g specifically test the IC approval boundary. T1–T7 test the other architectural guardrails (read-only mounts, namespace-guarded Velociraptor uploads, prompt-injection sanitiser, etc.). All eight must pass for the submission to claim the *architectural* (not just prompt-based) guardrail badge in criterion #4.
+
+---
+
+## API key vault — keyring-first credential storage
+
+External integration credentials (Anthropic, Shodan, VirusTotal, OpenSourceMalware)
+are stored in the **OS keychain via the Python `keyring` library** — never in
+`agent.yaml`, never in `forensic_audit.jsonl`, never in git. On Linux this is
+libsecret/SecretService (GNOME Keyring, KWallet); on macOS it is Keychain Access;
+on Windows it is Credential Vault.
+
+If no OS keychain is available, the fallback is a `chmod 0600` file under
+`~/.config/siftics/<service>.key` owned by the analyst user. The fallback never
+relaxes the security boundary — keys are still inaccessible to other users on
+the same host.
+
+**The audit chain records only the storage location**, never the value:
+
+```json
+{"type": "cti_lookup", "payload": {
+    "backend": "shodan",
+    "ioc_type": "ip",
+    "ioc_value": "203.0.113.42",
+    "found": true,
+    "key_location": "keyring:siftics_shodan"
+}}
+```
+
+A reviewer can verify which credential was used without ever seeing the value.
+
+Manual configuration paths (in resolution order, highest precedence first):
+
+1. OS keychain — `keyring.set_password("siftics_<service>", "default", key)`
+2. Environment variable — `SIFTICS_SHODAN_API_KEY`, `SIFTICS_VT_API_KEY`,
+   `SIFTICS_OSM_API_KEY`
+3. File — `~/.config/siftics/<service>.key` (chmod 0600 enforced)
+
+See `/setup` in the web UI for the recommended path, or `docs/QUICKSTART.md`
+§ "Optional — external CTI integrations" for the full security posture.
 
 ---
 

@@ -39,8 +39,9 @@
              autocomplete="off"
              class="w-full bg-slate-800 border border-slate-700 px-3 py-2 rounded font-mono text-sm">
       <p class="text-xs text-slate-500 mt-2">
-        Stored in the OS keychain if available; otherwise a chmod-600 file at
-        <code>~/.config/siftics/anthropic.key</code>. Never written to git or audit logs.
+        Stored in the OS keychain via Python <code>keyring</code> if available; otherwise
+        a <code>chmod 0600</code> file at <code>~/.config/siftics/anthropic.key</code>.
+        Never written to <code>agent.yaml</code>, the audit log, or git.
       </p>
     </fieldset>
 
@@ -55,6 +56,56 @@
       <p class="text-xs text-slate-500 mt-2">
         Hard stop: when the running total reaches this, the agent refuses further
         AI calls until you raise the limit. Set to <code>0</code> to disable.
+      </p>
+    </fieldset>
+
+    <fieldset class="bg-slate-900 border border-slate-700 rounded p-4">
+      <legend class="px-2 text-sm text-slate-300">External integrations (all optional)</legend>
+
+      <div class="bg-emerald-950/40 border border-emerald-900 rounded p-3 mb-3 text-xs text-emerald-300">
+        <strong>Security posture:</strong> keys are stored in the OS keychain
+        (libsecret / Keychain / Credential Vault) via the Python
+        <code class="bg-slate-800 px-1 rounded">keyring</code> library.
+        If no keychain is available, the fallback is a <code>chmod 0600</code> file in
+        <code>~/.config/siftics/</code>. Keys are NEVER written to
+        <code>agent.yaml</code>, NEVER logged in <code>forensic_audit.jsonl</code>,
+        and NEVER returned by any MCP tool. The audit chain records only the
+        storage location (e.g. <code>keyring:siftics_shodan</code>), not the value.
+      </div>
+
+      {% set fields = [
+        ('shodan', 'Shodan', 'IP intelligence — open ports, services, banners, vulns', 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'),
+        ('virustotal', 'VirusTotal', 'Hash / URL / domain / IP reputation', 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'),
+        ('osm', 'OpenSourceMalware', 'STIX 2.1 indicator feed', 'osm_...')
+      ] %}
+
+      {% for name, label, desc, placeholder in fields %}
+      <div class="mt-3 first:mt-0">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="text-sm font-semibold text-slate-200">{{ label }}</span>
+          {% if integrations_status[name] %}
+            <span class="text-xs bg-emerald-800 text-emerald-200 px-2 py-0.5 rounded">configured</span>
+          {% else %}
+            <span class="text-xs bg-slate-700 text-slate-400 px-2 py-0.5 rounded">not configured</span>
+          {% endif %}
+          <span class="text-xs text-slate-500 ml-auto">{{ desc }}</span>
+        </div>
+        <input type="password" name="{{ name }}_key"
+               placeholder="{{ 'leave blank to keep existing' if integrations_status[name] else placeholder }}"
+               autocomplete="off"
+               class="w-full bg-slate-800 border border-slate-700 px-3 py-2 rounded font-mono text-sm">
+        {% if integrations_status[name] %}
+        <p class="text-xs text-slate-500 mt-1">
+          Type <code class="text-rose-400">CLEAR</code> (literal, all caps) to remove the stored key.
+        </p>
+        {% endif %}
+      </div>
+      {% endfor %}
+
+      <p class="text-xs text-slate-500 mt-3 pt-3 border-t border-slate-800">
+        These integrations enable additional <code>mcp_cti</code> backends but are not
+        required for SIFTics to function. Without them, the agent records the
+        absence as a gap rather than failing.
       </p>
     </fieldset>
 

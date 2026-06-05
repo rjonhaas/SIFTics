@@ -85,6 +85,47 @@ class CodexConfig:
 
 
 @dataclass
+class IntegrationKey:
+    """Generic credential descriptor for external services.
+
+    All three resolution paths share the same security posture:
+      1. OS keychain (libsecret via `keyring` library) — preferred
+      2. Environment variable named in `api_key_env`
+      3. Plain file at `api_key_file` (chmod 0600) — fallback only
+
+    The raw key VALUE is never written to agent.yaml, never logged in the
+    forensic audit chain, and never returned by any MCP tool.
+    """
+    api_key_env: str = ""
+    api_key_file: str | None = None
+    api_key_keyring_service: str = ""
+    api_key_keyring_user: str = "default"
+    configured: bool = False  # True once a key has been saved (UI hint only)
+
+
+@dataclass
+class IntegrationsConfig:
+    """Optional external service credentials. None are required.
+
+    Each integration degrades gracefully when its key is absent — the
+    corresponding MCP tool returns an empty result and the agent records
+    the gap rather than failing.
+    """
+    shodan: IntegrationKey = field(default_factory=lambda: IntegrationKey(
+        api_key_env="SIFTICS_SHODAN_API_KEY",
+        api_key_keyring_service="siftics_shodan",
+    ))
+    virustotal: IntegrationKey = field(default_factory=lambda: IntegrationKey(
+        api_key_env="SIFTICS_VT_API_KEY",
+        api_key_keyring_service="siftics_virustotal",
+    ))
+    osm: IntegrationKey = field(default_factory=lambda: IntegrationKey(
+        api_key_env="SIFTICS_OSM_API_KEY",
+        api_key_keyring_service="siftics_osm",
+    ))
+
+
+@dataclass
 class RuntimeConfig:
     runtime: Runtime = "claude_code"
     anthropic: AnthropicConfig = field(default_factory=AnthropicConfig)
@@ -92,6 +133,7 @@ class RuntimeConfig:
     ollama: OllamaConfig = field(default_factory=OllamaConfig)
     claude_code: ClaudeCodeConfig = field(default_factory=ClaudeCodeConfig)
     codex: CodexConfig = field(default_factory=CodexConfig)
+    integrations: IntegrationsConfig = field(default_factory=IntegrationsConfig)
     # Per-case budget in USD; 0 disables the circuit breaker.
     # Ollama runs always have cost = 0 so this is effectively ignored.
     cost_budget_per_case_usd: float = 10.0
@@ -148,6 +190,30 @@ def _deep_merge(a: dict, b: dict) -> dict:
     return out
 
 
+def _build_integrations(data: dict | None) -> IntegrationsConfig:
+    if not data:
+        return IntegrationsConfig()
+    defaults = IntegrationsConfig()
+    out = IntegrationsConfig(
+        shodan=_merge_integration_key(defaults.shodan, data.get("shodan")),
+        virustotal=_merge_integration_key(defaults.virustotal, data.get("virustotal")),
+        osm=_merge_integration_key(defaults.osm, data.get("osm")),
+    )
+    return out
+
+
+def _merge_integration_key(default: IntegrationKey, data: dict | None) -> IntegrationKey:
+    if not data:
+        return default
+    return IntegrationKey(
+        api_key_env=data.get("api_key_env") or default.api_key_env,
+        api_key_file=data.get("api_key_file") or default.api_key_file,
+        api_key_keyring_service=data.get("api_key_keyring_service") or default.api_key_keyring_service,
+        api_key_keyring_user=data.get("api_key_keyring_user") or default.api_key_keyring_user,
+        configured=bool(data.get("configured", False)),
+    )
+
+
 def _build_config(data: dict) -> RuntimeConfig:
     return RuntimeConfig(
         runtime=data.get("runtime", "claude_code"),
@@ -156,6 +222,7 @@ def _build_config(data: dict) -> RuntimeConfig:
         ollama=_from_dict(OllamaConfig, data.get("ollama")),
         claude_code=_from_dict(ClaudeCodeConfig, data.get("claude_code")),
         codex=_from_dict(CodexConfig, data.get("codex")),
+        integrations=_build_integrations(data.get("integrations")),
         cost_budget_per_case_usd=float(data.get("cost_budget_per_case_usd", 10.0)),
         warn_at_pct=int(data.get("warn_at_pct", 80)),
     )
@@ -173,6 +240,7 @@ def save_config(cfg: RuntimeConfig, path: Path | None = None) -> Path:
         "ollama": _asdict_clean(cfg.ollama),
         "claude_code": _asdict_clean(cfg.claude_code),
         "codex": _asdict_clean(cfg.codex),
+        "integrations": _asdict_clean(cfg.integrations),
     }
     target.write_text(yaml.safe_dump(out, sort_keys=False), encoding="utf-8")
     os.chmod(target, 0o600)
@@ -247,3 +315,65 @@ def save_anthropic_key(cfg: AnthropicConfig, key: str) -> str:
     os.chmod(target, 0o600)
     cfg.api_key_file = str(target)
     return f"file:{target}"
+
+
+def resolve_integration_key(cfg: IntegrationKey) -> str:
+    """Resolve an integration credential. Same precedence as Anthropic/OpenAI."""
+    return _resolve_key(cfg.api_key_env, cfg.api_key_file,
+                        cfg.api_key_keyring_service, cfg.api_key_keyring_user)
+
+
+def save_integration_key(cfg: IntegrationKey, key: str, fallback_filename: str) -> str:
+    """Persist an integration credential. Returns the storage location string
+    (suitable for audit logging — describes WHERE the key lives, never its VALUE).
+
+    Tries OS keychain first; falls back to a chmod 0600 file under
+    ~/.config/siftics/<fallback_filename>.
+    """
+    key = key.strip()
+    if not key:
+        raise ValueError("empty key")
+    try:
+        import keyring  # type: ignore
+        keyring.set_password(cfg.api_key_keyring_service,
+                              cfg.api_key_keyring_user, key)
+        cfg.configured = True
+        return f"keyring:{cfg.api_key_keyring_service}/{cfg.api_key_keyring_user}"
+    except Exception:
+        pass
+
+    target = Path(cfg.api_key_file or f"~/.config/siftics/{fallback_filename}").expanduser()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(key + "\n", encoding="utf-8")
+    os.chmod(target, 0o600)
+    cfg.api_key_file = str(target)
+    cfg.configured = True
+    return f"file:{target}"
+
+
+def integration_key_present(cfg: IntegrationKey) -> bool:
+    """Check whether a key is available without exposing its value."""
+    try:
+        resolve_integration_key(cfg)
+        return True
+    except MissingAPIKey:
+        return False
+    except Exception:
+        return False
+
+
+def clear_integration_key(cfg: IntegrationKey) -> None:
+    """Remove a stored integration key from both keyring and file fallback."""
+    try:
+        import keyring  # type: ignore
+        try:
+            keyring.delete_password(cfg.api_key_keyring_service, cfg.api_key_keyring_user)
+        except Exception:
+            pass
+    except ImportError:
+        pass
+    if cfg.api_key_file:
+        p = Path(cfg.api_key_file).expanduser()
+        if p.exists():
+            p.unlink()
+    cfg.configured = False

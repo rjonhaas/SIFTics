@@ -333,10 +333,16 @@ def create_app() -> Flask:
     def setup_view():
         cfg = runtime_config.load_config(case_dir=audit.case_dir())
         options = _setup_options(cfg)
+        # Probe each integration key without exposing the value
+        integrations_status = {
+            name: runtime_config.integration_key_present(getattr(cfg.integrations, name))
+            for name in ("shodan", "virustotal", "osm")
+        }
         return render_template("setup.html",
                                 cfg=cfg,
                                 options=options,
                                 current_runtime=cfg.runtime,
+                                integrations_status=integrations_status,
                                 config_path=str(runtime_config.DEFAULT_USER_CONFIG)
                                             if runtime_config.DEFAULT_USER_CONFIG.exists() else None)
 
@@ -395,17 +401,39 @@ def create_app() -> Flask:
             cfg.cost_budget_per_case_usd = float(request.form.get("budget") or cfg.cost_budget_per_case_usd)
         except ValueError:
             pass
-        path = runtime_config.save_config(cfg)
+
+        # Anthropic key — separate flow (legacy)
         key = (request.form.get("anthropic_key") or "").strip()
-        key_location: str | None = None
+        anthropic_key_location: str | None = None
         if key:
-            key_location = runtime_config.save_anthropic_key(cfg.anthropic, key)
-        # Don't audit the key value; do audit the location.
+            anthropic_key_location = runtime_config.save_anthropic_key(cfg.anthropic, key)
+
+        # Integration keys — Shodan / VirusTotal / OSM
+        # We accept blank as "no change" and a special CLEAR token as "remove".
+        integration_locations: dict[str, str] = {}
+        for name, fallback_file in [
+            ("shodan", "shodan.key"),
+            ("virustotal", "virustotal.key"),
+            ("osm", "osm.key"),
+        ]:
+            field = (request.form.get(f"{name}_key") or "").strip()
+            ikey = getattr(cfg.integrations, name)
+            if field == "CLEAR":
+                runtime_config.clear_integration_key(ikey)
+                integration_locations[name] = "cleared"
+            elif field:
+                integration_locations[name] = runtime_config.save_integration_key(
+                    ikey, field, fallback_file)
+
+        path = runtime_config.save_config(cfg)
+
+        # Audit the LOCATIONS, never the key values.
         audit.append_event("runtime_config_saved",
                             {"runtime": cfg.runtime,
                              "budget_usd": cfg.cost_budget_per_case_usd,
                              "config_path": str(path),
-                             "api_key_location": key_location},
+                             "anthropic_key_location": anthropic_key_location,
+                             "integration_keys_updated": integration_locations or None},
                             actor="ic")
         return redirect(url_for("dashboard"))
 

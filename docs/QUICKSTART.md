@@ -83,6 +83,42 @@ Open `http://127.0.0.1:8080/setup` and choose one:
 
 If you choose Anthropic API, paste your key in the wizard's password field. It's stored in the OS keychain (or a chmod-600 file as fallback) — never logged.
 
+## Optional — external CTI integrations
+
+The `/setup` page also accepts API keys for three optional CTI services that
+enrich `mcp_cti` lookups:
+
+| Service | What it adds | Free tier |
+|---|---|---|
+| **Shodan** | `lookup_shodan_ip()` — open ports, services, banners, CVEs for any IP | yes (1 query/sec) |
+| **VirusTotal** | `lookup_virustotal()` — hash / URL / domain / IP reputation across 70+ AV engines | yes (4 queries/min) |
+| **OpenSourceMalware** | `osm_lookup_indicator()` — STIX 2.1 indicator + relationship lookups | account required |
+
+All three keys are stored in the OS keychain (libsecret on Linux, Keychain on
+macOS, Credential Vault on Windows) via the Python `keyring` library. **Security
+posture:**
+
+- The raw key value is **never** written to `agent.yaml`, the audit log, or git
+- MCP tools record only the storage location (`keyring:siftics_shodan`,
+  `env:SIFTICS_SHODAN_API_KEY`, or `file:~/.config/siftics/shodan.key`) in
+  `forensic_audit.jsonl` — never the value itself
+- If the OS keychain is unavailable, the fallback is a `chmod 0600` file under
+  `~/.config/siftics/` — owned by the analyst user, unreadable by anyone else
+- Each integration degrades gracefully when its key is absent: the corresponding
+  MCP tool returns an empty result and the agent records the absence as a gap
+- Typing the literal string `CLEAR` (all caps) in any key field removes the
+  stored credential entirely
+
+Manual key configuration without the UI is still supported via env vars
+(`SIFTICS_SHODAN_API_KEY`, `SIFTICS_VT_API_KEY`, `SIFTICS_OSM_API_KEY`) or by
+running:
+
+```python
+from siftics import runtime_config as rc
+cfg = rc.load_config()
+rc.save_integration_key(cfg.integrations.shodan, "your-key-here", "shodan.key")
+```
+
 ## Smoke test
 
 ```bash
