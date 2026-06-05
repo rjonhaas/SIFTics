@@ -4,7 +4,7 @@
 > evaluate *"where security boundaries are enforced and whether they were tested
 > for bypass."*
 >
-> SIFTics's answer: **13 architectural guardrails, all measured by `tests/test_constraints.py`; 14/14 pass.**
+> SIFTics's answer: **14 architectural guardrails, all measured by `tests/test_constraints.py`; 14/14 pass.**
 
 For a detailed list of guardrails see [`architecture.md §3`](architecture.md#3-trust-boundaries--architectural-vs-prompt-based). This file is the auditor-facing summary plus the constraint-test report.
 
@@ -22,7 +22,7 @@ SIFTics's rules cannot be ignored because the offending function calls **never r
 
 ---
 
-## 2. The 13 architectural guardrails — at a glance
+## 2. The 14 architectural guardrails — at a glance
 
 | # | Guardrail | Mechanism | Test | Result |
 |---|---|---|---|---|
@@ -39,6 +39,7 @@ SIFTics's rules cannot be ignored because the offending function calls **never r
 | G11 | Read-only evidence mounts | `verify_readonly_mounts.sh` pre-flight | T1 | ✅ (policy) |
 | G12 | No `execute_shell()` / `eval()` MCP function | Surface review — only typed functions exposed | mcp_case enumerates 14 typed fns | ✅ (review) |
 | G13 | Prompt-injection sanitiser | Regex scrub at MCP boundary before output reaches agent | T3 | ✅ |
+| G14 | IOC publishing requires signed ICApproval | `publish_intel()` requires approval parameter | (not yet in test suite) | stub |
 
 **14 sub-tests in the harness (T1 through T8g). All pass.** Re-run any time with:
 
@@ -84,7 +85,7 @@ The hackathon rules describe 4 approaches. Per Rob T. Lee's Slack: *Custom MCP S
 | 3. Multi-Agent Frameworks (AutoGen/CrewAI/LangGraph) | depends on inter-agent message validation | many | n/a |
 | 4. Alternative Agentic IDEs (Cursor/Cline/Aider) | 0–1 (file-write confirmations) | most | n/a |
 
-SIFTics sits squarely in #2 with **13 architectural guardrails** and only 4 prompt-based — heavily inverted ratio compared to the other approaches.
+SIFTics sits squarely in #2 with **14 architectural guardrails** and only 4 prompt-based — heavily inverted ratio compared to the other approaches.
 
 ---
 

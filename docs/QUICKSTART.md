@@ -66,7 +66,7 @@ You now have:
 
 - A working case dir with header, hash-chained audit log, IC HMAC key, and the 35-question ITQ seeded.
 - A baseline DB for known-good Windows-file / registry / service / scheduled-task lookups.
-- The Flask UI at `localhost:8080` with `/dashboard`, `/gates`, `/audit`, `/chat`, `/setup`.
+- The Flask UI at `localhost:8080` with `/dashboard`, `/gates`, `/audit`, `/chat`, `/setup`, `/findings`, `/intel`, `/cases`, `/report`.
 
 ## Pick your agent runtime
 
@@ -115,13 +115,12 @@ claude    # then type:  /investigation-section-chief
 
 ## Optional — full forensic-RAG knowledge corpus
 
-The shipped repo includes the schema + builder; the actual 22 000-record index is fetched as a release asset (or built locally):
+The RAG index is **pre-built and included locally** at `mcp_rag/index/` — 6,337 records (Sigma 3,132 · ATT&CK 1,164 · Atomic Red Team 1,804 · LOLBAS 237). No download step is required for judges.
+
+If you need to rebuild from upstream sources:
 
 ```bash
-# Try the GitHub release first; falls back to local build
-./scripts/download_rag_index.sh
-
-# Or always build locally (~10–30 min, network-bound)
+# Rebuild locally (~10–30 min, network-bound)
 ./scripts/download_rag_index.sh --build
 
 # Better embeddings — optional but recommended:
@@ -214,7 +213,11 @@ SIFTICS/
 │   ├── download_rag_index.sh
 │   └── sync_to_sift.sh
 └── (Python packages: siftics, siftics_ui, mcp_case, mcp_ic_approval,
-   mcp_baseline, mcp_cti, mcp_rag, mcp_broker, phases, templates, skills)
+   mcp_baseline, mcp_cti, mcp_rag, mcp_broker, mcp_intel, phases, templates,
+   skills [9 files: investigation-section-chief, triage-methodology,
+   hypothesis-engine, windows-artifacts, linux-server-artifacts,
+   malware-triage, timeline-reconstruction, anti-forensics-detection,
+   reporting-conventions])
 ```
 
 Submission deadline: **2026-06-15 23:45 EDT**. Submit ≥ 24h early; verify the YouTube link in incognito before hitting submit.

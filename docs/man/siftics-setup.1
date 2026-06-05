@@ -97,6 +97,15 @@ on port 8080 after setup completes. Binds to
 .B 0.0.0.0
 so the dashboard is reachable from a host browser at
 .BI http:// <vm\-ip> :8080 .
+Available pages:
+.BR /dashboard ,
+.BR /gates ,
+.BR /audit ,
+.BR /chat ,
+.BR /setup ,
+.BR /report ,
+.BR /findings ,
+.BR /intel .
 .SS Miscellaneous
 .TP
 .BR \-q ", " \-\-quiet
@@ -129,6 +138,8 @@ Rathbun known\-good Windows baseline database.
 Case directory containing
 .IR case.json ,
 .IR forensic_audit.jsonl ,
+.IR findings.jsonl ,
+.IR intel.jsonl ,
 .IR ic_key.hmac ,
 and the ASR/CET/ITQ JSONL registers.
 .TP

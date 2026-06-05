@@ -51,7 +51,7 @@ SIFTics turns the SIFT Workstation into a **machine-speed incident response agen
 | 3. Breadth and Depth | 20 phase scripts across Windows / Linux / memory / network / email / cross-machine attack-path — see [`phases/`](phases/) |
 | 4. Constraint Implementation | [`docs/constraint_implementation.md`](docs/constraint_implementation.md) — architectural (red) vs prompt-based (yellow) guardrails; T1–T8 bypass test results in [`tests/test_constraints.py`](tests/test_constraints.py) |
 | 5. Audit Trail Quality | `siftics/audit.py` — hash-chained `forensic_audit.jsonl` + `audit_verify.sh` |
-| 6. Usability and Documentation | This README + `docs/QUICKSTART.md` + the SIFTics web UI at `localhost:8080` |
+| 6. Usability and Documentation | This README + `docs/QUICKSTART.md` + the SIFTics web UI at `localhost:8080` — dashboard improvements: transcript persists across page reloads (sessionStorage), block-level markdown rendering (tables/lists/headings), separate message bubbles per agent turn; dedicated `/findings`, `/intel`, `/cases`, and `/report` pages |
 
 ---
 
@@ -153,16 +153,20 @@ pipx install --editable .
 │   ├── case_state.py                COP / ASR / CET / ITQ data layer
 │   ├── ic_approval.py               HMAC-SHA256 IC Authority Gate primitives
 │   └── cli.py                       sift-case-init, sift-approve
-├── siftics_ui/                      Flask + HTMX web UI (localhost:8080)
+├── siftics_ui/                      Flask + vanilla JS web UI (localhost:8080)
 │   ├── app.py
 │   ├── labels.yaml                  dual-label config (generic / cimtk)
-│   └── templates/                   Jinja templates (dashboard, gates, audit)
+│   ├── static/vendor/siftics.js     vanilla JS client (replaces HTMX)
+│   └── templates/                   Jinja templates (dashboard, gates, audit,
+│                                     findings, intel, cases, report)
 ├── mcp_broker/                      Velociraptor MCP — 10 typed functions
-├── mcp_case/                        Case-state MCP server (asr_append, itq_answer, etc.)
-├── mcp_rag/                         Embedded forensic RAG (sqlite-vec, 22k records)
+├── mcp_case/                        Case-state MCP server (asr_append, itq_answer,
+│                                     finding_record, etc.) — writes findings.jsonl
+├── mcp_rag/                         Embedded forensic RAG (sqlite-vec, 6,337 records)
 ├── mcp_cti/                         OSM STIX + abuse.ch IOC lookups
 ├── mcp_baseline/                    Rathbun known-good baseline lookup
 ├── mcp_ic_approval/                 Cryptographic Authority Gate MCP server
+├── mcp_intel/                       STIX 2.1 / YARA / Sigma IOC generation — writes intel.jsonl
 ├── phases/                          20 forensic phase scripts (existing SIFTics)
 │   ├── run_ntfs.sh
 │   ├── run_registry.sh
@@ -171,11 +175,16 @@ pipx install --editable .
 │   ├── run_anomaly_check.sh         Phase 18
 │   ├── run_self_correct.sh
 │   └── …
-├── skills/                          NIMS ICS skill files (agent guidance)
+├── skills/                          NIMS ICS skill files (agent guidance) — 9 files
 │   ├── investigation-section-chief.md
 │   ├── triage-methodology.md
 │   ├── hypothesis-engine.md
-│   └── …
+│   ├── windows-artifacts.md
+│   ├── linux-server-artifacts.md
+│   ├── malware-triage.md
+│   ├── timeline-reconstruction.md
+│   ├── anti-forensics-detection.md
+│   └── reporting-conventions.md
 ├── tests/
 │   └── test_constraints.py          T1–T8 bypass harness — Devpost criterion #4
 ├── templates/
@@ -192,6 +201,8 @@ pipx install --editable .
 └── examples/
     └── run_2026-XX-XX/              full case run — Devpost item #10
         ├── forensic_audit.jsonl
+        ├── findings.jsonl           evidence chain traceability (finding_record)
+        ├── intel.jsonl              STIX/YARA/Sigma IOC output (mcp_intel)
         ├── findings/
         └── hunt_packages/
 ```
@@ -201,6 +212,8 @@ pipx install --editable .
 ## How the architectural guardrails work
 
 The single most important architectural property of SIFTics is **the agent cannot bypass Authority Gates because the MCP functions that would let it bypass simply do not exist on its tool surface.**
+
+There are **four gated actions** that require a cryptographically signed `ICApproval` before they execute: `execute_hunt_package` (deploy Velociraptor hunt), `containment_action` (network isolation), `evidence_acquisition` (live collection), and `publish_intel` (push IOCs to a Threat Intelligence Platform). Each gate is distinct — an approval for one is rejected at all others.
 
 Specifically:
 
