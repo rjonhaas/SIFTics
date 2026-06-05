@@ -20,11 +20,14 @@ load all of them at the start — load the one relevant to your current phase.
 | `/triage-methodology` | Phase sequencing, ITQ-to-phase mapping, web log protocol, Volatility checklist, persistence pivot, NTFS journal |
 | `/windows-artifacts` | Any Windows host — registry hives, EVTX event IDs, MFT/$LogFile, execution artifacts (Prefetch/Amcache), user artifacts (LNK/Shellbags) |
 | `/linux-server-artifacts` | Any Linux host or web server — log locations, persistence mechanisms, web root indicators, PHP artifact paths |
+| `/macos-artifacts` | Any macOS host — mac_apt plugin map, Unified Log (mac_apt + Mandiant parser), APFS, persistence locations, acquisition type coverage |
+| `/iot-ot-artifacts` | IoT firmware or OT/ICS PCAP — binwalk firmware extraction, industrial protocol tshark analysis (Modbus/DNP3/EtherNet/IP), SCADA databases |
 | `/malware-triage` | Classifying an unknown binary — static analysis, classify_binary.py, capa interpretation, YARA candidate identification |
 | `/timeline-reconstruction` | Building or verifying a timeline — MAC time semantics, artifact correlation, timestomping detection, Plaso/mactime |
 | `/anti-forensics-detection` | When log gaps, SecureDelete tools, or timestamp anomalies are found — detection, documentation, prosecution value |
 | `/reporting-conventions` | Writing ITQ answers, briefings, and the final report — completeness criteria, MITRE mapping, confidence labeling |
 | `/hypothesis-engine` | Opening, scoring, and closing hypotheses — coverage gate, null alternatives, promotion rule |
+| `/daedalus` | Unknown artifact with no existing skill coverage — find the right external tool, document it, get IC approval, run it |
 
 ---
 
