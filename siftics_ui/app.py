@@ -226,16 +226,10 @@ def create_app() -> Flask:
         return Response(content, mimetype=mt,
                         headers={"Content-Disposition": f"attachment; filename={fname}"})
 
-    @app.route("/audit")
-    def audit_view():
-        events = list(audit.iter_events(limit=200))
-        events.reverse()  # newest first
-        return render_template("audit.html", events=events)
-
-    @app.route("/audit/verify", methods=["POST"])
-    def audit_verify():
-        ok, errors = audit.verify_chain()
-        return jsonify({"ok": ok, "errors": errors})
+    # NB: /audit and /audit/verify routes intentionally removed — the raw
+    # audit chain (forensic_audit.jsonl) is still written on disk and can be
+    # inspected with `audit_verify.sh` or any JSONL tool. A UI view of the
+    # raw events was not useful to operators.
 
     # -----------------------------------------------------------------
     # Cases list + switch
