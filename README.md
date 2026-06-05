@@ -75,8 +75,11 @@ cd SIFTics
 ./setup.sh --full-baseline              # ...but fetch the full ~100 MB DB from a Release
 ./setup.sh --build-baseline             # ...but build the full DB locally (~30 min)
 ./setup.sh --init-case --start-ui       # full express: case dir + UI on 127.0.0.1:8080
+./setup.sh --no-rag                     # skip the RAG index build (Step 7)
 ./setup.sh --help                       # all flags
 ```
+
+**Step 7 (RAG index):** `setup.sh` now automatically checks for `mcp_rag/index/` and builds the forensic-RAG index from GitHub sources if it is absent. Pass `--no-rag` to skip this step. If the build fails the script warns but does not abort.
 
 If `setup.sh` fails on a missing system package, it prints the exact `apt install` command and exits cleanly.
 
@@ -175,7 +178,7 @@ pipx install --editable .
 │   ├── run_anomaly_check.sh         Phase 18
 │   ├── run_self_correct.sh
 │   └── …
-├── skills/                          NIMS ICS skill files (agent guidance) — 9 files
+├── skills/                          NIMS ICS skill files (agent guidance) — 11 files
 │   ├── investigation-section-chief.md
 │   ├── triage-methodology.md
 │   ├── hypothesis-engine.md
@@ -184,7 +187,10 @@ pipx install --editable .
 │   ├── malware-triage.md
 │   ├── timeline-reconstruction.md
 │   ├── anti-forensics-detection.md
-│   └── reporting-conventions.md
+│   ├── reporting-conventions.md
+│   ├── macos-artifacts.md           mac_apt plugin map, Unified Log, APFS, persistence triage
+│   ├── iot-ot-artifacts.md          firmware (binwalk), industrial protocol PCAPs, SCADA DBs
+│   └── daedalus.md                  tool finder/implementer for unknown artifacts; 6-step workflow
 ├── tests/
 │   └── test_constraints.py          T1–T8 bypass harness — Devpost criterion #4
 ├── templates/

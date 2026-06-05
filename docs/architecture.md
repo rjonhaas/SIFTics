@@ -197,9 +197,12 @@ surface.**
 | P8 | Timeline reconstruction approach | prompt-based | Skill file `timeline-reconstruction.md` | not measured |
 | P9 | Anti-forensics detection guidance | prompt-based | Skill file `anti-forensics-detection.md` | not measured |
 | P10 | Reporting conventions | prompt-based | Skill file `reporting-conventions.md` | not measured |
+| P11 | macOS artifact triage guidance (mac_apt, Unified Log, APFS, persistence) | prompt-based | Skill file `macos-artifacts.md` | not measured |
+| P12 | IoT/OT artifact guidance (firmware blobs, industrial PCAPs, SCADA DBs) | prompt-based | Skill file `iot-ot-artifacts.md` | not measured |
+| P13 | Daedalus tool-finder/implementer workflow (6-step; IC approval required before running unfamiliar tools) | prompt-based | Skill file `daedalus.md` | not measured |
 
 **Headline:** 13 architectural guardrails — 12 measurable, all 12 pass — vs.
-10 prompt-based. Compare to a Direct Agent Extension (Rob's #1 approach) which
+13 prompt-based. Compare to a Direct Agent Extension (Rob's #1 approach) which
 typically has 1-2 architectural and the rest prompt-based.
 
 ## 4. Data flow — a single investigation

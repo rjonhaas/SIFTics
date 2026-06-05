@@ -59,7 +59,7 @@ The gates exist for the moment an investigation pivots from *analysis* to *activ
 
 ---
 
-## 3. The 4 prompt-based guardrails (honestly labelled)
+## 3. The prompt-based guardrails (honestly labelled)
 
 These are *guidance*, not guards. A misaligned model can disregard them; that's why they are clearly separated.
 
@@ -69,8 +69,17 @@ These are *guidance*, not guards. A misaligned model can disregard them; that's 
 | P2 | Phase-script ordering hints | `skills/triage-methodology.md` + Daedalus run-plan |
 | P3 | Hypothesis Engine usage guidance | `skills/hypothesis-engine.md` |
 | P4 | Briefing cadence guidance | methodology hints in skills |
+| P5 | Windows artifact triage guidance | `skills/windows-artifacts.md` |
+| P6 | Linux server artifact triage guidance | `skills/linux-server-artifacts.md` |
+| P7 | Malware triage procedure | `skills/malware-triage.md` |
+| P8 | Timeline reconstruction approach | `skills/timeline-reconstruction.md` |
+| P9 | Anti-forensics detection guidance | `skills/anti-forensics-detection.md` |
+| P10 | Reporting conventions | `skills/reporting-conventions.md` |
+| P11 | macOS artifact triage (mac_apt, Unified Log, APFS, persistence) | `skills/macos-artifacts.md` |
+| P12 | IoT/OT artifact guidance (firmware blobs, industrial PCAPs, SCADA DBs) | `skills/iot-ot-artifacts.md` |
+| P13 | Daedalus tool-finder/implementer workflow (6-step; IC approval required before running unfamiliar tools) | `skills/daedalus.md` |
 
-These four are documented as prompt-based **deliberately** — the architectural-vs-prompt distinction is more credible when you don't try to dress up every guideline as a guardrail.
+P1–P4 are core procedural guidance. P5–P13 are domain-knowledge skill files that guide methodology for specific artifact types and the Daedalus unknown-artifact workflow. None of these enforce security boundaries — they are clearly separated from the architectural guardrails above. The distinction is more credible when every guideline is not dressed up as a guardrail.
 
 ---
 
@@ -85,7 +94,7 @@ The hackathon rules describe 4 approaches. Per Rob T. Lee's Slack: *Custom MCP S
 | 3. Multi-Agent Frameworks (AutoGen/CrewAI/LangGraph) | depends on inter-agent message validation | many | n/a |
 | 4. Alternative Agentic IDEs (Cursor/Cline/Aider) | 0–1 (file-write confirmations) | most | n/a |
 
-SIFTics sits squarely in #2 with **14 architectural guardrails** and only 4 prompt-based — heavily inverted ratio compared to the other approaches.
+SIFTics sits squarely in #2 with **14 architectural guardrails** and 13 prompt-based (domain-knowledge skill files) — heavily inverted ratio on the security-boundary axis compared to the other approaches.
 
 ---
 

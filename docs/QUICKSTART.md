@@ -19,6 +19,7 @@ cd SIFTics
 | `--full-baseline` | …but fetch the ~100 MB full Rathbun DB from a GitHub Release (~30 s) |
 | `--build-baseline` | …but build the full DB locally from sources (~30 min, ~5 GB cache) |
 | `--no-baseline` | skip baseline step entirely |
+| `--no-rag` | skip the forensic-RAG index build (Step 7) |
 | `--init-case` | also create `~/cases/dry_run/` + IC HMAC key |
 | `--start-ui` | also launch siftics-ui on `127.0.0.1:8080` |
 
@@ -115,9 +116,11 @@ claude    # then type:  /investigation-section-chief
 
 ## Optional — full forensic-RAG knowledge corpus
 
-The RAG index is **pre-built and included locally** at `mcp_rag/index/` — 6,337 records (Sigma 3,132 · ATT&CK 1,164 · Atomic Red Team 1,804 · LOLBAS 237). No download step is required for judges.
+`setup.sh` **automatically builds the RAG index on first run (Step 7)**. It checks whether `mcp_rag/index/` is already present; if not, it builds from GitHub sources (~10–30 min, network-bound). If the build fails, setup warns but does not abort. Pass `--no-rag` to skip Step 7 entirely.
 
-If you need to rebuild from upstream sources:
+The index contains 6,337 records (Sigma 3,132 · ATT&CK 1,164 · Atomic Red Team 1,804 · LOLBAS 237).
+
+If you need to rebuild manually after setup:
 
 ```bash
 # Rebuild locally (~10–30 min, network-bound)
@@ -214,10 +217,10 @@ SIFTICS/
 │   └── sync_to_sift.sh
 └── (Python packages: siftics, siftics_ui, mcp_case, mcp_ic_approval,
    mcp_baseline, mcp_cti, mcp_rag, mcp_broker, mcp_intel, phases, templates,
-   skills [9 files: investigation-section-chief, triage-methodology,
+   skills [11 files: investigation-section-chief, triage-methodology,
    hypothesis-engine, windows-artifacts, linux-server-artifacts,
    malware-triage, timeline-reconstruction, anti-forensics-detection,
-   reporting-conventions])
+   reporting-conventions, macos-artifacts, iot-ot-artifacts, daedalus])
 ```
 
 Submission deadline: **2026-06-15 23:45 EDT**. Submit ≥ 24h early; verify the YouTube link in incognito before hitting submit.
