@@ -288,6 +288,19 @@ def create_app() -> Flask:
         case_path = request.form.get("case_path", "").strip()
         if not case_path or not (Path(case_path) / "case.json").exists():
             return Response("Invalid case path.", status=400, mimetype="text/html")
+        # Block switching while an agent is running — prevents SIFTICS_CASE_DIR
+        # changing mid-stream and mixing writes from two different cases.
+        try:
+            current = audit.case_dir()
+            lock = _case_lock(str(current))
+            if not lock.acquire(blocking=False):
+                return Response(
+                    "Cannot switch cases while an agent is running. "
+                    "Wait for the agent to finish or stop it first.",
+                    status=409, mimetype="text/plain")
+            lock.release()
+        except RuntimeError:
+            pass  # no current case loaded — switching is safe
         os.environ["SIFTICS_CASE_DIR"] = case_path
         resp = Response("", status=200)
         resp.headers["X-Redirect"] = url_for("dashboard")
@@ -451,6 +464,16 @@ def create_app() -> Flask:
             return Response("Empty message.", status=400)
         sess = _read_session(case_path)
         session_id = sess.get("session_id")
+        # Validate that the stored session belongs to this case, not a
+        # different one that was accidentally left in this directory.
+        if session_id and sess.get("case_id"):
+            try:
+                header = case_state.case_get_header()
+                if sess["case_id"] != header.get("case_id", ""):
+                    # Session is from a different case — start fresh.
+                    session_id = None
+            except Exception:
+                pass
         cmd, env = _make_agent_cmd(case_path, message, session_id=session_id)
         def generate():
             yield from _stream_agent(cmd, env, case_path)
@@ -714,6 +737,13 @@ def _stream_agent(cmd: list, env: dict, case_path: Path):
             if evt.get("type") == "system" and evt.get("session_id"):
                 sess = _read_session(case_path)
                 sess["session_id"] = evt["session_id"]
+                # Bind session to this case so resuming it in the wrong case
+                # is detectable.
+                try:
+                    header = case_state.case_get_header()
+                    sess["case_id"] = header.get("case_id", "")
+                except Exception:
+                    pass
                 _write_session(case_path, sess)
             elif evt.get("type") == "assistant":
                 msg = evt.get("message", {})

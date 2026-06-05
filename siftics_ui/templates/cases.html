@@ -81,9 +81,21 @@
 
 </div>
 
+<div id="switch-error"
+     class="hidden mt-4 bg-rose-900/60 border border-rose-700 rounded-lg p-3 text-rose-300 text-sm">
+</div>
+
 <script>
   document.querySelectorAll('.switch-form').forEach(function (form) {
-    Siftics.postForm(form, null);
+    Siftics.postForm(form, null, {
+      onDone: function (result) {
+        if (!result.ok) {
+          var el = document.getElementById('switch-error');
+          el.textContent = result.html || 'Cannot switch cases right now.';
+          el.classList.remove('hidden');
+        }
+      }
+    });
   });
 </script>
 {% endblock %}
