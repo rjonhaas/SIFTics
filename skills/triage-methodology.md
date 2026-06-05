@@ -139,9 +139,9 @@ overrides the hypothesis-engine.md directive "open a hypothesis the moment
 you have a coherent story" — for network cases, token extraction takes
 precedence over early hypothesis opening.
 
-*Nitroba example:* `jcoach@gmail.com` in HTTP Cookie fields and
-`badguy@hotmail.com` in HTTP POST bodies are both identity tokens. Both
-must be recorded before any theory about sender identity is scored.
+*Nitroba example:* `jcoachj@gmail.com` appears in Gmail `gmailchat=`
+cookie fields from `192.168.15.4`. That is the identity token. Record it
+before forming any theory about sender identity.
 
 **Step N-2 — flow summary (HOT)**
 
@@ -204,3 +204,235 @@ hypothesis-engine.md Rule 2 before scoring any other hypothesis.
 This is not optional. The open WiFi / shared NAT scenario is the most common
 defence against IP-based attribution and must be addressed explicitly in the
 hypothesis ledger, not assumed away.
+
+---
+
+## Web server access log evidence
+
+This section applies when the evidence set contains `access.log`, `access_log`,
+IIS logs, Nginx logs, or any HTTP server log file.
+
+**Rule: UA histogram before IP analysis. Always.**
+
+Grouping by IP first is the most common access log mistake — it misses automated
+tooling that runs from a single IP but is unmistakable from its User-Agent.
+A UA histogram takes 10 seconds and surfaces sqlmap, nikto, Metasploit, curl,
+and Python-urllib in the first line of output.
+
+### Step W-1 — User-Agent histogram (MANDATORY, first action on any access log)
+
+```bash
+awk '{print $12}' access.log | sort | uniq -c | sort -rn | head -30
+# If $12 is quoted multi-word UA: use awk -F'"' '{print $6}' access.log
+```
+
+Record every anomalous UA as a finding_record() before any further analysis.
+Anomalous = automated tool name (sqlmap, nikto, nmap, curl, python, wget),
+known exploit framework UA, or UA inconsistent with the platform (e.g. Linux UA
+on a Windows-only internal app).
+
+**sqlmap identification:** `sqlmap/1.*` in UA means automated SQL injection.
+Map to T1190. The requests associated with that UA are your attack timeline —
+read them in order to reconstruct injection payloads, extracted data, and
+file-write operations (`SELECT INTO OUTFILE`).
+
+### Step W-2 — IP + UA joint frequency table
+
+```bash
+awk '{print $1, $12}' access.log | sort | uniq -c | sort -rn | head -30
+```
+
+This separates tool-driven traffic (one IP, one UA, high frequency) from
+browser-driven traffic (one IP, mixed UAs).
+
+### Step W-3 — HTTP status code distribution
+
+```bash
+awk '{print $9}' access.log | sort | uniq -c | sort -rn
+```
+
+High 500-count from a single IP = injection/exploitation. High 404-count = scanning.
+
+### Step W-4 — POST requests with body size > 0
+
+```bash
+grep '"POST ' access.log | awk '$10 > 100 {print}' | sort -k10 -rn | head -20
+```
+
+Large POST bodies to unexpected paths = file upload. POST to a `.php` file
+in an upload directory = webshell activation.
+
+### Web-case MITRE mapping
+
+| Observation | MITRE technique |
+|---|---|
+| sqlmap UA + SQLi payloads in URI | T1190 — Exploit Public-Facing Application |
+| `SELECT INTO OUTFILE` in URI | T1505.001 — SQL Stored Procedures (file write via DB) |
+| PHP webshell POST execution | T1505.003 — Web Shell |
+| Python-urllib or curl POST to .php | T1059.006/T1059.004 — command execution via webshell |
+
+---
+
+## Memory image evidence — Volatility minimum checklist
+
+This section applies when a memory image (`.mem`, `.dmp`, `.raw`, `.vmem`) is
+in the evidence set. **Running only pslist/pstree/netscan is not sufficient.**
+The checklist below is the minimum — run all tiers before drawing conclusions.
+
+### Tier 1 — always run (< 5 min total)
+
+Run these unconditionally on every memory image:
+
+```bash
+vol -f image.mem windows.pslist       # process inventory with PID/PPID/create time
+vol -f image.mem windows.pstree       # parent-child tree
+vol -f image.mem windows.netscan      # active + recently closed connections
+vol -f image.mem windows.cmdline      # command line for every process
+vol -f image.mem windows.consoles     # IN-MEMORY console history from conhost.exe
+vol -f image.mem windows.cmdscan      # IN-MEMORY command history from csrss.exe
+```
+
+**Why `consoles` and `cmdscan` are mandatory:**
+Command history lives in `csrss.exe` / `conhost.exe` memory, not in cmd.exe's
+argument list. A cmd.exe that appears clean in pstree (parented by explorer.exe,
+no suspicious args) can still have 17 commands of attacker history recoverable
+from `consoles`/`cmdscan`. This is where `net user`, `netsh`, and `net localgroup`
+commands show up. If you skip these, you will miss account creation and firewall
+modification evidence even when the process tree looks clean.
+
+*Webserver case lesson:* cmd.exe PID 1972, parented by explorer.exe with no
+suspicious args in pstree, was the shell where `net user user1 user1 /add`,
+`net user hacker hacker /add`, and `netsh firewall set service type=remotedesktop`
+ran. The evidence was in csrss.exe PID 524 via `cmdscan`, not in pstree.
+
+### Tier 2 — run when initial access or RCE is confirmed
+
+```bash
+vol -f image.mem windows.hivelist     # find all loaded registry hive addresses
+vol -f image.mem windows.hashdump     # extract NTLM hashes from in-memory SAM
+vol -f image.mem windows.printkey --key "SAM\Domains\Account\Users\Names"
+```
+
+`hivelist` + `hashdump` reveal what accounts exist and their hashes — faster
+than parsing the SAM file on disk and works even if the on-disk SAM was modified.
+
+### Tier 3 — run when specific evidence warrants
+
+```bash
+vol -f image.mem windows.dlllist --pid <PID>    # DLLs loaded by suspect process
+vol -f image.mem windows.handles --pid <PID>    # open handles (files, registry, sockets)
+vol -f image.mem windows.memmap --pid <PID> --dump  # dump process memory for strings
+vol -f image.mem windows.malfind                # injected code / suspicious VAD regions
+```
+
+---
+
+## Post-exploitation persistence pivot (mandatory after RCE confirmation)
+
+**Rule: the instant you confirm code execution — webshell, RCE, LFI→RCE,
+Meterpreter session — stop web log analysis and run the persistence pivot
+before doing anything else.**
+
+Attackers create accounts and modify firewall rules within minutes of getting
+a shell. These are the most operationally dangerous findings and the most
+commonly missed because analysts stay in the "initial access" evidence stream
+instead of pivoting to "what did the attacker do with that access?"
+
+### Account creation pivot (run in this order)
+
+**1. cmdscan / consoles against csrss.exe** (if memory is available):
+```bash
+vol -f image.mem windows.cmdscan    # look for: net user, net localgroup
+vol -f image.mem windows.consoles   # same — conhost.exe view
+```
+
+**2. SAM hive — on-disk local account list**:
+```bash
+# Mount image, then:
+python3 -c "
+from impacket.examples.secretsdump import LocalOperations, SAMHashes
+ops = LocalOperations('/mnt/img/Windows/System32/config/SYSTEM')
+boot_key = ops.getBootKey()
+sam = SAMHashes('/mnt/img/Windows/System32/config/SAM', boot_key, isRemote=False)
+sam.dump()
+"
+# Or: reg.py / secretsdump.py / samdump2
+```
+
+Record every non-default local account as a finding_record(). Note SID, creation
+time, group membership.
+
+**3. Security.evtx — account events**:
+```bash
+# EID 4720 = account created, EID 4732 = user added to security group
+python3 -m evtx /mnt/img/Windows/System32/winevt/Logs/Security.evtx \
+  | grep -E "EventID.4720|EventID.4732" -A 20
+```
+
+### Firewall / RDP pivot
+
+**1. cmdscan / consoles** (look for `netsh` and `net localgroup`):
+```
+netsh firewall set service type=remotedesktop mode=enable scope=subnet
+netsh advfirewall firewall add rule name="RDP" dir=in action=allow protocol=TCP localport=3389
+net localgroup "Remote Desktop Users" user1 /add
+```
+
+**2. Registry — Windows Firewall rules** (on-disk or in-memory via printkey):
+```bash
+vol -f image.mem windows.printkey \
+  --key "SYSTEM\CurrentControlSet\services\SharedAccess\Parameters\FirewallPolicy\FirewallRules"
+```
+
+**3. Map to MITRE:**
+
+| Evidence | MITRE |
+|---|---|
+| `net user <name> <pass> /add` | T1136.001 — Create Local Account |
+| `net localgroup "Remote Desktop Users" <user> /add` | T1021.001 — Remote Desktop Protocol |
+| `netsh firewall set service remotedesktop` | T1021.001 + T1562.004 — Impair Defenses: Disable Firewall |
+
+### NTFS $LogFile for deleted-file recovery
+
+When MFT entries show deleted files, or when the access log references files no
+longer present on disk, use the NTFS $LogFile (transaction journal) to recover
+allocation/deallocation records:
+
+```bash
+# Extract $LogFile from image
+icat -o <offset> image.dd <$LogFile inode> > LogFile.bin
+
+# Parse with LogFileParser (SIFT has this)
+python3 LogFileParser.py -i LogFile.bin -o logfile_output.csv
+grep -i "tmp\|webshell\|\.php" logfile_output.csv
+```
+
+The $LogFile retains records for files that have been deleted and MFT-overwritten,
+because the journal is circular and overwrites more slowly than the MFT. This is
+the last resort for recovering evidence of dropped-and-deleted payloads.
+
+**Do not skip this step** when you find temporary files in the access log that
+are absent from the disk. The fourth dropper in the webserver case (tmpbiwuc.php)
+was findable via this path.
+
+### Setup.evtx for installed-software evidence
+
+When the case involves malware installation or questions about what was present
+at compromise time:
+
+```bash
+# Parse Setup.evtx for installer activity
+python3 -m evtx /mnt/img/Windows/System32/winevt/Logs/Setup.evtx \
+  | grep -i "install\|setup\|package" | head -40
+```
+
+### NTUser.dat for user activity artifacts
+
+After confirming which account the attacker used or created, parse that account's
+registry hive for MRU lists, recent files, typed paths, and Run keys:
+
+```bash
+# Dump NTUSER.DAT for target account
+hivexsh /mnt/img/Users/<username>/NTUSER.DAT
+# Or use RECmd / regipy for structured extraction
+```

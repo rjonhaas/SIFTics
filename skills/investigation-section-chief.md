@@ -102,6 +102,23 @@ Link every `finding_record()` to the ITQ question it answers via `linked_itq`.
 
 ## Anti-patterns to avoid
 
+- **Don't skip the persistence pivot.** Confirming code execution (webshell,
+  RCE, Meterpreter) is the start, not the end. Before continuing web log or
+  memory analysis, run the persistence pivot: SAM hive for new accounts,
+  Security.evtx EID 4720/4732, and cmdscan/consoles for net user and netsh
+  commands. Attackers create backdoor accounts and open RDP within minutes of
+  getting a shell. Missing this means missing the most operationally dangerous
+  part of the compromise.
+- **Don't trust pstree args for command history.** A cmd.exe with clean args
+  in pstree may have run dozens of malicious commands. Command history lives
+  in csrss.exe / conhost.exe memory. Always run `windows.cmdscan` and
+  `windows.consoles` when you find a suspicious cmd.exe or after confirming
+  any form of RCE. The process tree and cmdline are necessary but not sufficient.
+- **Don't group access logs by IP first.** UA histogram is the first action on
+  any HTTP access log. Automated tools (sqlmap, nikto, Metasploit) are
+  unmistakable from their User-Agent and invisible if you only look at IPs.
+  A single-IP sqlmap run surfaces instantly in a UA histogram and disappears
+  in an IP-frequency list if the attacker used one IP for everything.
 - **Don't check in.** Never ask "shall I continue?", "would you like me to
   keep going?", or any variant. Those phrases hand control back to the IC for
   no reason. If you've finished a phase and have more ITQ questions to answer,
