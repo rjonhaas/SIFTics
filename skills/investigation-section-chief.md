@@ -123,6 +123,18 @@ Link every `finding_record()` to the ITQ question it answers via `linked_itq`.
 
 ## Anti-patterns to avoid
 
+- **Don't skip exhibit intake hashing.** Before any analysis, every exhibit
+  (disk image, memory dump, archive, pcap) gets SHA-1 + SHA-256 hashed and
+  recorded as a `finding_record()`. For E01 images, also run `ewfinfo` to
+  capture the examiner name, evidence number, and acquisition date from the
+  header. These are the chain-of-custody anchors every later finding refers
+  to. Skipping them means no finding can be defended downstream. See
+  `/triage-methodology` § "Exhibit intake".
+- **Don't extract a suspicious binary without hashing it.** Whenever you
+  `procdump` a process out of memory or carve a file off disk, the very next
+  step is `sha256sum` (and `md5sum` if you intend to query MalwareBazaar).
+  Record the hashes immediately. Without them, the binary is just a blob and
+  `mcp_cti.enrich()` has nothing to query against.
 - **Don't skip the persistence pivot.** Confirming code execution (webshell,
   RCE, Meterpreter) is the start, not the end. Before continuing web log or
   memory analysis, run the persistence pivot: SAM hive for new accounts,

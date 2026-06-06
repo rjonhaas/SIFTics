@@ -28,6 +28,44 @@ or network flow files, see the **Network/pcap evidence** section below. The
 network hot-path runs before Windows host phases when both evidence types are
 present.
 
+## Exhibit intake — chain of custody (MANDATORY, FIRST STEP)
+
+**Before any analysis runs, every exhibit gets recorded with its hash.** This is
+not a CTF-only nicety — it is the chain-of-custody anchor that every later
+finding will reference. Skip this and your findings cannot be defended in court,
+in a peer review, or in a hackathon ground-truth comparison.
+
+For each file under `evidence/` and each archive listed in the case:
+
+```bash
+# 1. Hash every raw exhibit (image, archive, memory dump, pcap)
+sha1sum   <path> | tee -a chain_of_custody.txt
+sha256sum <path> | tee -a chain_of_custody.txt
+
+# 2. For E01/Ex01 forensic images — read metadata from the header
+ewfinfo <path>      # examiner, evidence number, acquisition date, hash
+# or:
+mmls    <path>      # partition table
+fsstat  <path>      # filesystem stats including volume serial, label
+
+# 3. For VMware/VirtualBox/QCOW2 — record format + size + parent chain
+qemu-img info <path>
+```
+
+Record each exhibit as a `finding_record()` with `claim` of the form
+*"Exhibit X has SHA-256 …; examiner='…'; acquisition_date='…'."* — these are the
+foundational findings; every later finding's `artifact_source` field traces back
+to one of them. Without this you cannot prove which image you actually analysed.
+
+**Also extract metadata visible to forensic tools but invisible to file hashes:**
+- E01 examiner name, evidence number, case number, description, acquisition date
+- VMDK descriptor file parent chain
+- Memory image acquisition tool signature (FTK Imager vs DumpIt vs WinPMEM)
+- Photo/disk acquisition timestamp from MFT $STANDARD_INFORMATION on the image file
+
+These metadata items often **are themselves** the answers to early ITQ questions
+(who acquired this, when, with what tool, did the hash chain hold).
+
 ## Hot-path-first ordering
 
 When you start a case:
@@ -280,17 +318,23 @@ This section applies when a memory image (`.mem`, `.dmp`, `.raw`, `.vmem`) is
 in the evidence set. **Running only pslist/pstree/netscan is not sufficient.**
 The checklist below is the minimum — run all tiers before drawing conclusions.
 
-### Tier 1 — always run (< 5 min total)
+### Tier 1 — always run (< 10 min total)
 
 Run these unconditionally on every memory image:
 
 ```bash
+vol -f image.mem windows.info         # OS version, build, capture time, KDBG offset
 vol -f image.mem windows.pslist       # process inventory with PID/PPID/create time
 vol -f image.mem windows.pstree       # parent-child tree
 vol -f image.mem windows.netscan      # active + recently closed connections
 vol -f image.mem windows.cmdline      # command line for every process
+vol -f image.mem windows.dlllist      # DLLs loaded per process (catches VCRUNTIME / dropped DLLs)
 vol -f image.mem windows.consoles     # IN-MEMORY console history from conhost.exe
 vol -f image.mem windows.cmdscan      # IN-MEMORY command history from csrss.exe
+vol -f image.mem windows.hivelist     # registry hive addresses (prereq for hashdump/printkey)
+vol -f image.mem windows.hashdump     # NTLM hashes from in-memory SAM
+vol -f image.mem windows.mftparser    # MFT records still in memory cache
+vol -f image.mem windows.malfind      # injected code / suspicious VAD regions
 ```
 
 **Why `consoles` and `cmdscan` are mandatory:**
@@ -301,25 +345,52 @@ from `consoles`/`cmdscan`. This is where `net user`, `netsh`, and `net localgrou
 commands show up. If you skip these plugins you will miss account creation and
 firewall modification evidence even when the process tree looks innocent.
 
+**Why `hashdump` and `dlllist` are Tier 1, not Tier 2:**
+They cost almost nothing and frequently answer ITQ questions about local accounts
+(hash dump) and dropped/sideloaded DLLs (e.g. an OfficeClickToRun process pulling
+in VCRUNTIME140.dll is a classic side-loading pattern). Cheap to run unconditionally.
+
+**Why `mftparser` is Tier 1:**
+The MFT records cached in memory cover the most recent file activity — often
+including files the on-disk MFT entries have already overwritten or that were
+created and deleted within the volatile window. It is a different time slice
+of the filesystem than `$MFT` on disk.
+
 ### Tier 2 — run when initial access or RCE is confirmed
 
 ```bash
-vol -f image.mem windows.hivelist     # find all loaded registry hive addresses
-vol -f image.mem windows.hashdump     # extract NTLM hashes from in-memory SAM
 vol -f image.mem windows.printkey --key "SAM\Domains\Account\Users\Names"
+vol -f image.mem windows.printkey --key "SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
+vol -f image.mem windows.svcscan       # services with full image paths
+vol -f image.mem windows.shimcachemem  # Shimcache from in-memory hive
+vol -f image.mem windows.userassist    # UserAssist (GUI program execution)
 ```
-
-`hivelist` + `hashdump` reveal what accounts exist and their hashes — faster
-than parsing the SAM file on disk and works even if the on-disk SAM was modified.
 
 ### Tier 3 — run when specific evidence warrants
 
 ```bash
-vol -f image.mem windows.dlllist --pid <PID>    # DLLs loaded by suspect process
 vol -f image.mem windows.handles --pid <PID>    # open handles (files, registry, sockets)
 vol -f image.mem windows.memmap --pid <PID> --dump  # dump process memory for strings
-vol -f image.mem windows.malfind                # injected code / suspicious VAD regions
+vol -f image.mem windows.vadinfo --pid <PID>    # VAD protections (PAGE_READONLY, etc.)
+vol -f image.mem windows.procdump --pid <PID> --dump  # dump executable image of process
 ```
+
+### Suspicious-binary dump-and-hash rule
+
+Whenever Tier 1 surfaces a suspicious process (unusual parent, no signer, name
+that mimics a system binary, child of wscript/cscript/powershell, network
+activity to an unfamiliar IP), **immediately procdump it and hash the result**:
+
+```bash
+vol -f image.mem windows.procdump --pid <PID> --dump -o /tmp/dumps/
+sha256sum /tmp/dumps/*.exe
+md5sum    /tmp/dumps/*.exe
+```
+
+Record the hashes in a `finding_record()`. These hashes are the IOCs that the
+agent should then submit to `mcp_cti.enrich()` for VirusTotal / MalwareBazaar /
+ThreatFox lookups. Skipping this step means later threat-intel queries have
+nothing to ask about.
 
 ---
 
