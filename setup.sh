@@ -240,6 +240,34 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Step 3b — fix evtx_dump if shadowed by broken pip shim
+# ---------------------------------------------------------------------------
+# The `pip install evtx` package installs a Python entry-point shim at
+# ~/.local/bin/evtx_dump that often breaks (`ModuleNotFoundError: scripts`).
+# We install the canonical Rust binary in its place, which is faster, has no
+# Python dependency, and shadows the broken shim cleanly.
+
+step "3b" "$TOTAL_STEPS" "evtx_dump (Rust binary)"
+
+EVTX_BIN="$HOME/.local/bin/evtx_dump"
+EVTX_VER="v0.11.2"
+EVTX_URL="https://github.com/omerbenamram/evtx/releases/download/${EVTX_VER}/evtx_dump-${EVTX_VER}-x86_64-unknown-linux-musl"
+
+if [[ -x "$EVTX_BIN" ]] && "$EVTX_BIN" --version 2>/dev/null | grep -q "EVTX Parser"; then
+    skip "already installed ($("$EVTX_BIN" --version 2>/dev/null))"
+else
+    mkdir -p "$(dirname "$EVTX_BIN")"
+    if curl -fL --silent --show-error -o "$EVTX_BIN.new" "$EVTX_URL" 2>/tmp/siftics_evtx.log; then
+        chmod +x "$EVTX_BIN.new"
+        mv -f "$EVTX_BIN.new" "$EVTX_BIN"
+        ok "$EVTX_VER installed"
+    else
+        warn "download failed (see /tmp/siftics_evtx.log). EVTX parsing will fall back to evtx_dump.py."
+        rm -f "$EVTX_BIN.new"
+    fi
+fi
+
+# ---------------------------------------------------------------------------
 # Step 4 — man pages
 # ---------------------------------------------------------------------------
 

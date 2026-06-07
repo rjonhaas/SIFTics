@@ -103,10 +103,29 @@ Event logs are in `Windows\System32\winevt\Logs\`. Parse with `EvtxECmd` (bulk) 
 | 21/25 | Microsoft-Windows-TerminalServices-LocalSessionManager/Operational | RDP logon / session reconnect |
 | 1149 | Microsoft-Windows-TerminalServices-RemoteConnectionManager/Operational | RDP authentication attempt |
 
-**Tool:** `EvtxECmd` for bulk CSV export:
+**Tools (on SIFT, in order of preference):**
+
 ```bash
+# 1. evtx_dump (Rust, omerbenamram/evtx) — fastest, single binary, no Python deps
+evtx_dump /mnt/img/Windows/System32/winevt/Logs/Security.evtx > Security.xml
+evtx_dump -o jsonl /mnt/img/.../Security.evtx > Security.jsonl   # JSONL (easier to grep)
+
+# 2. EvtxECmd (Eric Zimmerman, .NET) — bulk CSV with built-in maps
 EvtxECmd.exe -d /mnt/img/Windows/System32/winevt/Logs/ --csv /output/ --csvf events.csv
+
+# 3. evtx_dump.py (Python fallback) — only if the Rust binary is unavailable
+evtx_dump.py /mnt/img/.../Security.evtx
 ```
+
+> ⚠️ **Caveat: there are TWO different `evtx_dump` binaries on PATH on a SIFT
+> workstation.** The one shipped via `pip install evtx` (`~/.local/bin/evtx_dump`)
+> is a Python entry-point shim that frequently breaks with
+> `ModuleNotFoundError: No module named 'scripts'` after pip upgrades. The
+> canonical, fast one is the Rust binary from
+> <https://github.com/omerbenamram/evtx/releases> — also called `evtx_dump`
+> but it lives wherever you put it (we install it at `~/.local/bin/evtx_dump`,
+> shadowing the broken Python shim). If `evtx_dump` dies with that
+> `ModuleNotFoundError`, re-download the Rust release.
 
 ---
 
