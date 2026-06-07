@@ -79,8 +79,11 @@ def execute_hunt_package(package: dict, approval: dict) -> dict:
     if expected_hash and pkg_hash != expected_hash:
         raise ic_approval.ApprovalInvalidError("package_hash_mismatch")
 
-    # TODO: integrate with mcp_broker to actually fire the hunt; for v1 we stub
-    # the result so the demo can show the end-to-end audit chain.
+    # v1 boundary: the gate, approval verification, package hashing, and audit
+    # chain are all wired end-to-end. The actual hunt dispatch to a live
+    # Velociraptor frontend is stubbed here and surfaced via mcp_broker when
+    # configured in /setup → Response targets. This stub returns a deterministic
+    # result so the gate + audit flow can be demonstrated without a live server.
     execution_id = f"exec_{uuid.uuid4().hex[:8]}"
     results = {
         "execution_id": execution_id,

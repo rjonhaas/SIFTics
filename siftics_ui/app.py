@@ -36,13 +36,11 @@ def create_app() -> Flask:
                 static_folder=str(Path(__file__).parent / "static"))
     app.config["LABELS"] = load_labels()
     app.config["EVENT_QUEUES"] = []  # list[queue.Queue] for SSE clients
-    # TODO: remove before hackathon submission — dev aid only
-    app.config["BUILD_CODE"] = str(int.from_bytes(os.urandom(2), "big") % 10000).zfill(4)
     _start_audit_tailer(app)
 
     @app.context_processor
     def _inject_labels() -> dict:
-        return {"labels": app.config["LABELS"], "build_code": app.config["BUILD_CODE"]}
+        return {"labels": app.config["LABELS"]}
 
     @app.after_request
     def _no_cache(response):

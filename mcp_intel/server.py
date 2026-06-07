@@ -47,9 +47,9 @@ def generate_ioc(
     Args:
         ioc_type:   One of: email | ip_address | domain | url | file_hash |
                     user_agent | mac_address | filename | process_pattern | registry_key
-        ioc_value:  The raw IOC value (e.g. "jcoachj@gmail.com", "192.168.15.4")
+        ioc_value:  The raw IOC value (e.g. "user@example.com", "203.0.113.42")
         context:    One sentence: what this IOC means in the investigation.
-                    e.g. "Gmail account authenticated at time of harassment from suspect machine"
+                    e.g. "Attacker-controlled email observed in plaintext HTTP cookies during attack window"
         finding_id: F-NNN identifier linking this IOC to its source finding (recommended)
         formats:    List of formats to generate. Defaults to the recommended set
                     for the ioc_type. Options: stix | yara | sigma.

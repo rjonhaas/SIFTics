@@ -68,12 +68,12 @@ an identity token not already the subject of an open hypothesis.
 **Mechanics:**
 
 ```bash
-# You just found that 192.168.15.4 / username "jcoach" appears in HTTP cookies.
-# You already have a hypothesis for Jean / mylady.ixchel.
-# You MUST now run:
-hypothesis_score add "192.168.15.4 / jcoach is the true sender, distinct from the current primary suspect"
+# Example: you just found that a new IP / username pair appears in HTTP cookies.
+# You already have a hypothesis tied to a different primary suspect.
+# You MUST now open a competing hypothesis:
+hypothesis_score add "<new IP> / <new username> is the true sender, distinct from the current primary suspect"
 # The CLI prints the new ID (e.g., H-3f9a2c1d). Capture it.
-hypothesis_score signal H-3f9a2c1d 2 "IP 192.168.15.4 and username jcoach appear in HTTP cookie fields" --audit-event <event_seq>
+hypothesis_score signal H-3f9a2c1d 2 "IP and username appear together in HTTP cookie fields" --audit-event <event_seq>
 ```
 
 **The test you apply before moving on:** run `hypothesis_score report`
@@ -118,15 +118,16 @@ Until both conditions are met, retirement is not permitted regardless of
 how low the confidence score falls. This is retire-by-rule, not
 retire-by-score.
 
-**Nitroba example:**
+**Shared-medium pattern:**
 ```
 Open at case start (IDs illustrative — use what the CLI returns):
-  H-aa1bb2cc: "Jean / mylady.ixchel sent the harassing email"
-  H-dd3ee4ff: "192.168.15.4 / jcoach is the true sender"
-  H-ff5aa6bb: "Unknown actor used open WiFi; no physical attribution yet"
+  H-aa1bb2cc: "<primary suspect> sent the harassing email"
+  H-dd3ee4ff: "<alternative IP/account> is the true sender"
+  H-ff5aa6bb: "Unknown actor used the shared medium; no physical attribution yet"
 
-H-ff5aa6bb stays open until 802.11 association logs or DHCP binding records
-tie a device to a specific person at 192.168.15.4 at the relevant timestamp.
+H-ff5aa6bb stays open until 802.11 association logs, DHCP binding records, or
+equivalent device-binding evidence ties a device to a specific person at the
+relevant IP and timestamp.
 ```
 
 ### Hypothesis coverage checklist — run before every IC briefing

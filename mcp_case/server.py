@@ -270,17 +270,17 @@ def finding_record(
 
     Args:
         claim:           One-sentence factual statement. What was found.
-                         e.g. "Subject authenticated Google Drive with iaman.informant.personal@gmail.com"
+                         e.g. "Subject authenticated <service> with <account identifier>"
         artifact_path:   Path to the artifact inside the image or case dir.
-                         e.g. "C:\\Users\\informant\\AppData\\Local\\Google\\Drive\\user_default\\sync_log.log"
+                         e.g. "C:\\Users\\<user>\\AppData\\Local\\<vendor>\\<app>\\<logfile>"
         artifact_source: Which exhibit the artifact lives in.
-                         e.g. "cfreds_2015_data_leakage_pc.dd"
+                         e.g. "<case_id>_workstation.dd" or "memdump.mem"
         tool:            Tool used to extract/parse the artifact.
                          e.g. "icat", "strings", "EvtxECmd", "pypff", "fls", "regipy"
         command:         Exact command, reproducible by anyone with the image.
-                         e.g. "icat -o 2048 pc.dd 88423 | grep -i account"
+                         e.g. "icat -o <offset> <image> <inode> | grep -i <pattern>"
         output_excerpt:  Relevant slice of stdout that supports the claim (≤ 500 chars).
-                         e.g. "2015-03-23 20:05:12 INFO Account: iaman.informant.personal@gmail.com"
+                         e.g. "<timestamp> INFO Account: <recovered identifier>"
         linked_itq:      ITQ-NNN this finding answers (optional).
         linked_asr:      ASR serial this finding belongs to (optional).
         linked_cet:      CCA number this finding belongs to (optional).

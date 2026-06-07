@@ -336,8 +336,7 @@ If you find a path to spoliation that this design misses, please open a security
 
 For questions during judging:
 
-- GitHub issues: [https://github.com/rjonhaas/SIFTics/issues](https://github.com/rjonhaas/SIFTics/issues) (preferred — we monitor 24/7 during the judging window)
-- Email: rjonhaas@example.com *(replace with submission contact)*
+- GitHub issues: [https://github.com/rjonhaas/SIFTics/issues](https://github.com/rjonhaas/SIFTics/issues) (preferred — monitored 24/7 during the judging window)
 
 For everyone else interested in DFIR + AI:
 
