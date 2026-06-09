@@ -176,15 +176,35 @@ if (( PY_MAJOR < 3 || (PY_MAJOR == 3 && PY_MINOR < 10) )); then
     die "" "Python 3.10+ required (you have $PY_VER)."
 fi
 
-# Probe that `python3 -m venv` works (Debian/Ubuntu sometimes ships without ensurepip)
-if ! python3 -c "import venv, ensurepip" 2>/dev/null; then
-    die "" "python3-venv is missing. Install with:
-       sudo apt install -y python${PY_VER}-venv python3-pip python3-dev build-essential
-    Then re-run ./setup.sh"
-fi
+# Detect any missing apt prereqs in one pass — historically users on a stock
+# SIFT hit `python3-venv` missing and had to drop out, install, and re-run.
+# We now auto-install the gap with one sudo apt-get instead of bailing.
+declare -a MISSING=()
+python3 -c "import venv, ensurepip" 2>/dev/null \
+    || MISSING+=("python${PY_VER}-venv" "python3-pip" "python3-dev" "build-essential")
+command -v curl >/dev/null \
+    || MISSING+=("curl")
 
-if ! command -v curl >/dev/null; then
-    die "" "curl is required (used by download scripts). Install with: sudo apt install curl"
+if (( ${#MISSING[@]} > 0 )); then
+    yel "installing"
+    echo
+    echo "      → missing apt packages: ${MISSING[*]}"
+    if ! command -v sudo >/dev/null; then
+        die "" "sudo not available. Install manually:
+       apt-get install -y ${MISSING[*]}"
+    fi
+    echo "      → running: sudo apt-get install -y ${MISSING[*]}"
+    sudo apt-get update -qq 2>&1 | tail -1 || true
+    if ! sudo apt-get install -y "${MISSING[@]}"; then
+        die "" "apt-get install failed. Run manually:
+       sudo apt-get install -y ${MISSING[*]}"
+    fi
+    # Re-verify the gap is closed before continuing.
+    python3 -c "import venv, ensurepip" 2>/dev/null \
+        || die "" "python3-venv still unavailable after apt install — check the apt output above."
+    command -v curl >/dev/null \
+        || die "" "curl still unavailable after apt install — check the apt output above."
+    step 1 "$TOTAL_STEPS" "system prereqs (post-install re-check)"
 fi
 
 ok "python $PY_VER"
