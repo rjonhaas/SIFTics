@@ -145,14 +145,14 @@ def write_sbom(path: Path, sbom: dict[str, Any]) -> None:
     )
 
 
-def read_sbom(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
+def read_sbom(path: Path | str) -> dict[str, Any]:
+    return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
-def verify_sbom_against_disk(snapshot_path: Path) -> tuple[bool, str, str]:
+def verify_sbom_against_disk(snapshot_path: Path | str) -> tuple[bool, str, str]:
     """Re-compute the current SBOM and compare to a snapshot on disk.
 
-    Returns (ok, current_hash, snapshot_hash). ``ok`` is True when the two
+    Returns ``(ok, current_hash, snapshot_hash)``. ``ok`` is True when the two
     hashes match — i.e. no drift since the snapshot was taken.
     """
     snapshot = read_sbom(snapshot_path)
