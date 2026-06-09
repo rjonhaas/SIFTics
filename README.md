@@ -228,8 +228,18 @@ SIFTics treats evidence integrity as **architectural**, not prompt-based:
 2. **No `eval`-style MCP functions.** The agent cannot pass arbitrary code to be executed; every parser is a pre-committed, version-pinned function on the MCP surface.
 3. **Hash-chained audit.** Every read, every tool invocation, and every IC decision is appended to `forensic_audit.jsonl` with `SHA-256(prev_line_hash || canonical(event))`. `audit_verify.sh` recomputes the chain end-to-end.
 4. **Single-use approvals.** An `ICApproval` object can be consumed exactly once — the atomic `O_EXCL` create of `approvals/consumed/<request_id>.json` enforces double-spend prevention.
+5. **Toolchain integrity, hash-chained.** The very first event in `forensic_audit.jsonl` is a Software Bill of Materials snapshot (`sbom_snapshot`) — sha256 of every Python package's installed bytes, plus the SIFTics git commit, plus Python/platform metadata. Every later finding is cryptographically downstream of a known toolchain state, so a compromised dependency mid-investigation is provable: the snapshot is persisted at `<case>/sbom.json` and any drift from the chained hash is detected on re-verification. See [`siftics/sbom.py`](siftics/sbom.py) for the computation and [`docs/accuracy_report.md §7`](docs/accuracy_report.md) for the supply-chain controls applied at install time.
 
 If you find a path to spoliation that this design misses, please open a security issue — we explicitly test for them in T1–T8 and want to know about anything we missed. Honest failure modes are documented in [`docs/accuracy_report.md §6`](docs/accuracy_report.md).
+
+### Supply chain + system hardening (in `setup.sh`)
+
+The installer applies two hardening passes before any forensic code runs:
+
+- **OS security updates** — `unattended-upgrade --minimal-upgrade-steps` applies all pending security advisories from the Ubuntu archives at the start of step 1. Skip with `--no-security-updates` if you need a reproducible build at a specific point in time.
+- **Python CVE audit** — after the venv is populated, `pip-audit` scans every installed package against the PyPA advisory database. Findings are surfaced inline; skip with `--no-audit`.
+
+Both passes are on by default. The intent is that the toolchain SIFTics runs forensic work *with* has been brought up to a known-good state *before* a single byte of evidence is touched.
 
 ---
 

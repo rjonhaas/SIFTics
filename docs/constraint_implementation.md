@@ -22,7 +22,7 @@ SIFTics's rules cannot be ignored because the offending function calls **never r
 
 ---
 
-## 2. The 13 architectural guardrails — at a glance
+## 2. The 14 architectural guardrails — at a glance
 
 | # | Guardrail | Mechanism | Test | Result |
 |---|---|---|---|---|
@@ -39,6 +39,7 @@ SIFTics's rules cannot be ignored because the offending function calls **never r
 | G11 | Read-only evidence mounts | `verify_readonly_mounts.sh` pre-flight | T1 | ✅ (policy) |
 | G12 | No `execute_shell()` / `eval()` MCP function | Surface review — only typed functions exposed | mcp_case enumerates 14 typed fns | ✅ (review) |
 | G13 | Prompt-injection sanitiser | Regex scrub at MCP boundary before output reaches agent | T3 | ✅ |
+| G14 | Toolchain SBOM hash-chained at case-init | `siftics/sbom.py:compute_sbom` snapshot written into audit row 1 by `case_state.init_case`; `<case>/sbom.json` is the persisted copy; drift detectable by re-computing and comparing to the chained hash | manual via `compute_sbom` + `verify_chain`; Authority-Gate refusal on drift staged for v1.1 | ✅ (write); manual (verify) |
 
 **14 sub-tests in the harness (T1 through T8g). All pass.** Re-run any time with:
 

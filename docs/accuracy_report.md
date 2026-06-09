@@ -253,7 +253,81 @@ Honest list — these are real and accepted in v1:
 
 ---
 
-## 7. Reproducing these numbers
+## 7. Supply-chain integrity controls
+
+A forensic agent whose findings rest on a hash-chained audit is only as
+trustworthy as the toolchain that wrote the chain. Two attack classes
+matter here: (a) a compromised dependency injected via the package index
+(`event-stream`, `chalk`/`debug`, `ua-parser-js`, `xz-utils`, recent
+PyPI typosquats), and (b) a published-good package whose installed bytes
+were mutated on disk after install. SIFTics applies controls at three
+layers; the first two are live in this submission, the third is staged.
+
+### 7.1 Install-time controls (live in `setup.sh`)
+
+| Control | Mechanism | Status |
+|---|---|---|
+| OS hardening before any forensic code runs | `unattended-upgrade --minimal-upgrade-steps` against the Ubuntu security archive at step 1 | live; skip with `--no-security-updates` |
+| Python CVE scan against PyPA DB | `pip-audit` inline after step 3 venv populate | live; skip with `--no-audit` |
+| Hash-pinned reproducible installs | `pip install --require-hashes` from a `requirements-pinned.txt` produced by `pip-compile --generate-hashes` | **staged** — not in this submission |
+| npm `--ignore-scripts` for Claude Code CLI | already declarative when the user opts into `--install-claude` | partial — Claude Code install path uses `npm install -g`, planned migration to `npm ci --ignore-scripts` against a vendored `package-lock.json` |
+
+### 7.2 Case-init SBOM snapshot (live in `siftics/sbom.py` + `siftics/case_state.py:init_case`)
+
+At case creation, before any case state is written:
+
+1. `compute_sbom()` walks every package in the active venv, hashing each
+   file in the package's RECORD (post-install bytes, not the index metadata).
+   Output includes `python_version`, `platform`, and the SIFTics
+   `git_head` commit.
+2. `hash_sbom(sbom)` produces a SHA-256 of the canonical-JSON SBOM.
+3. The hash is appended to `forensic_audit.jsonl` as event sequence 1,
+   with type `sbom_snapshot`.
+4. The full SBOM is persisted to `<case>/sbom.json` so re-verification
+   is offline-possible.
+
+Every later audit row's `prev_line_hash` chains back through this event.
+Tampering with any package after case-init (whether by a compromised
+PyPI mirror, an unsigned auto-update, or a malicious post-install hook)
+changes `compute_sbom()`'s output. Re-running the verification on the
+saved snapshot detects drift; the analyst can decide whether to trust
+findings produced under the divergent toolchain or restart.
+
+### 7.3 Authority Gate refusal on drift (staged)
+
+The strongest possible enforcement layer: `mcp_ic_approval`'s
+`verify_approval()` re-derives `hash_sbom(compute_sbom())` and compares
+to the snapshot chained in audit row 1. Mismatch → approval refused →
+the agent literally cannot fire `execute_hunt_package`,
+`containment_action`, `publish_intel`, or `escalate_to_cold` against a
+drifted toolchain. This is **architectural, not prompt-based** — the
+verifier function refuses regardless of what the LLM asks for.
+
+Staged for v1.1. The current submission carries §7.1 and §7.2; the
+drift-refusal layer is sketched in
+[`siftics/ic_approval.py`](../siftics/ic_approval.py) but not yet
+wired into the verification path.
+
+### 7.4 Honest limits
+
+- `pip-audit` only catches advisories already in the PyPA DB. Zero-day
+  supply-chain attacks (the package was malicious on first publish, no
+  CVE filed yet) bypass it.
+- The SBOM hashes the bytes installed in the venv. A malicious wheel
+  whose bytes were never on disk (memory-only payload) wouldn't show up
+  in the hash, but would be visible in `pip-audit` if the advisory is
+  filed, and visible in the audit chain via any IO the payload performs.
+- `unattended-upgrade` is best-effort. If the Ubuntu archive itself is
+  compromised between SIFTics's install and a later case-init, the SBOM
+  hash detects it (different installed bytes) — but the prior install
+  ran with the compromised packages.
+
+These limits are documented so a judge / operator knows exactly what
+the controls do and do not promise.
+
+---
+
+## 8. Reproducing these numbers
 
 ```bash
 git clone https://github.com/rjonhaas/SIFTics.git
@@ -278,10 +352,11 @@ materially different numbers, open an issue at
 
 ---
 
-## 8. Cross-references
+## 9. Cross-references
 
 - T1–T8 bypass harness source: [`tests/test_constraints.py`](../tests/test_constraints.py)
 - Architecture overview: [`docs/architecture.md`](architecture.md)
 - Constraint implementation matrix: [`docs/constraint_implementation.md`](constraint_implementation.md)
 - Dataset documentation: [`docs/datasets.md`](datasets.md)
 - Demo video script: [`docs/demo_video.md`](demo_video.md)
+- SBOM computation source: [`siftics/sbom.py`](../siftics/sbom.py)

@@ -456,11 +456,40 @@ def briefing_history(limit: int = 20) -> list[dict[str, Any]]:
 
 def init_case(case_id: str, name: str, ic_name: str, ic_contact: str = "",
               itq_template: Path | str | None = None) -> dict[str, Any]:
-    """Create a fresh case directory layout. Idempotent only on cold start."""
+    """Create a fresh case directory layout. Idempotent only on cold start.
+
+    The very first hash-chained audit event written for a case is a
+    Software Bill of Materials snapshot (``sbom_snapshot``). Every later
+    event is therefore cryptographically downstream of a known toolchain
+    state; if anyone questions whether the analyst tooling was compromised
+    mid-investigation, the snapshot persisted at ``<case>/sbom.json`` can
+    be re-computed and compared to ``payload.sbom_hash`` in audit row 1.
+    """
+    from . import sbom as _sbom  # local import keeps the case_state surface area unchanged
+
     cd = case_dir()
     cd.mkdir(parents=True, exist_ok=True)
     if (cd / _CASE_HEADER).exists():
         raise FileExistsError(f"Case already initialised at {cd}")
+
+    # Snapshot the runtime before any case state is written so this lands as
+    # the first row of forensic_audit.jsonl.
+    snapshot = _sbom.compute_sbom()
+    snapshot_hash = _sbom.hash_sbom(snapshot)
+    _sbom.write_sbom(cd / "sbom.json", snapshot)
+    append_event(
+        "sbom_snapshot",
+        {
+            "sbom_hash": snapshot_hash,
+            "sbom_path": "sbom.json",
+            "package_count": len(snapshot["packages"]),
+            "siftics_git_head": snapshot["siftics_git_head"],
+            "python_version": snapshot["python_version"],
+            "platform": snapshot["platform"],
+        },
+        actor="case-init",
+    )
+
     header = asdict(CaseHeader(
         case_id=case_id,
         name=name,

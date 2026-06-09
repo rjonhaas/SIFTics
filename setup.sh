@@ -36,6 +36,11 @@ OPTIONS
     --start-ui          Launch siftics-ui on port 8080 after setup completes
                         (binds to 0.0.0.0 — reachable from host browser)
 
+  Supply chain + system hardening
+    --no-security-updates  Skip the unattended-upgrade pass (security-only
+                           OS updates applied via apt before any pip work)
+    --no-audit          Skip the pip-audit CVE scan after the venv is built
+
   Misc
     -q, --quiet         Suppress verbose pip output
     -h, --help          Show this help and exit
@@ -89,6 +94,8 @@ INSTALL_CLAUDE="no"
 INSTALL_CODEX="no"
 INSTALL_OLLAMA="no"
 NO_RUNTIMES="no"
+NO_SECURITY_UPDATES="no"
+NO_AUDIT="no"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -103,6 +110,8 @@ while [[ $# -gt 0 ]]; do
         --install-codex)   INSTALL_CODEX="yes";    shift ;;
         --install-ollama)  INSTALL_OLLAMA="yes";   shift ;;
         --no-runtimes)     NO_RUNTIMES="yes";      shift ;;
+        --no-security-updates) NO_SECURITY_UPDATES="yes"; shift ;;
+        --no-audit)        NO_AUDIT="yes";         shift ;;
         -q|--quiet)        QUIET="yes";            shift ;;
         -h|--help)         usage; exit 0 ;;
         *) echo "unknown arg: $1 (use --help)" >&2; exit 2 ;;
@@ -207,6 +216,28 @@ if (( ${#MISSING[@]} > 0 )); then
     step 1 "$TOTAL_STEPS" "system prereqs (post-install re-check)"
 fi
 
+# Apply available security updates — stock SIFT (and most fresh Ubuntu) ships
+# with a backlog of security advisories and prompts the user to install them
+# on first login. Doing it here demonstrates "the toolchain is hardened
+# before any forensic work starts" and removes the in-session prompt.
+# Uses unattended-upgrade which Ubuntu already configures for security-only
+# upgrades via /etc/apt/apt.conf.d/50unattended-upgrades. Skip with
+# --no-security-updates if you need a reproducible build at a specific point.
+if [[ "$NO_SECURITY_UPDATES" == "no" ]] && command -v sudo >/dev/null; then
+    if ! dpkg -l unattended-upgrades 2>/dev/null | grep -q '^ii'; then
+        echo "      → installing unattended-upgrades (for security-only updates)"
+        sudo apt-get install -y -qq unattended-upgrades 2>&1 | tail -1 || true
+    fi
+    if command -v unattended-upgrade >/dev/null; then
+        echo "      → applying security updates via unattended-upgrade"
+        # --minimal-upgrade-steps keeps each transaction small so an interrupt
+        # doesn't leave dpkg half-configured. Log is captured under
+        # /var/log/unattended-upgrades/ for audit.
+        sudo unattended-upgrade --minimal-upgrade-steps 2>&1 | tail -3 || true
+        echo "      → security updates applied (log: /var/log/unattended-upgrades/)"
+    fi
+fi
+
 ok "python $PY_VER"
 
 # ---------------------------------------------------------------------------
@@ -248,6 +279,35 @@ else
     "$PY" -c "import flask, mcp, anthropic, numpy, evtx" 2>/dev/null \
         || die "" "core deps did not import after install. See pip output above."
     ok "installed"
+fi
+
+# Supply-chain CVE audit — scans the installed venv against the PyPA
+# advisory database (no network for non-pip-installed packages; pip-audit
+# does fetch the index DB once per run). Soft-fail by default: surfaces
+# findings to stdout and warns, but does not abort the install. Skip with
+# --no-audit. We do a one-shot install of pip-audit into the venv if it's
+# missing — keeps the runtime requirement out of pyproject.toml.
+if [[ "$NO_AUDIT" == "no" ]]; then
+    step_audit_idx=$((3))   # cosmetic — keeps the existing step numbering stable
+    printf "[%s/%s] %-58s " "$step_audit_idx.5" "$TOTAL_STEPS" "auditing deps for known CVEs (pip-audit)"
+    if ! "$PY" -m pip_audit --version >/dev/null 2>&1; then
+        "$PIP" install --quiet pip-audit >/dev/null 2>&1 || true
+    fi
+    if ! "$PY" -m pip_audit --version >/dev/null 2>&1; then
+        warn "pip-audit unavailable — skipping CVE check"
+    else
+        AUDIT_OUT=$(mktemp)
+        if "$PY" -m pip_audit --progress-spinner off > "$AUDIT_OUT" 2>&1; then
+            ok "no known vulnerabilities"
+        else
+            warn "advisories found"
+            echo "      ↓ pip-audit report ↓"
+            sed 's/^/      /' "$AUDIT_OUT"
+            echo "      ↑ end pip-audit report ↑"
+            yel "      review the advisories above; re-run with --no-audit to bypass"
+        fi
+        rm -f "$AUDIT_OUT"
+    fi
 fi
 
 # ---------------------------------------------------------------------------
