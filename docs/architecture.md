@@ -203,21 +203,284 @@ the persona prompt is bypassed. A misaligned model attempting to write a
 before the audit event is written. (See `docs/constraint_implementation.md`
 G16, G17.)
 
-### Why not Finance and Public Information Officer
+### Why not Finance and Public Information Officer (in v1.1)
 
 NIMS doctrine also includes Finance / Administration Section Chief and
-Public Information Officer. v1.1 deliberately ships Safety + Legal first:
+Public Information Officer. v1.1 deliberately ships Safety + Legal first.
+Finance, PIO, and Liaison are sketched in §2c–§2f below — they don't
+ship as code in this submission, but they're documented so the
+architectural completeness story holds.
 
-- **Finance** maps to the existing per-case cost tracker
-  (`siftics/cost_tracker.py`). The role would be a thin wrapper that
-  projects total cost from remaining work — useful, but not load-bearing
-  for the Find Evil! demo case. Staged for v1.2.
-- **PIO** would draft customer comms, regulator filings, and executive
-  briefings. Out of scope for the offline forensic walkthrough the
-  hackathon evaluates.
+---
 
-These omissions are intentional and documented; the missing roles do
-not block the architectural completeness of the pattern.
+## 2c. Mapping to NIMS Incident Command System
+
+The canonical NIMS ICS organizational chart (FEMA-published) has one
+position at the top — **Incident Commander** — with two distinct
+support structures hanging off it:
+
+- **Command Staff** (Public Information Officer, Safety Officer,
+  Liaison Officer) — report directly to the IC, *outside* the tactical
+  chain of command. Their authority is to advise + flag, not to
+  execute. Safety Officer specifically has the *standing to stop work*.
+- **General Staff** — four Section Chiefs who do the tactical work:
+  **Operations Section** (the response itself), **Planning Section**
+  (next-cycle thinking, situation awareness, documentation),
+  **Logistics Section** (resources, infrastructure, comms), and
+  **Finance/Administration Section** (cost tracking, procurement,
+  comp/claims).
+
+SIFTics does not need to be lock-step with NIMS — but it has been a
+proven command structure for emergency response since the 1970s and
+applies cleanly to a machine-paced incident response, so we adopt it
+as the framework and document where we deviate or collapse roles.
+
+The full mapping:
+
+| Role | NIMS canonical | SIFTics today | Status / where it lives |
+|---|---|---|---|
+| Incident Commander | ✓ | The human analyst | Owns strategic decisions; final sign-off on every Authority Gate |
+| Operations Section Chief | ✓ | (collapsed into ISC) | The agent's tactical-execution role: which phase to run, which IOCs to chase, what to record. `skills/investigation-section-chief.md`. |
+| Planning Section Chief | ✓ | (collapsed into ISC) | The agent's next-cycle-thinking role: hypothesis engine (`skills/hypothesis-engine.md`), Phase 18 anomaly check (`phases/anomaly_check.py`), situation awareness in the COP. Two NIMS roles handled by one agent persona, deliberately. |
+| Logistics Section Chief | ✓ | not implemented | Sketched in §2d for a deployed-for-real scenario. Out of scope for an offline forensic walkthrough. |
+| Finance/Admin Section Chief | ✓ | partial (`siftics/cost_tracker.py`) | Cost-tracker + per-case budget circuit breaker exists; persona that wraps it sketched in §2e. |
+| Safety Officer | ✓ | ✓ persona + MCP tool | `skills/safety-officer.md` + `mcp_case.consult_safety_officer`. G16 architectural hard-stop. |
+| Public Information Officer | ✓ | not implemented | Sketched in §2f. The PIO → Legal → IC workflow is the key piece. |
+| Liaison Officer | ✓ | partially folded into Legal | The third_party_nda_scope dimension on `consult_legal_officer` belongs to Liaison in proper NIMS. Cleaner split sketched in §2g. |
+| **Legal Officer** | not standard | ✓ persona + MCP tool | `skills/legal-officer.md` + `mcp_case.consult_legal_officer`. **Cyber-IR adaptation, not canonical NIMS.** Documented honestly. |
+
+The deviations we make and why:
+
+- **Combining Operations + Planning into one Section Chief**: a single
+  AI agent runs one investigation; in canonical NIMS those are two
+  human Section Chiefs because the cognitive load of doing-the-work-now
+  and thinking-about-the-next-shift in parallel is too much for one
+  person. Not a problem for an agent that doesn't get tired. We may
+  split these if SIFTics ever grows multi-shift handoff support.
+- **Adding Legal Officer as Command Staff** is non-canonical. Type-1
+  cyber-IR teams routinely add Legal as a 4th Command Staff position
+  because breach-notification clocks and privilege scope dominate the
+  decision space in a way that fire / flood / hurricane responses
+  don't. We document this as a cyber adaptation, not a NIMS purity
+  claim.
+- **Liaison Officer**'s third-party-NDA / vendor-coordination function
+  is currently folded into Legal Officer's `third_party_nda_scope`
+  dimension. A future v1.2 could split them — Liaison handles the
+  *coordination* (NDA scope, MSSP engagement, ISAC sharing) while
+  Legal handles the *advisability* (privilege, admissibility,
+  regulator triggers). For v1.1, the merged role is honest about the
+  collapse.
+
+---
+
+## 2d. Logistics Section — what a real-deployment architecture would look like
+
+NIMS Logistics owns *the resources the responders need to do their job*.
+For a digital incident response that's deployed at an organization (not
+running as a hackathon-bench tool against forensic images), the
+Logistics Section would be responsible for the operational infrastructure
+that SIFTics itself runs on. **Nothing in this section is implemented
+in v1.1.** It's documented so the architectural completeness story
+covers a realistic deployment, not just the offline forensic walkthrough.
+
+### What Logistics would cover
+
+| Logistics responsibility | What it looks like for SIFTics in real deployment |
+|---|---|
+| **Identity and RBAC** | Provision identities for every responder (IC, analyst, junior analyst, observer). Just-in-time access to the case directory, mediated by an IdP (Okta / Entra). Read-only observer mode for legal-counsel viewers. SIFTics's MCP gateway authorizes per-role, refusing case-mutation calls for read-only roles. |
+| **Remote-access tunneling** | The IR team is not always on the corporate LAN — especially mid-breach, where they may deliberately be working off the corp network. **Cloudflare Tunnels** (or Tailscale) provide an authenticated reverse tunnel from the SIFTics host to a token-gated public endpoint each authorized responder can reach. No port exposure on the IR host; auth and audit happen at the tunnel boundary. |
+| **Evidence storage with chain-of-custody** | Write-once-read-many evidence buckets (AWS S3 Object Lock, or equivalent). Every artifact ingested into SIFTics writes a paired immutable copy with hash + ingest_audit_id. Logistics owns the policy (retention period, legal-hold flag, destruction process). |
+| **Sandbox compute** | On-demand spin-up of analysis VMs for malware detonation, memory analysis, or anything that shouldn't touch the analyst workstation. Logistics provisions and destroys them per case; SIFTics's `mcp_broker` orchestrates the actual workload. |
+| **Secrets management** | The IC's HMAC key today is mode-0600 on the analyst's disk. In a deployed-for-real architecture, that key lives in an HSM or KMS (AWS KMS, HashiCorp Vault Transit). IC signing happens via the KMS API rather than a local file. Migration path to Ed25519 (the v2 plan) integrates here. |
+| **Toolchain logistics** | Keeping SIFTics, mac_apt, Volatility, Plaso, EZ Tools, etc. up to date and *pinned*. The SBOM-hash work already in v1.1 (G15) is the foundation — Logistics would own the pipeline that rebuilds and re-pins the toolchain on a known cadence, with sign-off by Safety before deployment. |
+| **Comms infrastructure** | A war-room channel that doesn't live on the corporate IT stack during a breach (because the attacker may be reading corporate Slack). Out-of-band Signal / Matrix / dedicated comms. Logistics owns provisioning and access list. |
+| **Status board / dashboard** | Multi-IC operational picture for major incidents — multiple cases, cross-case IOC reuse, executive-rollup view. SIFTics's single-case dashboard would be one tile of a larger Logistics-provisioned board. |
+| **Backup and disaster recovery** | Audit chains, findings, IC keys, sboms — all replicated across regions on a Logistics-defined schedule. |
+
+### Why this isn't built in v1.1
+
+- The hackathon evaluates SIFTics as an offline forensic tool running
+  against pre-collected evidence (KAPE bundles, disk images). None of
+  the Logistics responsibilities above are exercised by that workflow.
+- A real Logistics implementation is multiple engineer-months and
+  involves cloud-provider opinion (AWS-flavored vs. self-hosted vs.
+  GCP), which is out of scope for a hackathon submission.
+- The architectural shape is clear enough that adding it is a
+  configuration-and-integration project, not a "rethink the doctrine"
+  project. The Custom MCP Server pattern accommodates it cleanly:
+  add `mcp_logistics` with typed functions (`provision_sandbox`,
+  `provision_responder_access`, `lock_evidence`, `rotate_ic_key`),
+  each going through the same Authority Gate machinery as
+  `execute_hunt_package`.
+
+### The architectural property we preserve
+
+Even without Logistics implemented, **the gate machinery is already
+the right enforcement point** for these actions. Provisioning a
+sandbox VM, rotating an IC key, exposing a Cloudflare tunnel — all
+of these are state-changing actions that would require IC sign-off
+in a real deployment. SIFTics's `mcp_ic_approval` + Safety/Legal
+consult pattern means a future `mcp_logistics` server gets the same
+guarantees: typed `approval` parameter, schema-enforced consults,
+hash-chained audit. No new architectural work; just new tools.
+
+---
+
+## 2e. Finance / Admin Section — present, partial
+
+NIMS Finance/Admin covers Time Unit, Cost Unit, Procurement Unit, and
+Compensation Claims Unit. SIFTics implements the Cost Unit's job
+today (`siftics/cost_tracker.py`) but does not yet have a Finance
+Officer persona that wraps it the way Safety and Legal wrap their
+domains.
+
+### What's implemented today
+
+- `siftics/cost_tracker.py` — per-call LLM cost tracking, per-case
+  cumulative spend, configurable per-case budget circuit breaker.
+- G9 architectural guardrail: `check_budget_or_raise()` refuses LLM
+  calls once the per-case spend hits the configured ceiling.
+
+### What a Finance Officer persona would add (sketch, not built)
+
+A `skills/finance-officer.md` mirroring Safety/Legal, with five
+dimensions:
+
+| Dimension | What it scores |
+|---|---|
+| `current_spend` | Where the case is vs. budget (low / medium / high / critical) |
+| `projection_window` | What the remaining ITQ + open hypotheses + planned hunts would cost (medium-high if projection blows budget) |
+| `vendor_engagement` | When the case proposes engaging an outside IR retainer, malware lab, or specialised analyst (cost, scope, NDA) |
+| `recovery_cost_class` | Class of recovery work the findings imply (rebuild N hosts, license recovery, regulatory fines) — feeds the after-action report |
+| `breach_insurance_scope` | Whether the proposed actions are within the policy's covered scope (some carriers exclude certain forensic vendors or pre-authorise others) |
+
+`consult_finance_officer` would be called automatically when:
+- A gate's projected cost exceeds 50% of the remaining budget.
+- The agent proposes a vendor-engagement action (e.g. requesting
+  outside malware analysis).
+- The IC opens a "what would containment cost" hypothesis.
+
+Architectural hard-stop: budget circuit breaker (G9) already exists.
+The Finance Officer persona is *informational*; it doesn't add a new
+architectural constraint, it surfaces signals to the IC before the
+budget gate fires.
+
+Staged for v1.2 — not load-bearing for the Find Evil! demo case.
+
+---
+
+## 2f. Public Information Officer + Legal compliance-document workflow
+
+The PIO is Command Staff in canonical NIMS — its job is external
+communication. For cyber-IR, that's customer notifications, regulator
+filings, press releases, executive briefings, and the internal
+"holding statement" that goes out before facts are confirmed.
+
+**Critical workflow detail**: PIO **drafts** statements; **Legal
+reviews them for compliance and privilege**; **IC signs off** before
+publication. This is a three-step Authority Gate, not a single
+person's decision.
+
+### What a PIO persona would produce (sketch)
+
+A `skills/public-information-officer.md` would own these
+deliverables — *drafts only*, none auto-published:
+
+| Deliverable | When | Goes to |
+|---|---|---|
+| **Holding statement** | First public awareness; facts not yet confirmed | Customer comms team, support desk |
+| **Customer notification** | Confirmed unauthorised access affecting customer data | Affected customers, support desk |
+| **Press release** | Major incident, public attention building | Press contacts, comms team |
+| **Executive briefing** | Internal — board, C-suite, regional leadership | Internal exec team |
+| **Customer-facing FAQ** | Follow-up after notification | Support desk, website |
+
+Each draft is written by the PIO persona using:
+- Facts confirmed in the audit chain (only).
+- Templates Legal maintains (see below).
+- No speculation — every claim either traces to an audit row or is
+  explicitly labelled as "as of now, unconfirmed."
+
+### Legal's compliance-document templates
+
+Legal Officer owns canonical templates for the regulatory artifacts
+SIFTics may need to help draft. SIFTics does **not** author these —
+it provides the template skeleton with placeholders, the audit-chain
+facts filled in, and outside counsel reviews and signs:
+
+| Template | Triggered by | Owner of final | Where the template lives |
+|---|---|---|---|
+| **SEC Form 8-K Item 1.05** — material cybersecurity incident | US public company, board determines materiality | Outside counsel + SEC counsel | `legal_templates/sec_8k_item_1_05.md` (planned) |
+| **GDPR Art. 33 notification** to supervisory authority | 72h from awareness of personal-data breach | Outside counsel + DPO | `legal_templates/gdpr_art33.md` (planned) |
+| **GDPR Art. 34 notification** to affected individuals | When high risk to data subjects | Outside counsel + DPO | `legal_templates/gdpr_art34.md` (planned) |
+| **HIPAA Breach Notification Rule letter** | 60d from discovery to affected individuals | Outside counsel + Privacy Officer | `legal_templates/hipaa_breach.md` (planned) |
+| **State breach notification** (US, ~50 variants) | Per-state law | Outside counsel | `legal_templates/state_breach/<state>.md` (planned) |
+| **PCI DSS forensic investigation notice** | CHD compromise | Acquirer + card brands | `legal_templates/pci_dss_notice.md` (planned) |
+
+The Legal Officer persona's role in v1.2+ would be:
+1. Identify which templates apply to the case (driven by the case's
+   `data_classes_touched` finding tags + the regulatory regime).
+2. Fill in the placeholders with audit-confirmed facts only.
+3. Hand the resulting draft to outside counsel for review (audit
+   event: `legal_draft_handed_to_counsel`).
+4. Surface counsel's edits back into the case.
+
+This is *workflow*, not *legal advice*. SIFTics is still not
+substituting for outside counsel — it's automating the boring
+secretarial work of populating templates from the audit chain.
+
+### Why the PIO ↔ Legal ↔ IC chain matters
+
+A misaligned model that drafts a press release and pushes it directly
+to a public channel would be a catastrophic failure mode. The
+architectural answer in SIFTics is the same as for every other
+high-blast-radius action: there is no `publish_press_release()`
+function on the MCP surface. The PIO persona writes a `draft_brief`
+audit event. The Legal Officer reviews it via a `legal_review_brief`
+audit event. The IC signs a `publish_brief` Authority Gate with
+HMAC. Only after all three exist does anything leave the case
+directory.
+
+Same pattern as `execute_hunt_package` and `publish_intel`. Different
+artifact, same architecture.
+
+Staged for v1.2 — out of scope for the offline forensic walkthrough,
+but the architectural slot is reserved.
+
+---
+
+## 2g. Liaison Officer — folded into Legal in v1.1, split in v1.2
+
+In canonical NIMS, Liaison Officer is Command Staff alongside Safety
+and PIO. Their job is *coordination with external parties* — other
+agencies, vendors, jurisdictions.
+
+For cyber IR that translates to:
+
+- Coordinating with the **MSSP** the org has on retainer.
+- Engaging an **outside IR retainer** (Mandiant, Crowdstrike Services,
+  Unit 42, etc.) when scope or specialisation requires it.
+- Sharing IOCs with **ISACs** (FS-ISAC, H-ISAC, etc.) and trusted
+  peer organisations.
+- Coordinating with **law enforcement** (FBI, CISA, NCA, BfV) when the
+  case warrants criminal-investigation engagement.
+- Liaison with **regulators** outside of breach-notification (e.g.
+  FCA, BaFin during ongoing examinations).
+
+SIFTics v1.1 folds these into the Legal Officer's
+`third_party_nda_scope` dimension. That's an honest collapse — Legal
+and Liaison both touch external parties, and for a single-IC offline
+analysis case the distinction is academic.
+
+A v1.2 split would introduce:
+
+- `skills/liaison-officer.md` with the dimensions above
+- `mcp_case.consult_liaison_officer` mirroring Safety/Legal
+- A G18 architectural guardrail: actions that engage external
+  parties (vendor scoping, ISAC pushes, LE referrals) require a
+  recent Liaison consult.
+
+Until then, the merged role is documented honestly here so judges and
+operators know the collapse is deliberate, not an oversight.
 
 ---
 
