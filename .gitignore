@@ -52,6 +52,11 @@ _rag_cache/
 .config/siftics/
 agent.yaml
 
+# Dotenv files — never commit; secrets always belong in the operator's
+# local environment, not the repo
+.env
+.env.*
+
 # Process logs
 /tmp/siftics-ui.log
 *.log
