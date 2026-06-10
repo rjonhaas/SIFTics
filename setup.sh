@@ -23,8 +23,8 @@ OPTIONS
   Case initialisation
     --init-case         Create the case directory, hash-chained audit log,
                         IC HMAC key, and 35-question ITQ seed
-    --case-dir DIR      Case directory path  (default: ~/cases/dry_run)
-    --case-id  ID       Case identifier      (default: dry_run_YYYYMMDD)
+    --case-dir DIR      Case directory path  (default: ~/cases/<case-id>)
+    --case-id  ID       Case identifier      (default: case_YYYYMMDD_HHMMSS)
 
   AI runtimes (optional — prompted interactively if none specified)
     --install-claude    Install Claude Code CLI (npm install -g @anthropic-ai/claude-code)
@@ -87,8 +87,11 @@ set -euo pipefail
 BASELINE_MODE="seed"        # seed | full | build | none
 INIT_CASE="no"
 START_UI="no"
-CASE_DIR="${SIFTICS_CASE_DIR:-$HOME/cases/dry_run}"
-CASE_ID="dry_run_$(date +%Y%m%d)"
+# Default to a timestamped case name. Each setup run that uses --init-case
+# produces a fresh, identifiable case directory — no "dry_run"-labelled
+# default that lingers on disk pretending to be a real investigation.
+CASE_ID="case_$(date +%Y%m%d_%H%M%S)"
+CASE_DIR="${SIFTICS_CASE_DIR:-$HOME/cases/$CASE_ID}"
 QUIET="no"
 INSTALL_CLAUDE="no"
 INSTALL_CODEX="no"
@@ -455,7 +458,7 @@ if [[ "$INIT_CASE" == "yes" ]]; then
         .venv/bin/sift-case-init \
             --case-dir "$CASE_DIR" \
             --case-id  "$CASE_ID" \
-            --name     "SIFTics dry-run case ($CASE_ID)" \
+            --name     "SIFTics case ($CASE_ID)" \
             --ic-name  "${USER:-operator}" \
             --itq-template ./templates/itq_questions.yaml \
             "${KEY_ARGS[@]}" \
