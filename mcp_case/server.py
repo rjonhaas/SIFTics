@@ -20,7 +20,7 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
-from siftics import case_state, findings as findings_lib
+from siftics import audit, case_state, findings as findings_lib
 
 mcp = FastMCP("siftics-case-state")
 
@@ -309,6 +309,146 @@ def finding_list(linked_itq: str = "", linked_asr: str = "") -> list[dict]:
     only findings that support a specific triage answer.
     """
     return findings_lib.finding_list(linked_itq=linked_itq, linked_asr=linked_asr)
+
+
+# ---------------------------------------------------------------------------
+# Command Staff consults — Safety Officer & Legal Officer
+# ---------------------------------------------------------------------------
+#
+# These tools record structured assessments from the Safety Officer and Legal
+# Officer roles (see skills/safety-officer.md, skills/legal-officer.md).
+# The agent loads the relevant skill as a sub-prompt, produces the assessment
+# JSON, and submits it via the matching tool. The tool validates schema, writes
+# a hash-chained audit event, and returns the audit row id + verdict.
+#
+# In a follow-up commit, `ic_approval.request_approval()` will refuse to issue
+# an ApprovalRequest unless a recent matching assessment exists in the audit
+# chain (and refuse outright on Safety hard_stop / Legal counsel-required).
+# That wire-up is staged separately because it requires updating every site in
+# tests/test_constraints.py to seed clear consults first.
+
+_SAFETY_DIMENSIONS = frozenset({
+    "business_impact", "personnel_safety", "investigation_safety",
+    "scope_pollution", "operational_tempo",
+})
+_SAFETY_VERDICTS = frozenset({"clear", "caution", "hard_stop"})
+_DIMENSION_SCORES = frozenset({"low", "medium", "high", "critical"})
+
+
+def _validate_assessment(assessment: dict, required_dims: frozenset[str],
+                         allowed_verdicts: frozenset[str], role: str) -> None:
+    """Shared schema check for Safety/Legal assessments."""
+    if not isinstance(assessment, dict):
+        raise ValueError(f"{role} assessment must be a dict")
+    required_top = {"action_hash", "verdict", "dimensions", "preconditions",
+                    "cited_evidence"}
+    missing = required_top - assessment.keys()
+    if missing:
+        raise ValueError(
+            f"{role} assessment missing required fields: {sorted(missing)}")
+    if assessment["verdict"] not in allowed_verdicts:
+        raise ValueError(
+            f"{role} verdict must be one of {sorted(allowed_verdicts)}, "
+            f"got {assessment['verdict']!r}")
+    dims = assessment.get("dimensions") or {}
+    if set(dims.keys()) != required_dims:
+        raise ValueError(
+            f"{role} dimensions must be exactly {sorted(required_dims)}, "
+            f"got {sorted(dims.keys())}")
+    for name, entry in dims.items():
+        if not isinstance(entry, dict):
+            raise ValueError(f"{role} dimension {name!r} must be a dict")
+        score = entry.get("score")
+        if score not in _DIMENSION_SCORES:
+            raise ValueError(
+                f"{role} dimension {name!r}: score must be one of "
+                f"{sorted(_DIMENSION_SCORES)}, got {score!r}")
+        rationale = entry.get("rationale") or ""
+        if not isinstance(rationale, str) or len(rationale) > 400:
+            raise ValueError(
+                f"{role} dimension {name!r}: rationale must be a string "
+                f"of <=400 chars")
+
+
+@mcp.tool()
+def consult_safety_officer(assessment: dict) -> dict:
+    """Record a Safety Officer assessment for a pending or proposed Authority
+    Gate.
+
+    The agent computes the assessment by loading the `/safety-officer` skill,
+    reviewing the action context, and producing the structured output per the
+    skill's output schema. This tool validates the schema and writes a
+    `safety_assessment` audit event linked to the action's content hash.
+
+    The five dimensions are: ``business_impact``, ``personnel_safety``,
+    ``investigation_safety``, ``scope_pollution``, ``operational_tempo``.
+    Verdicts: ``clear``, ``caution``, ``hard_stop``. Personnel-safety is the
+    only dimension that hard-stops; everything else caps at ``caution``.
+
+    Returns ``{"audit_row_seq": int, "verdict": str}``.
+
+    Raises ``ValueError`` if the schema is malformed.
+    """
+    _validate_assessment(assessment, _SAFETY_DIMENSIONS,
+                          _SAFETY_VERDICTS, role="safety")
+    # Enforce the personnel_safety hard-stop rule at the schema level so a
+    # malformed verdict cannot smuggle through.
+    ps = assessment["dimensions"]["personnel_safety"]["score"]
+    if ps in ("high", "critical") and assessment["verdict"] != "hard_stop":
+        raise ValueError(
+            f"safety assessment must be hard_stop when personnel_safety "
+            f"is {ps!r}; got verdict={assessment['verdict']!r}")
+    row = audit.append_event(
+        "safety_assessment", assessment, actor="safety-officer")
+    return {"audit_row_seq": row["seq"], "verdict": assessment["verdict"]}
+
+
+_LEGAL_DIMENSIONS = frozenset({
+    "privilege_scope", "breach_notification", "regulator_triggers",
+    "evidence_admissibility", "third_party_nda_scope",
+})
+_LEGAL_VERDICTS = frozenset({"clear", "caution", "outside_counsel_required"})
+
+
+@mcp.tool()
+def consult_legal_officer(assessment: dict) -> dict:
+    """Record a Legal Officer assessment for a pending or proposed Authority
+    Gate.
+
+    The agent computes the assessment by loading the `/legal-officer` skill,
+    reviewing the action context, and producing the structured output per the
+    skill's output schema. This tool validates the schema and writes a
+    `legal_review` audit event linked to the action's content hash.
+
+    The five dimensions are: ``privilege_scope``, ``breach_notification``,
+    ``regulator_triggers``, ``evidence_admissibility``, ``third_party_nda_scope``.
+    Verdicts: ``clear``, ``caution``, ``outside_counsel_required``.
+
+    The Legal Officer can only require that outside counsel be looped into the
+    matter — it does not substitute for counsel's judgment. When the verdict
+    is ``outside_counsel_required``, the IC must record a
+    ``counsel_acknowledged`` event before the gate is signable.
+
+    Returns ``{"audit_row_seq": int, "verdict": str,
+               "counsel_loop_required": bool, "clocks_started": list}``.
+
+    Raises ``ValueError`` if the schema is malformed.
+    """
+    _validate_assessment(assessment, _LEGAL_DIMENSIONS,
+                          _LEGAL_VERDICTS, role="legal")
+    if not isinstance(assessment.get("counsel_loop_required"), bool):
+        raise ValueError("legal assessment requires boolean counsel_loop_required")
+    clocks = assessment.get("clocks_started", [])
+    if not isinstance(clocks, list):
+        raise ValueError("legal assessment clocks_started must be a list")
+    row = audit.append_event(
+        "legal_review", assessment, actor="legal-officer")
+    return {
+        "audit_row_seq": row["seq"],
+        "verdict": assessment["verdict"],
+        "counsel_loop_required": assessment["counsel_loop_required"],
+        "clocks_started": clocks,
+    }
 
 
 # ---------------------------------------------------------------------------

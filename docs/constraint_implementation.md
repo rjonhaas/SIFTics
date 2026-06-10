@@ -4,7 +4,7 @@
 > evaluate *"where security boundaries are enforced and whether they were tested
 > for bypass."*
 >
-> SIFTics's answer: **15 architectural guardrails, all measured by `tests/test_constraints.py`; 14/14 pass.**
+> SIFTics's answer: **17 architectural guardrails, all measured by `tests/test_constraints.py`; 14/14 pass.**
 
 For a detailed list of guardrails see [`architecture.md §3`](architecture.md#3-trust-boundaries--architectural-vs-prompt-based). This file is the auditor-facing summary plus the constraint-test report.
 
@@ -22,7 +22,7 @@ SIFTics's rules cannot be ignored because the offending function calls **never r
 
 ---
 
-## 2. The 15 architectural guardrails — at a glance
+## 2. The 17 architectural guardrails — at a glance
 
 | # | Guardrail | Mechanism | Test | Result |
 |---|---|---|---|---|
@@ -41,6 +41,8 @@ SIFTics's rules cannot be ignored because the offending function calls **never r
 | G13 | Prompt-injection sanitiser | Regex scrub at MCP boundary before output reaches agent | T3 | ✅ |
 | G14 | IOC publishing requires signed `ICApproval` | `publish_intel()` requires typed approval parameter — same structural rule as G1 (execute_hunt) and the containment_action gate | (not yet in test suite) | stub |
 | G15 | Toolchain SBOM hash-chained at case-init | `siftics/sbom.py:compute_sbom` snapshot written into audit row 1 by `case_state.init_case`; `<case>/sbom.json` is the persisted copy; drift detectable by re-computing and comparing to the chained hash | manual via `compute_sbom` + `verify_chain`; Authority-Gate refusal on drift staged for v1.1 | ✅ (write); manual (verify) |
+| G16 | Safety Officer `personnel_safety` hard-stop | `mcp_case.consult_safety_officer` enforces at the schema layer: when `personnel_safety` score is `high`/`critical`, the verdict must be `hard_stop` (any other verdict is rejected before the audit event is written). Wire-up to refuse `ic_approval.request_approval` on hard_stop is staged for v1.1 (see `skills/safety-officer.md` §Architectural property). | T9 planned | ✅ (schema); stub (gate-refusal wire-up) |
+| G17 | Legal Officer `outside_counsel_required` blocks `request_approval` | `mcp_case.consult_legal_officer` records the verdict in audit; on `outside_counsel_required` the IC must append a `counsel_acknowledged` event (via the `legal-counsel-acknowledge` CLI / UI flow) before the gate is signable. Wire-up to `ic_approval.request_approval` staged for v1.1 (see `skills/legal-officer.md` §Architectural property). | T10 planned | ✅ (schema); stub (gate-refusal wire-up) |
 
 **14 sub-tests in the harness (T1 through T8g). All pass.** Re-run any time with:
 
@@ -95,7 +97,7 @@ The hackathon rules describe 4 approaches. Per Rob T. Lee's Slack: *Custom MCP S
 | 3. Multi-Agent Frameworks (AutoGen/CrewAI/LangGraph) | depends on inter-agent message validation | many | n/a |
 | 4. Alternative Agentic IDEs (Cursor/Cline/Aider) | 0–1 (file-write confirmations) | most | n/a |
 
-SIFTics sits squarely in #2 with **15 architectural guardrails** and 13 prompt-based (domain-knowledge skill files) — heavily inverted ratio on the security-boundary axis compared to the other approaches.
+SIFTics sits squarely in #2 with **17 architectural guardrails** and 13 prompt-based (domain-knowledge skill files) — heavily inverted ratio on the security-boundary axis compared to the other approaches.
 
 ---
 

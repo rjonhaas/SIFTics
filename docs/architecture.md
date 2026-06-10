@@ -164,6 +164,63 @@ version) or the ASCII fallback below.
       └───────────────┘  └──────────────────┘  └──────────────────┘
 ```
 
+## 2b. Command Staff under a single-agent loop
+
+SIFTics models NIMS Incident Command System (ICS) doctrine: an **Incident
+Commander** (the human analyst) sits at the top of the structure, and a
+single **Investigation Section Chief** (the Claude Code agent) runs the
+tactical investigation. v1.1 adds two NIMS Command Staff roles — **Safety
+Officer** and **Legal Officer** — that get consulted before any Authority
+Gate is surfaced to the IC.
+
+**These roles are not separate agents.** They are personas activated by
+loading the corresponding skill file (`skills/safety-officer.md`,
+`skills/legal-officer.md`) as a sub-prompt within the same Claude session
+that runs the Investigation Section Chief. The persona produces a
+structured JSON assessment matching the skill's schema and submits it via
+a typed MCP tool (`consult_safety_officer`, `consult_legal_officer`),
+which validates schema and writes the assessment to the hash-chained
+audit log.
+
+### Why personas, not separate agents
+
+The persona pattern is a pragmatic v1 choice. The trade-offs:
+
+| Multi-agent pattern would give us | Persona pattern gives us instead |
+|---|---|
+| Fresh-eyes review (no IC framing bias) | Same context — but a structured output schema (5 dimensions × score + rationale) forces the role to fill specific fields rather than nod along |
+| Separate tool surface per role | A bounded sub-prompt and a single consult MCP tool per role — the persona can't reach for arbitrary tools mid-consultation |
+| Doctrinal purity | A documented compromise. We call this *NIMS-doctrine-aligned single-agent Command Staff*, not "multiple agents" |
+| Marshaling cost (tokens to copy case state) | Zero context marshaling — the persona inherits the live conversation |
+| Audit fragmentation across agents | One audit chain, ``actor`` field per row records the role that wrote it |
+
+The architectural property of the consults is enforced at the MCP-tool
+schema layer: `consult_safety_officer` will not accept any verdict other
+than `hard_stop` when the `personnel_safety` dimension is scored
+`high`/`critical`. That makes the personnel-safety rule survive even if
+the persona prompt is bypassed. A misaligned model attempting to write a
+`clear` assessment for an OT/ICS host will be rejected by the tool
+before the audit event is written. (See `docs/constraint_implementation.md`
+G16, G17.)
+
+### Why not Finance and Public Information Officer
+
+NIMS doctrine also includes Finance / Administration Section Chief and
+Public Information Officer. v1.1 deliberately ships Safety + Legal first:
+
+- **Finance** maps to the existing per-case cost tracker
+  (`siftics/cost_tracker.py`). The role would be a thin wrapper that
+  projects total cost from remaining work — useful, but not load-bearing
+  for the Find Evil! demo case. Staged for v1.2.
+- **PIO** would draft customer comms, regulator filings, and executive
+  briefings. Out of scope for the offline forensic walkthrough the
+  hackathon evaluates.
+
+These omissions are intentional and documented; the missing roles do
+not block the architectural completeness of the pattern.
+
+---
+
 ## 3. Trust boundaries — architectural vs prompt-based
 
 The hackathon's criterion #4 (*Constraint Implementation*) explicitly asks judges
