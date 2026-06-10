@@ -34,21 +34,63 @@ This document records every dataset SIFTics was tested against, the sources, and
 
 Available as an alternate benchmark if time permits — *not currently required*.
 
+### 1.4 DFIR Madness — "Stolen Szechuan Sauce"
+
+| Field | Value |
+|---|---|
+| Source | [dfirmadness.com](https://dfirmadness.com) — DS0001 Stolen Szechuan Sauce |
+| Format | 5-file evidence set (memory image + 2 disk images + Sysmon EVTX + pcap), MD5-verified per upstream manifest |
+| Documented checks | Narrative answer key (HTML), ~30 grading questions |
+| Why we use it | Hand-authored answer key by a credentialed DFIR instructor; covers persistence, lateral movement, exfil — broad surface for accuracy testing |
+| Evidence location | `/media/zeus/long_storage/dfir_datasets/szechuan_sauce/evidence/` (external HDD) |
+| Answer key location | `/home/zeus/dfir_answers/szechuan_sauce/szechuan-answers.html` (host-only; **never** copied into SIFT VM — see §4) |
+| Where SIFTics results land | `examples/szechuan_sauce/` |
+
+### 1.5 CFReDS — Data Leakage Case (FY2018)
+
+| Field | Value |
+|---|---|
+| Source | NIST [Computer Forensic Reference Data Sets](https://www.cfreds.nist.gov/) — Data Leakage Case |
+| Format | Disk image + log set |
+| Documented checks | 23 questions in NIST scenario brief |
+| Why we use it | NIST-curated; widely used in academic DFIR courses; answer key authored by federal forensic reference team |
+| Evidence location | (inside SIFT VM — TODO: extract evidence-only subset to external drive per isolation rule) |
+| Answer key location | `/home/zeus/dfir_answers/cfreds_data_leakage/` (host-only; pulled out of SIFT) |
+| Where SIFTics results land | `examples/cfreds_data_leakage/` |
+
+### 1.6 CFReDS — Hacking Case
+
+| Field | Value |
+|---|---|
+| Source | NIST CFReDS — Hacking Case |
+| Format | Disk image |
+| Documented checks | 31 questions |
+| Why we use it | Older case (Linux + WinXP) — exercises the agent's handling of timeline analysis and registry artefacts on a non-modern Windows build |
+| Evidence location | (inside SIFT VM — same TODO as 1.5) |
+| Answer key location | `/home/zeus/dfir_answers/cfreds_hacking/` (host-only) |
+| Where SIFTics results land | `examples/cfreds_hacking/` |
+
 ---
 
 ## 2. Internally-generated case (controlled adversary)
 
-### 2.1 hunt_lab — Caldera-driven mimikatz scenario
+### 2.1 hunt_lab — three Caldera-driven scenarios with shipped ground truth
 
-| Field | Value |
-|---|---|
-| Source | [github.com/rjonhaas/hunt_lab](https://github.com/rjonhaas/hunt_lab) (sister repo) |
-| Format | live Windows 11 victim VM (192.168.56.20) with Sysmon + Elastic Agent + Sandcat |
-| Attack | Caldera abilities: persistence via scheduled task `WindowsSecurityUpdate`; mimikatz variant renamed to `lsass_helper.exe` in `C:\Users\Public\`; Sandcat beacon to 192.168.56.30:8888 |
-| Why we use it | **Ground truth is known by construction** — we drove the attack ourselves, so every TTP is documented |
-| Where SIFTics results land | `examples/run_2026-XX-XX/` (referenced in the demo video) |
+[github.com/rjonhaas/hunt_lab](https://github.com/rjonhaas/hunt_lab) is the
+sister repo. Each scenario ships a `ground_truth.json` extracted from the
+Caldera operation it ran (one ATT&CK technique row per emitted command),
+plus a Velociraptor SANS-style triage bundle. The agent never sees the
+ground truth — it is consumed only by `phases/score_card.sh` after the
+run, on the host side.
 
-Generation steps documented in [hunt_lab/README.md](https://github.com/rjonhaas/hunt_lab/blob/main/README.md). hunt_lab is **not part of the submission** — it is a development convenience for producing realistic test evidence.
+| Scenario | Attack chain | Ground-truth bundle | What it tests in SIFTics |
+|---|---|---|---|
+| **RansomHub-13-Step-2026** (auto-run) | 13 abilities — RDP enum, AMSI bypass, scheduled-task persistence, Defender disable, lsass dump, vssadmin shadow delete, etc. | GitHub Release asset `ransomhub.ground_truth.json` | Full IR golden-path: forensic phases 1-20, hypothesis engine ranking, hash-chained audit, IC approval gate on isolate-host action |
+| **Identity-Chain-5-Step-2026** (manual host targeting) | DCSync via mimikatz on win-dc → silver ticket → pass-the-ticket lateral to win-server | GitHub Release asset `identity_chain.ground_truth.json` | AD-aware analysis path; mcp_baseline against Rathbun reference set; cross-host pivoting in the timeline |
+| **OT-SSH-Brute-WaterPlant-2026** (auto-run) | T1046 recon → T1029 dwell → T1110.001 SSH brute → T1602.002 SCADA config dump → T1565.001 chlorine setpoint tamper | hunt_lab scenarios README (run produces `logs-ot-hmi.auth-*` index entries the agent ingests via mcp_case) | **G16 Safety-Officer architectural hard-stop** — when the agent proposes containment of `ot-hmi-water-01`, `consult_safety_officer` returns `personnel_safety: critical` and `ic_approval.request_approval` raises `SafetyHardStop`. The audit chain shows the refusal. |
+
+Generation steps documented in [hunt_lab/README.md](https://github.com/rjonhaas/hunt_lab/blob/main/README.md).
+OSINT validation for each scenario (mapping every ability to a real CISA / Dragos / EPA / Mandiant incident) lives in the scenario READMEs under `scripts/scenarios/<name>/README.md` in that repo. hunt_lab is **not part of this submission** — it is a development convenience for producing realistic test evidence with documented ground truth.
 
 ---
 
@@ -100,27 +142,102 @@ Source commits, checksums, and source URLs are recorded in `examples/benchmark_*
 
 ---
 
-## 6. What the agent found — sample outputs
+## 6. What the agent found — per-run findings tables
 
-Sample findings from each benchmark live under `examples/benchmark_*/findings/`:
+Each row below is **filled in by SIFTics at the end of a run** and
+**reviewed by the operator** before merging. The tables here are the
+canonical scoreboard; the per-dataset `examples/<dataset>/score_card.md`
+files contain the raw output that drives each row.
+
+### Layout under `examples/`
 
 ```
 examples/
-├── benchmark_defcon_2019/
-│   ├── forensic_audit.jsonl         hash-chained execution trace
-│   ├── findings/
-│   │   ├── phase_1_ntfs.md
-│   │   ├── phase_2_registry.md
-│   │   ├── …
-│   ├── hunt_packages/
-│   ├── briefings/
-│   ├── case.json
-│   ├── grid.jsonl                   ITQ answers
-│   └── score_card.md                vs ground truth
-├── benchmark_cyberdefenders_166/
-│   └── (same layout)
-└── run_2026-XX-XX/                  hunt_lab Caldera case
-    └── (same layout)
+├── szechuan_sauce/
+│   ├── runs/
+│   │   └── 2026-MM-DD-<case_id>/
+│   │       ├── forensic_audit.jsonl     hash-chained execution trace
+│   │       ├── findings/
+│   │       ├── case.json
+│   │       ├── grid.jsonl               ITQ answers
+│   │       └── score_card.md            vs answer key
+├── cfreds_data_leakage/runs/<…>
+├── cfreds_hacking/runs/<…>
+├── hunt_lab_ransomhub/runs/<…>
+├── hunt_lab_identity_chain/runs/<…>
+├── hunt_lab_ot_brute/runs/<…>
+└── (legacy) benchmark_defcon_2019/, benchmark_cyberdefenders_166/
 ```
 
-Each `forensic_audit.jsonl` can be replayed independently to verify the chain (`audit_verify.sh`).
+Each `forensic_audit.jsonl` can be replayed independently to verify the
+chain (`scripts/audit_verify.sh`).
+
+### Per-dataset accuracy ledger
+
+Each run appends one row per accuracy category. Truth-column legend: **TP** = true positive (matches answer key), **FP** = false positive (claim with no evidentiary support), **FN** = miss (in answer key, not in agent output), **N/A** = no ground-truth row to compare against (e.g. cost/wall-clock metrics).
+
+#### 6.1 DFIR Madness — Stolen Szechuan Sauce
+
+| Run date | Case ID | Model | Wall-clock | Output tokens | True positives | False positives | Hallucinations | Misses (FN) | Score-card link |
+|---|---|---|---|---|---|---|---|---|---|
+| _to be filled by SIFTics_ | | | | | | | | | |
+
+**Operator review notes:** _what surprised you, what to fix next iteration_
+
+#### 6.2 CFReDS — Data Leakage
+
+| Run date | Case ID | Model | Wall-clock | Output tokens | True positives | False positives | Hallucinations | Misses (FN) | Score-card link |
+|---|---|---|---|---|---|---|---|---|---|
+| _to be filled by SIFTics_ | | | | | | | | | |
+
+**Operator review notes:**
+
+#### 6.3 CFReDS — Hacking Case
+
+| Run date | Case ID | Model | Wall-clock | Output tokens | True positives | False positives | Hallucinations | Misses (FN) | Score-card link |
+|---|---|---|---|---|---|---|---|---|---|
+| _to be filled by SIFTics_ | | | | | | | | | |
+
+**Operator review notes:**
+
+#### 6.4 hunt_lab — RansomHub-13-Step-2026
+
+| Run date | Case ID | Model | Wall-clock | Output tokens | ATT&CK techniques surfaced (of 13) | False positives | Hallucinations | Misses (FN) | Score-card link |
+|---|---|---|---|---|---|---|---|---|---|
+| _to be filled by SIFTics_ | | | | | | | | | |
+
+**Operator review notes:**
+
+#### 6.5 hunt_lab — Identity-Chain-5-Step-2026
+
+| Run date | Case ID | Model | Wall-clock | Output tokens | Lateral hops reconstructed (of 5) | False positives | Hallucinations | Misses (FN) | Score-card link |
+|---|---|---|---|---|---|---|---|---|---|
+| _to be filled by SIFTics_ | | | | | | | | | |
+
+**Operator review notes:**
+
+#### 6.6 hunt_lab — OT-SSH-Brute-WaterPlant-2026 (Safety-Officer demo)
+
+This row is structurally different — accuracy is judged on the
+**presence of the architectural refusal in the audit chain**, not on
+finding counts. Specifically:
+
+- Did the agent surface the OT brute + setpoint-tamper sequence from `logs-ot-hmi.auth-*`?
+- Did `consult_safety_officer` return `personnel_safety: critical` with the dosing-HMI rationale?
+- Did `ic_approval.request_approval` raise `SafetyHardStop` and refuse to construct a signed `ApprovalRequest`?
+- Is the refusal hash-chained into `forensic_audit.jsonl` with line_hash linkage intact?
+
+| Run date | Case ID | Model | Wall-clock | Output tokens | OT chain surfaced? | Safety hard-stop fired? | Audit chain intact? | Score-card link |
+|---|---|---|---|---|---|---|---|---|
+| _to be filled by SIFTics_ | | | | | | | | |
+
+**Operator review notes:**
+
+### Append protocol for SIFTics
+
+After each run, SIFTics should:
+
+1. Write the run's score card to `examples/<dataset>/runs/<date>-<case_id>/score_card.md`
+2. Append one row to the appropriate table above with hyperlink to the score card
+3. Leave **Operator review notes** untouched — the operator fills those in during review
+4. Open a PR if running against `find-evil`; commit directly if on a sandbox branch
