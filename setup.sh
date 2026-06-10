@@ -437,6 +437,70 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Step 5b — Anthropic auth (only relevant when Claude Code is the chosen runtime)
+#
+# SIFTics shells out to `claude` for every agent turn, so the subprocess needs
+# either (a) ANTHROPIC_API_KEY in env, or (b) an existing `claude login` OAuth
+# session in ~/.claude/. We check in priority order:
+#
+#   1. ANTHROPIC_API_KEY already in env — nothing to do
+#   2. ~/.config/siftics/.env exists with a key — source it
+#   3. `claude login` OAuth credentials exist — nothing to do; claude handles it
+#   4. None of the above — if interactive, prompt; else warn and continue
+#
+# The dotenv path is .gitignored (the whole .config/siftics/ tree is in
+# .gitignore) and chmod 0600. We never write the key into agent.yaml — the
+# runtime_config module is explicit that agent.yaml holds runtime selection
+# metadata only, not secrets.
+# ---------------------------------------------------------------------------
+
+if [[ "$INSTALL_CLAUDE" == "yes" ]] || command -v claude >/dev/null 2>&1; then
+    step "5b" "$TOTAL_STEPS" "Anthropic auth"
+
+    SIFTICS_ENV_FILE="$HOME/.config/siftics/.env"
+
+    # 1. Already in env?
+    if [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
+        ok "ANTHROPIC_API_KEY already set in env (${ANTHROPIC_API_KEY:0:8}…)"
+
+    # 2. Dotenv from a previous setup run?
+    elif [[ -s "$SIFTICS_ENV_FILE" ]] && grep -q '^ANTHROPIC_API_KEY=' "$SIFTICS_ENV_FILE"; then
+        set -a; . "$SIFTICS_ENV_FILE"; set +a
+        ok "loaded ANTHROPIC_API_KEY from $SIFTICS_ENV_FILE"
+
+    # 3. `claude login` OAuth credentials present?
+    elif [[ -s "$HOME/.claude/.credentials.json" ]] || [[ -s "$HOME/.claude/credentials.json" ]]; then
+        ok "claude login OAuth credentials present — using claude.ai subscription"
+
+    # 4. Interactive prompt, else warn
+    elif [[ -t 0 ]]; then
+        echo
+        cyan "   No Anthropic credentials found. Two ways to sign in:"
+        echo "     [a] Paste an Anthropic API key now (from https://console.anthropic.com/settings/keys)"
+        echo "     [b] Cancel this script (Ctrl+C), run 'claude login' to use your claude.ai subscription, then re-run setup.sh"
+        echo "     [s] Skip — UI will start but agent calls will fail until you set ANTHROPIC_API_KEY"
+        echo
+        read -r -p "   Paste API key or [s] to skip: " _akey
+        if [[ "$_akey" == "s" || "$_akey" == "S" || -z "$_akey" ]]; then
+            warn "skipped — set ANTHROPIC_API_KEY in env before using the agent, or run 'claude login'"
+        elif [[ "$_akey" != sk-ant-* ]]; then
+            warn "that doesn't look like an Anthropic key (expected prefix 'sk-ant-'); not saved"
+        else
+            mkdir -p "$(dirname "$SIFTICS_ENV_FILE")"
+            umask 077
+            printf 'ANTHROPIC_API_KEY=%s\n' "$_akey" > "$SIFTICS_ENV_FILE"
+            chmod 0600 "$SIFTICS_ENV_FILE"
+            export ANTHROPIC_API_KEY="$_akey"
+            ok "saved to $SIFTICS_ENV_FILE (chmod 0600) and exported to this shell"
+            echo "       Future shells: 'set -a; . $SIFTICS_ENV_FILE; set +a' (or add that one line to ~/.bashrc)"
+        fi
+    else
+        warn "no auth + non-interactive — UI will fail at first agent call.
+       Re-run setup.sh interactively, or 'export ANTHROPIC_API_KEY=…' yourself, or 'claude login'"
+    fi
+fi
+
+# ---------------------------------------------------------------------------
 # Step 6 — baseline DB
 # ---------------------------------------------------------------------------
 
