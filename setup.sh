@@ -26,8 +26,9 @@ OPTIONS
   Case initialisation
     --init-case         Create the case directory, hash-chained audit log,
                         IC HMAC key, and 35-question ITQ seed
-    --case-dir DIR      Case directory path  (default: ~/cases/<case-id>)
-    --case-id  ID       Case identifier      (default: case_YYYYMMDD_HHMMSS)
+    --case-dir DIR      Case directory path  (default: ~/Desktop/cases/<case-id>)
+    --case-id  ID       Case identifier      (default: YYYY-MM-DD-NN, next free
+                        2-digit sequence for today; e.g. 2026-06-10-01)
 
   AI runtimes (optional — prompted interactively if none specified)
     --install-claude    Install Claude Code CLI (npm install -g @anthropic-ai/claude-code)
@@ -98,8 +99,27 @@ START_UI="yes"
 # Default to a timestamped case name. Each setup run that uses --init-case
 # produces a fresh, identifiable case directory — no "dry_run"-labelled
 # default that lingers on disk pretending to be a real investigation.
-CASE_ID="case_$(date +%Y%m%d_%H%M%S)"
-CASE_DIR="${SIFTICS_CASE_DIR:-$HOME/cases/$CASE_ID}"
+# Generate the default case ID in YYYY-MM-DD-NN format. NN is the next
+# unused 2-digit sequence for today's date in the canonical case base
+# (~/Desktop/cases). First case of the day → 2026-06-10-01; tenth → -10.
+# Mirrors siftics.case_state.next_case_id() so the CLI and UI agree.
+generate_case_id() {
+    local base_dir="$1"
+    local today
+    today=$(date +%Y-%m-%d)
+    local max=""
+    if [[ -d "$base_dir" ]]; then
+        max=$(find "$base_dir" -maxdepth 1 -type d -name "${today}-*" -printf '%f\n' 2>/dev/null \
+              | sed -nE "s/^${today}-0*([0-9]+)$/\1/p" \
+              | sort -n | tail -1)
+    fi
+    local n=$(( ${max:-0} + 1 ))
+    printf '%s-%02d\n' "$today" "$n"
+}
+
+CASE_DIR_BASE="${SIFTICS_CASE_BASE:-$HOME/Desktop/cases}"
+CASE_ID="$(generate_case_id "$CASE_DIR_BASE")"
+CASE_DIR="${SIFTICS_CASE_DIR:-$CASE_DIR_BASE/$CASE_ID}"
 QUIET="no"
 INSTALL_CLAUDE="no"
 INSTALL_CODEX="no"

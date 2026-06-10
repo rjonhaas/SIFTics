@@ -26,6 +26,31 @@ def _now_iso() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
 
+def next_case_id(base_dir: str | Path = "~/Desktop/cases") -> str:
+    """Suggest the next case ID in YYYY-MM-DD-NN format.
+
+    Scans `base_dir` for existing case directories whose name starts with
+    today's date and returns the next two-digit sequence (zero-padded).
+    First case of the day → 2026-06-10-01; tenth → 2026-06-10-10.
+
+    Used by both the CLI (setup.sh) and the new-case UI route so the
+    operator never has to type a case name unless they want a custom one.
+    """
+    today = time.strftime("%Y-%m-%d", time.gmtime())
+    base = Path(str(base_dir)).expanduser()
+    n = 1
+    if base.is_dir():
+        prefix = f"{today}-"
+        used = sorted(
+            int(p.name[len(prefix):])
+            for p in base.iterdir()
+            if p.is_dir() and p.name.startswith(prefix) and p.name[len(prefix):].isdigit()
+        )
+        if used:
+            n = used[-1] + 1
+    return f"{today}-{n:02d}"
+
+
 # ---------------------------------------------------------------------------
 # Schemas
 # ---------------------------------------------------------------------------

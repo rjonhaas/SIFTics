@@ -304,7 +304,13 @@ def create_app() -> Flask:
 
     @app.route("/new-case")
     def new_case_view():
-        return render_template("new_case.html")
+        # Pre-populate the case_id field with YYYY-MM-DD-NN so the operator
+        # doesn't have to type a name unless they want a custom one. The
+        # helper looks at ~/Desktop/cases for today's existing dirs and
+        # returns the next zero-padded sequence number.
+        default_case_id = case_state.next_case_id("~/Desktop/cases")
+        return render_template("new_case.html",
+                               form={"case_id": default_case_id})
 
     @app.route("/api/list-cases")
     def api_list_cases():
