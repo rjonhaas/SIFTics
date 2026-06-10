@@ -246,11 +246,11 @@ architecturally:
   matching counsel identity and matter ID), the function raises
   `LegalCounselRequired`. No `ICApproval` object exists for the IC to
   sign in this session.
-- To unblock, the IC runs `vhir-legal acknowledge --counsel "Smith
+- To unblock, the IC runs `sift-counsel-acknowledge --counsel "Smith
   & Wesson LLP / Sarah Wesson" --matter ABC-2025-IR-014` (or the
-  equivalent UI flow). This appends a `counsel_acknowledged` event
-  to the audit chain. A subsequent re-request of the same gate sees
-  the acknowledgement and proceeds.
+  equivalent UI flow at `/gates`). This appends a
+  `counsel_acknowledged` event to the audit chain. A subsequent
+  re-request of the same gate sees the acknowledgement and proceeds.
 - This is **not** the Legal Officer substituting for counsel — the
   acknowledgement records that the IC has talked to counsel
   out-of-band. SIFTics enforces *process* (the conversation
