@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}Report{% endblock %}
+{% block content %}
+<div class="max-w-5xl mx-auto">
+  <h2 class="text-2xl mb-2">Case report</h2>
+
+  {% if not case %}
+    <div class="bg-slate-900 border border-slate-700 rounded p-6 text-slate-300">
+      <p class="mb-2">No active case is selected.</p>
+      <p>
+        Pick one from the
+        <a href="{{ url_for('cases_view') }}"
+           class="text-cyan-300 hover:text-cyan-200">Cases tab</a>,
+        or initialise a new case via
+        <a href="{{ url_for('new_case_view') }}"
+           class="text-emerald-400 hover:text-emerald-300">+ New case</a>.
+      </p>
+    </div>
+  {% else %}
+
+    <!-- ----- Header ----- -->
+    <div class="bg-slate-900 border border-slate-700 rounded p-5 mb-6">
+      <div class="flex items-baseline justify-between mb-2">
+        <div>
+          <span class="text-xs text-slate-500 uppercase tracking-wide">Case</span>
+          <h3 class="text-xl text-cyan-300 font-bold">{{ case.name }}</h3>
+        </div>
+        <span class="px-2 py-0.5 rounded text-xs
+          {% if case.status == 'closed' %}bg-slate-700 text-slate-200
+          {% else %}bg-emerald-900 text-emerald-200{% endif %}">
+          {{ case.status | default('open') }}
+        </span>
+      </div>
+      <dl class="grid grid-cols-2 gap-x-8 gap-y-1 text-sm mt-3">
+        <div><dt class="inline text-slate-500">Case ID:</dt> <dd class="inline font-mono">{{ case.case_id }}</dd></div>
+        <div><dt class="inline text-slate-500">Opened:</dt> <dd class="inline">{{ case.opened_at }}</dd></div>
+        <div><dt class="inline text-slate-500">Incident Commander:</dt> <dd class="inline">{{ case.incident_commander.name }}</dd></div>
+        <div><dt class="inline text-slate-500">Impact level:</dt> <dd class="inline">{{ case.impact_level | default('—') | upper }}</dd></div>
+      </dl>
+    </div>
+
+    <!-- ----- Findings + Timeline ----- -->
+    <div class="grid grid-cols-2 gap-4 mb-6">
+      <div class="bg-slate-900 border border-slate-700 rounded p-4">
+        <h4 class="text-sm text-slate-400 mb-3 uppercase tracking-wide">Findings</h4>
+        <div class="text-3xl font-bold text-cyan-300">{{ findings.total }}</div>
+        <div class="mt-2 text-sm space-y-0.5">
+          <div>Approved: <span class="text-emerald-300">{{ findings.approved }}</span></div>
+          <div>Draft: <span class="text-amber-300">{{ findings.draft }}</span></div>
+          {% if findings.other %}<div>Other: <span class="text-slate-300">{{ findings.other }}</span></div>{% endif %}
+        </div>
+      </div>
+
+      <div class="bg-slate-900 border border-slate-700 rounded p-4">
+        <h4 class="text-sm text-slate-400 mb-3 uppercase tracking-wide">ITQ progress</h4>
+        <div class="text-3xl font-bold text-cyan-300">{{ itq_pct }}%</div>
+        <div class="mt-2 h-2 bg-slate-800 rounded">
+          <div class="h-2 bg-cyan-500 rounded" style="width: {{ itq_pct }}%"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ----- ASR / CET ----- -->
+    <div class="grid grid-cols-2 gap-4 mb-6">
+      <div class="bg-slate-900 border border-slate-700 rounded p-4">
+        <h4 class="text-sm text-slate-400 mb-2 uppercase tracking-wide">Affected Systems Register</h4>
+        <div class="text-sm space-y-1">
+          <div>Total: <span class="text-slate-200">{{ asr.total }}</span></div>
+          <div>Open: <span class="text-amber-300">{{ asr.open }}</span></div>
+          <div>Safe: <span class="text-emerald-300">{{ asr.safe }}</span></div>
+          <div>Critical: <span class="text-rose-300">{{ asr.critical }}</span></div>
+        </div>
+      </div>
+      <div class="bg-slate-900 border border-slate-700 rounded p-4">
+        <h4 class="text-sm text-slate-400 mb-2 uppercase tracking-wide">Containment / Eradication / Recovery Tasks</h4>
+        <div class="text-sm space-y-1">
+          <div>Total: <span class="text-slate-200">{{ cet.total }}</span></div>
+          <div>Pending: <span class="text-amber-300">{{ cet.pending }}</span></div>
+          <div>Remediated: <span class="text-emerald-300">{{ cet.remediated }}</span></div>
+          <div>High priority: <span class="text-rose-300">{{ cet.high_priority }}</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ----- Audit chain + SBOM ----- -->
+    <div class="bg-slate-900 border border-slate-700 rounded p-4 mb-6">
+      <h4 class="text-sm text-slate-400 mb-3 uppercase tracking-wide">Audit chain integrity</h4>
+      <div class="flex items-center gap-4 text-sm">
+        <span>Events: <span class="text-slate-200">{{ audit_summary.events }}</span></span>
+        <span>
+          Chain:
+          {% if audit_summary.chain_ok %}
+            <span class="text-emerald-300">✓ valid</span>
+          {% else %}
+            <span class="text-rose-300">✗ {{ audit_summary.chain_errors | length }} error(s)</span>
+          {% endif %}
+        </span>
+        {% if audit_summary.last_event %}
+          <span>Last event: <span class="text-slate-400">{{ audit_summary.last_event.ts }}</span></span>
+        {% endif %}
+      </div>
+
+      {% if sbom_event %}
+        <div class="mt-3 pt-3 border-t border-slate-800 text-xs">
+          <div class="text-slate-400 mb-1">Toolchain SBOM hashed into row 1 of the audit chain:</div>
+          <div>SBOM hash: <code class="text-cyan-300">{{ sbom_event.payload.sbom_hash[:16] }}…</code></div>
+          <div class="text-slate-500">
+            {{ sbom_event.payload.package_count }} packages · python {{ sbom_event.payload.python_version }} ·
+            git <code>{{ (sbom_event.payload.siftics_git_head or '?')[:7] }}</code>
+          </div>
+        </div>
+      {% endif %}
+
+      {% if not audit_summary.chain_ok %}
+        <ul class="mt-3 text-xs text-rose-300 list-disc list-inside">
+          {% for err in audit_summary.chain_errors %}<li>{{ err }}</li>{% endfor %}
+        </ul>
+      {% endif %}
+    </div>
+
+    <!-- ----- Runtime / cost ----- -->
+    <div class="bg-slate-900 border border-slate-700 rounded p-4">
+      <h4 class="text-sm text-slate-400 mb-3 uppercase tracking-wide">Runtime</h4>
+      <div class="text-sm">
+        Active runtime: <code class="text-cyan-300">{{ runtime.runtime | default('—') }}</code>
+      </div>
+      {% if runtime.cost_usd is defined %}
+        <div class="text-sm mt-1">
+          Spend so far:
+          <span class="{% if runtime.warn %}text-amber-300{% elif runtime.over %}text-rose-300{% else %}text-emerald-300{% endif %}">
+            ${{ '%.2f' | format(runtime.cost_usd) }}
+          </span>
+          / ${{ '%.2f' | format(runtime.budget_usd) }} budget
+        </div>
+      {% endif %}
+    </div>
+
+  {% endif %}
+</div>
+{% endblock %}

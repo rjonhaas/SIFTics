@@ -226,7 +226,130 @@ def create_app() -> Flask:
                                 runtime=_runtime_status())
 
     # -----------------------------------------------------------------
-    # Chat panel
+    # Cases — list + selector (replaces the old Chat tab in the nav)
+    # -----------------------------------------------------------------
+
+    @app.route("/cases")
+    def cases_view():
+        """List every case under the configured cases root and let the
+        examiner switch the active one. The Flask process reads
+        ``SIFTICS_CASE_DIR`` from os.environ on every audit/case_state call,
+        so updating it process-wide is enough to flip the active case
+        without restarting the server."""
+        active = os.environ.get("SIFTICS_CASE_DIR") or ""
+        bases: list[Path] = []
+        for raw in (request.args.get("base"),
+                    os.environ.get("SIFTICS_CASES_ROOT"),
+                    str(Path.home() / "cases")):
+            if not raw:
+                continue
+            p = Path(raw).expanduser()
+            if p.is_dir() and p not in bases:
+                bases.append(p)
+
+        cases: list[dict] = []
+        for base in bases:
+            try:
+                children = sorted(base.iterdir())
+            except PermissionError:
+                continue
+            for d in children:
+                if not d.is_dir():
+                    continue
+                meta = _case_meta(d)
+                if meta is None:
+                    continue
+                meta["path"] = str(d)
+                meta["is_active"] = (str(d) == active)
+                cases.append(meta)
+
+        return render_template("cases.html",
+                                cases=cases,
+                                bases=[str(b) for b in bases],
+                                active=active)
+
+    @app.route("/cases/select", methods=["POST"])
+    def cases_select():
+        """Set the active case dir for the running Flask process and bounce
+        the browser to the dashboard."""
+        path_raw = request.form.get("case_dir", "").strip()
+        if not path_raw:
+            return Response("case_dir required", status=400)
+        path = Path(path_raw).expanduser().resolve()
+        if not path.is_dir():
+            return Response(f"not a directory: {path}", status=400)
+        if not (path / "case.json").exists():
+            return Response(f"no case.json in {path}", status=400)
+        os.environ["SIFTICS_CASE_DIR"] = str(path)
+        audit.append_event("case_switched_via_ui",
+                           {"case_dir": str(path)}, actor="ic")
+        resp = Response("", status=200)
+        resp.headers["HX-Redirect"] = url_for("dashboard")
+        return resp
+
+    # -----------------------------------------------------------------
+    # Report — single-case rundown (replaces the old Audit chain tab)
+    # -----------------------------------------------------------------
+
+    @app.route("/report")
+    def report_view():
+        """Read-only summary of where the active case stands: header, ITQ
+        progress, ASR/CET totals, findings tally, recent audit activity,
+        cost snapshot, and an audit-chain integrity light."""
+        try:
+            case = case_state.case_get_header()
+        except FileNotFoundError:
+            return render_template("report.html", case=None)
+
+        events = list(audit.iter_events())
+        # SBOM event is row 1 if the case was init'd by current case_state.
+        sbom_event = next((e for e in events if e.get("type") == "sbom_snapshot"), None)
+        chain_ok, chain_errors = audit.verify_chain()
+
+        findings_path = case_state.case_dir() / "findings.jsonl"
+        findings_total = 0
+        findings_approved = 0
+        findings_draft = 0
+        if findings_path.exists():
+            for line in findings_path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                findings_total += 1
+                status = (row.get("status") or "draft").lower()
+                if status == "approved":
+                    findings_approved += 1
+                elif status == "draft":
+                    findings_draft += 1
+
+        return render_template(
+            "report.html",
+            case=case,
+            asr=_asr_summary(),
+            cet=_cet_summary(),
+            itq_pct=_itq_progress_pct(),
+            findings={
+                "total": findings_total,
+                "approved": findings_approved,
+                "draft": findings_draft,
+                "other": findings_total - findings_approved - findings_draft,
+            },
+            audit_summary={
+                "events": len(events),
+                "chain_ok": chain_ok,
+                "chain_errors": chain_errors[:5],
+                "last_event": events[-1] if events else None,
+            },
+            sbom_event=sbom_event,
+            runtime=_runtime_status(),
+        )
+
+    # -----------------------------------------------------------------
+    # Chat panel (kept as a route for any deep links; no longer in nav)
     # -----------------------------------------------------------------
 
     @app.route("/chat")
@@ -413,6 +536,46 @@ def _event_to_dict(ev) -> dict:
             if v not in (None, "", {}):
                 out[f] = v
     return out
+
+
+def _itq_progress_pct() -> int:
+    """Return the percentage of the ITQ that's been answered, 0-100. Resilient
+    to either a list of rows or a dict layout in itq.jsonl."""
+    try:
+        rows = case_state.itq_all()
+    except Exception:
+        return 0
+    if not rows:
+        return 0
+    answered = sum(1 for r in rows if r.get("answer") or r.get("answered_at"))
+    return int(round(100 * answered / max(1, len(rows))))
+
+
+def _case_meta(case_dir: Path) -> dict | None:
+    """Read a case directory's case.json header without touching the audit
+    log or globals. Returns None if the directory isn't a real case."""
+    header_path = case_dir / "case.json"
+    if not header_path.exists():
+        return None
+    try:
+        h = json.loads(header_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    # Quick file-size feel for how mature the case is.
+    audit_lines = 0
+    audit_path = case_dir / "forensic_audit.jsonl"
+    if audit_path.exists():
+        with audit_path.open("r", encoding="utf-8") as fh:
+            audit_lines = sum(1 for _ in fh)
+    return {
+        "case_id": h.get("case_id"),
+        "name": h.get("name"),
+        "opened_at": h.get("opened_at"),
+        "ic_name": (h.get("incident_commander") or {}).get("name"),
+        "status": h.get("status", "open"),
+        "impact_level": h.get("impact_level"),
+        "audit_lines": audit_lines,
+    }
 
 
 def _asr_summary() -> dict:

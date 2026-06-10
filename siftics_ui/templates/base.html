@@ -46,10 +46,10 @@
                hx-trigger="sse:ic_request_approval, sse:ic_approval_signed, every 30s"
                hx-swap="innerHTML">{% include "_pending_gates.html" %}</span>
       </a>
-      <a href="{{ url_for('audit_view') }}"
-         class="hover:text-cyan-300">Audit chain</a>
-      <a href="{{ url_for('chat_view') }}"
-         class="hover:text-cyan-300">Chat</a>
+      <a href="{{ url_for('cases_view') }}"
+         class="hover:text-cyan-300">Cases</a>
+      <a href="{{ url_for('report_view') }}"
+         class="hover:text-cyan-300">Report</a>
       <a href="{{ url_for('setup_view') }}"
          class="hover:text-cyan-300">Setup</a>
       <a href="{{ url_for('new_case_view') }}"

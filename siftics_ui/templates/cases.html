@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Cases{% endblock %}
+{% block content %}
+<div class="max-w-5xl mx-auto">
+  <div class="flex items-baseline justify-between mb-6">
+    <h2 class="text-2xl">Cases</h2>
+    <a href="{{ url_for('new_case_view') }}"
+       class="text-sm bg-emerald-700 hover:bg-emerald-600 px-3 py-1 rounded">
+      + Initialise a new case
+    </a>
+  </div>
+
+  {% if not cases %}
+    <div class="bg-slate-900 border border-slate-700 rounded p-6 text-slate-400">
+      <p class="mb-2">No cases found under:</p>
+      <ul class="list-disc list-inside text-sm">
+        {% for b in bases %}<li><code>{{ b }}</code></li>{% endfor %}
+      </ul>
+      <p class="mt-4">
+        Initialise one from the
+        <a href="{{ url_for('new_case_view') }}"
+           class="text-cyan-300 hover:text-cyan-200">new-case wizard</a>,
+        or set <code>SIFTICS_CASES_ROOT</code> to point at an existing tree.
+      </p>
+    </div>
+  {% else %}
+    <p class="text-sm text-slate-400 mb-3">
+      Click <strong>Select</strong> to make a case active for this session.
+      The Flask process picks up the change immediately — no restart.
+      <span class="text-amber-400 ml-2">Active case is highlighted.</span>
+    </p>
+
+    <table class="w-full text-sm border-collapse">
+      <thead>
+        <tr class="text-left text-slate-400 border-b border-slate-700">
+          <th class="py-2 pr-3">Case ID</th>
+          <th class="py-2 pr-3">Name</th>
+          <th class="py-2 pr-3">Opened</th>
+          <th class="py-2 pr-3">Examiner</th>
+          <th class="py-2 pr-3 text-right">Audit lines</th>
+          <th class="py-2 pr-3">Status</th>
+          <th class="py-2"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in cases %}
+          <tr class="border-b border-slate-800
+                     {% if c.is_active %}bg-amber-950/30{% endif %}">
+            <td class="py-2 pr-3 font-mono text-cyan-300">{{ c.case_id }}</td>
+            <td class="py-2 pr-3">{{ c.name }}</td>
+            <td class="py-2 pr-3 text-slate-400">{{ c.opened_at }}</td>
+            <td class="py-2 pr-3">{{ c.ic_name }}</td>
+            <td class="py-2 pr-3 text-right text-slate-400">{{ c.audit_lines }}</td>
+            <td class="py-2 pr-3">
+              <span class="px-2 py-0.5 rounded text-xs
+                {% if c.status == 'closed' %}bg-slate-700 text-slate-300
+                {% else %}bg-emerald-900 text-emerald-200{% endif %}">
+                {{ c.status }}
+              </span>
+            </td>
+            <td class="py-2 text-right">
+              {% if c.is_active %}
+                <span class="text-amber-400 text-xs">active</span>
+              {% else %}
+                <form method="POST" action="{{ url_for('cases_select') }}"
+                      class="inline" hx-boost="false">
+                  <input type="hidden" name="case_dir" value="{{ c.path }}">
+                  <button type="submit"
+                          class="bg-cyan-700 hover:bg-cyan-600 px-3 py-1 text-xs rounded">
+                    Select
+                  </button>
+                </form>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <p class="text-xs text-slate-500 mt-4">
+      Scanned {{ cases|length }} case(s) from:
+      {% for b in bases %}<code>{{ b }}</code>{% if not loop.last %} · {% endif %}{% endfor %}
+    </p>
+  {% endif %}
+</div>
+{% endblock %}
