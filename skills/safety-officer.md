@@ -151,7 +151,7 @@ to "potentially impactful." NIMS doctrine: the SO has standing to
 
 ## Examples
 
-### Example 1 — `containment_action`: isolate `wks-marketing-07.lab.local`
+### Example 1 — `containment_action`: isolate `wks-marketing-07.corp.example.com`
 
 Investigation context: confirmed credential theft via cookie steal,
 attacker has not been observed using stolen creds yet, mid-day Tuesday.

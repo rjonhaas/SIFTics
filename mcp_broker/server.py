@@ -166,12 +166,18 @@ def _ensure_namespace(name: str) -> None:
 def list_clients() -> list[dict]:
     """List Velociraptor clients (hosts) currently registered with the server."""
     if _MODE == "mock":
+        # Generic enterprise-shaped placeholders. Do NOT reference any
+        # specific lab fixture (hunt_lab, etc.) by name here — these
+        # values surface in /gates as candidate hunt targets, and the
+        # whole point of SIFTics is to stand alone from any one
+        # adversary-emulation setup. Pattern intentionally vague:
+        # one workstation, one file server, one SIEM collector.
         return [
-            {"client_id": "C.mock-001", "hostname": "win11-victim",
+            {"client_id": "C.mock-001", "hostname": "WKSTN-A14",
              "os": "windows", "last_seen": "2026-05-22T15:30:00Z"},
-            {"client_id": "C.mock-002", "hostname": "fileserver01",
+            {"client_id": "C.mock-002", "hostname": "FS-CORP-02",
              "os": "windows", "last_seen": "2026-05-22T15:29:55Z"},
-            {"client_id": "C.mock-003", "hostname": "elastic-siem",
+            {"client_id": "C.mock-003", "hostname": "siem-collector-01",
              "os": "linux", "last_seen": "2026-05-22T15:30:01Z"},
         ]
     data = _post("SearchClients", {"limit": 200, "query": "all"})
@@ -388,9 +394,11 @@ def get_hunt_results(hunt_id: str) -> dict:
         h = _MOCK_HUNTS.get(hunt_id)
         if not h:
             return {"error": "unknown_hunt", "hunt_id": hunt_id}
-        # Stubbed result: one client returns a hit matching the IOC
+        # Stubbed result: one client returns a hit matching the IOC.
+        # Hostname must match the generic placeholder in list_clients()
+        # so the mock surface is internally consistent across calls.
         sample_rows = [
-            {"client_id": "C.mock-001", "hostname": "win11-victim",
+            {"client_id": "C.mock-001", "hostname": "WKSTN-A14",
              "matched_at": _now(),
              "evidence": "Imphash match on lsass_helper.exe at C:\\Users\\Public\\"},
         ]
