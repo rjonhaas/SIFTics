@@ -10,6 +10,27 @@
 
 ---
 
+## What SIFTics is — and how it's deployed
+
+> **The asymmetry SIFTics targets:** detection has been operating at AI-speed for years; response is still human-speed because **authority cannot be delegated to a model**. SIFTics is the bridge — it lets a human Incident Commander authorise active response at the speed an AI can propose it, with cryptographically-enforced gates so the IC never loses control of *what* gets executed.
+
+The submission is structured in three deliberately-separated layers. A judge can grade Layer 1 in isolation; Layers 2 and 3 show what the same agent looks like when wired to a real SOC.
+
+| Layer | What it is | What lives here |
+|---|---|---|
+| **1. SIFTics agent** *(the submission)* | The standalone agentic DFIR analyst. NIMS Incident Command framework, HMAC-signed Authority Gates, hash-chained audit, Safety / Legal Officer architectural guardrails. Runs against any evidence bundle on the SIFT Workstation; **no external infrastructure required**. | this repo — `siftics/`, `mcp_*/`, `siftics_ui/`, `phases/`, `skills/` |
+| **2. Integration contract** *(the architecture)* | A typed MCP tool surface that any environment can plug into — Velociraptor, an EDR, a TIP, an Entra ID tenant. The agent doesn't know or care which vendor is on the other side; the contract is identical. | `mcp_broker/`, `mcp_containment/`, `mcp_intel/` — each with a `_MODE = mock \| real` flag |
+| **3. Reference deployment** *(the proof point)* | A live Caldera + Velociraptor + ELK + Active-Directory environment that shows the agent **fighting back at AI-speed** against real adversary emulation. **Not a dependency** of the submission — it's the demonstration of what Layer 2 enables. | sister repo: [github.com/rjonhaas/hunt_lab](https://github.com/rjonhaas/hunt_lab) |
+
+**Two ways to grade this:**
+
+- **Standalone (judges' default path)** — clone this repo, run `./setup.sh` on a SIFT VM, point it at any evidence bundle, watch findings stream into the hash-chained audit log. The MCP broker runs in `mock` mode and returns generic enterprise placeholders, so there is nothing external to configure.
+- **Connected (the demo video path)** — configure response targets at `/setup`, switch the MCP broker to `real` mode, point it at a Velociraptor server. The demo video uses `hunt_lab` for that environment, but any Velociraptor server speaking the same API works.
+
+The hackathon submission is **Layer 1**. Layers 2 and 3 exist to show that Layer 1 isn't an analysis toy — it's an agent that can authorise live response, and architecturally refuse to authorise the *wrong* response (see the OT Safety Officer hard-stop in the demo).
+
+---
+
 ## Devpost compliance map — every required deliverable, with locations
 
 > *Per Rob T. Lee's Slack guidance: "Do not make it hard for the judges to see where the components are. Make it SUPER EASY TO FIND THEM."*
