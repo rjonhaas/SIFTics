@@ -26,6 +26,97 @@
               <pre class="text-xs bg-slate-950 p-3 mt-1 overflow-auto rounded">{{ req.action | tojson(indent=2) }}</pre>
             </details>
 
+            {# ------- Command Staff panel ------- #}
+            {% if req.safety or req.legal %}
+              <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
+                {% if req.safety %}
+                  {% set sv = req.safety.verdict %}
+                  <div class="rounded p-2
+                              {% if sv == 'hard_stop' %}bg-rose-950 border border-rose-700
+                              {% elif sv == 'caution' %}bg-amber-950 border border-amber-700
+                              {% else %}bg-emerald-950 border border-emerald-700{% endif %}">
+                    <div class="flex justify-between font-bold mb-1">
+                      <span>Safety Officer</span>
+                      <span class="uppercase tracking-wide
+                                    {% if sv == 'hard_stop' %}text-rose-300
+                                    {% elif sv == 'caution' %}text-amber-300
+                                    {% else %}text-emerald-300{% endif %}">{{ sv }}</span>
+                    </div>
+                    <details>
+                      <summary class="text-slate-400 cursor-pointer hover:text-slate-200">5-dimension scores</summary>
+                      <ul class="mt-1 space-y-0.5 text-slate-300">
+                        {% for name, dim in req.safety.dimensions.items() %}
+                          <li>
+                            <span class="text-slate-500">{{ name }}:</span>
+                            <span class="{% if dim.score in ('critical','high') %}text-rose-300
+                                          {% elif dim.score == 'medium' %}text-amber-300
+                                          {% else %}text-slate-300{% endif %}">{{ dim.score }}</span>
+                            {% if dim.rationale %}<span class="text-slate-500">— {{ dim.rationale }}</span>{% endif %}
+                          </li>
+                        {% endfor %}
+                      </ul>
+                    </details>
+                    {% if req.safety.preconditions %}
+                      <p class="mt-2 text-slate-400">Preconditions:</p>
+                      <ul class="list-disc list-inside text-slate-300">
+                        {% for p in req.safety.preconditions %}<li>{{ p }}</li>{% endfor %}
+                      </ul>
+                    {% endif %}
+                  </div>
+                {% else %}
+                  <div class="rounded p-2 bg-slate-900 border border-slate-700 text-slate-400">
+                    <div class="font-bold">Safety Officer</div>
+                    <div class="text-amber-300">not consulted yet</div>
+                  </div>
+                {% endif %}
+                {% if req.legal %}
+                  {% set lv = req.legal.verdict %}
+                  <div class="rounded p-2
+                              {% if lv == 'outside_counsel_required' %}bg-rose-950 border border-rose-700
+                              {% elif lv == 'caution' %}bg-amber-950 border border-amber-700
+                              {% else %}bg-emerald-950 border border-emerald-700{% endif %}">
+                    <div class="flex justify-between font-bold mb-1">
+                      <span>Legal Officer</span>
+                      <span class="uppercase tracking-wide
+                                    {% if lv == 'outside_counsel_required' %}text-rose-300
+                                    {% elif lv == 'caution' %}text-amber-300
+                                    {% else %}text-emerald-300{% endif %}">{{ lv | replace('_',' ') }}</span>
+                    </div>
+                    <details>
+                      <summary class="text-slate-400 cursor-pointer hover:text-slate-200">5-dimension scores</summary>
+                      <ul class="mt-1 space-y-0.5 text-slate-300">
+                        {% for name, dim in req.legal.dimensions.items() %}
+                          <li>
+                            <span class="text-slate-500">{{ name | replace('_',' ') }}:</span>
+                            <span class="{% if dim.score in ('critical','high') %}text-rose-300
+                                          {% elif dim.score == 'medium' %}text-amber-300
+                                          {% else %}text-slate-300{% endif %}">{{ dim.score }}</span>
+                            {% if dim.rationale %}<span class="text-slate-500">— {{ dim.rationale }}</span>{% endif %}
+                          </li>
+                        {% endfor %}
+                      </ul>
+                    </details>
+                    {% if req.legal.clocks_started %}
+                      <p class="mt-2 text-rose-300">⏱ clocks started:</p>
+                      <ul class="list-disc list-inside text-rose-200">
+                        {% for c in req.legal.clocks_started %}
+                          <li>{{ c.regime }} — {{ c.deadline_relative_hours }}h from {{ c.trigger_event }}</li>
+                        {% endfor %}
+                      </ul>
+                    {% endif %}
+                    {% if req.legal.counsel_loop_required %}
+                      <p class="mt-2 text-amber-300">⚖ outside counsel must be in the loop</p>
+                    {% endif %}
+                  </div>
+                {% else %}
+                  <div class="rounded p-2 bg-slate-900 border border-slate-700 text-slate-400">
+                    <div class="font-bold">Legal Officer</div>
+                    <div class="text-amber-300">not consulted yet</div>
+                  </div>
+                {% endif %}
+              </div>
+            {% endif %}
+
             <form class="gate-form mt-4 flex gap-2 items-center">
               <input type="hidden" name="request_id" value="{{ req.request_id }}">
               <input type="password"

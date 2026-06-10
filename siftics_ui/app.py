@@ -1025,10 +1025,38 @@ def _list_pending_gates() -> list[dict]:
         if (sdir / p.name).exists():
             continue
         try:
-            out.append(json.loads(p.read_text(encoding="utf-8")))
+            gate = json.loads(p.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             continue
+        # Attach Command Staff assessments — the matching Safety + Legal
+        # consults from the audit log keyed on action_hash. Pending gate
+        # objects already carry `action_hash` (since the G16/G17 wire-up).
+        ah = gate.get("action_hash")
+        if ah:
+            gate["safety"], gate["legal"] = _command_staff_for(ah)
+        out.append(gate)
     return out
+
+
+def _command_staff_for(ah: str) -> tuple[dict | None, dict | None]:
+    """Return (safety_assessment_payload, legal_review_payload) for an
+    action_hash — most recent matching audit events, or (None, None) if
+    none exist. Used to render the Command Staff panel under each
+    pending gate on /gates."""
+    safety: dict | None = None
+    legal: dict | None = None
+    for ev in reversed(list(audit.iter_events())):
+        et = ev.get("type")
+        payload = ev.get("payload") or {}
+        if payload.get("action_hash") != ah:
+            continue
+        if et == "safety_assessment" and safety is None:
+            safety = payload
+        elif et == "legal_review" and legal is None:
+            legal = payload
+        if safety and legal:
+            break
+    return safety, legal
 
 
 def _list_signed_gates(limit: int = 10) -> list[dict]:
