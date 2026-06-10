@@ -4,10 +4,12 @@
 <div class="max-w-3xl mx-auto">
   <h2 class="text-2xl mb-2">Choose your agent runtime</h2>
   <p class="text-slate-400 mb-6">
-    SIFTics's investigation logic and MCP servers are runtime-agnostic. Pick
-    whichever LLM stack matches your environment. Per Find Evil! hackathon rules,
-    <strong>Claude Code is the primary recommended path</strong>. The other options
-    are documented for accessibility / fully-local / cost-controlled deployments.
+    Per Find Evil! hackathon rules, SIFTics's submission supports two
+    Anthropic-backed runtimes: <strong>Claude Code</strong> (the primary
+    recommended path — uses your existing claude CLI subscription) and the
+    in-process <strong>Anthropic API</strong> loop (for pinned-model
+    or fully-headless runs). Both share the same architectural guardrails,
+    cost-tracker, and audit chain.
   </p>
 
   <form method="POST" action="{{ url_for('setup_save') }}" class="space-y-3"
@@ -35,7 +37,12 @@
     {% endfor %}
 
     <fieldset class="bg-slate-900 border border-slate-700 rounded p-4 mt-6">
-      <legend class="px-2 text-sm text-slate-300">Anthropic API key (only used if you picked the Anthropic option)</legend>
+      <legend class="px-2 text-sm text-slate-300">Anthropic API key</legend>
+      <p class="text-xs text-slate-400 mb-2">
+        Required if you picked <strong>Anthropic API key</strong>. Claude
+        Code uses your <code>claude</code> CLI subscription separately, so
+        leave this blank when Claude Code is selected.
+      </p>
       <input type="password" name="anthropic_key" placeholder="sk-ant-…"
              autocomplete="off"
              class="w-full bg-slate-800 border border-slate-700 px-3 py-2 rounded font-mono text-sm">

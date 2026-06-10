@@ -344,29 +344,28 @@ def _runtime_status() -> dict:
 
 
 def _setup_options(cfg) -> list[dict]:
-    """Probe each runtime backend; return a list of card dicts for the wizard."""
+    """Probe each runtime backend; return a list of card dicts for the wizard.
+
+    Trimmed to the two paths Find Evil! hackathon rules permit: the Claude
+    Code CLI (preferred, uses the user's existing claude subscription) and
+    the in-process Anthropic API loop (for headless / pinned-model runs).
+    Other runtimes (Ollama, OpenAI, Codex CLI) are intentionally hidden;
+    they remain selectable via ``runtime_config`` for non-hackathon
+    deployments but aren't surfaced as options in the wizard.
+    """
     out = []
     for value, label, desc, recommended in [
         ("claude_code",   "Claude Code (recommended)",
-            "Uses your existing claude CLI subscription. SIFTics writes MCP server "
-            "registrations into ~/.claude/settings.json so claude calls them.",
+            "Uses your existing claude CLI subscription. SIFTics writes MCP "
+            "server registrations into ~/.claude/settings.json so claude "
+            "calls them. Matches the Find Evil! hackathon's primary deployment.",
             True),
         ("anthropic_api", "Anthropic API key",
             "In-process chat loop in SIFTics's UI. Routes per task class "
             "(Sonnet 4.6 default, Haiku 4.5 for classification, Opus 4.7 for "
             "deep review). Prompt caching enabled. Cost tracking + per-case "
-            "budget circuit breaker active.",
-            False),
-        ("ollama",        "Ollama (fully local)",
-            "Talks to a local Ollama server (default http://127.0.0.1:11434). "
-            "Recommend qwen2.5-coder:32b or llama3.1:70b for tool-use quality. "
-            "Cost = $0; expect reduced autonomy compared to frontier models.",
-            False),
-        ("openai_api",    "OpenAI API key",
-            "(stub) In-process chat loop using the OpenAI SDK. Pin via models block.",
-            False),
-        ("codex",         "Codex CLI",
-            "(stub) Uses Codex CLI as the agent runtime; SIFTics registers MCP servers.",
+            "budget circuit breaker active. Use when you need a pinned "
+            "model or a fully-headless run.",
             False),
     ]:
         rt = agent_runtime.runtime_for_config(_force_runtime(cfg, value))
