@@ -51,7 +51,7 @@ SIFTics turns the SIFT Workstation into a **machine-speed incident response agen
 | 3. Breadth and Depth | 20 phase scripts across Windows / Linux / memory / network / email / cross-machine attack-path — see [`phases/`](phases/) |
 | 4. Constraint Implementation | [`docs/constraint_implementation.md`](docs/constraint_implementation.md) — architectural (red) vs prompt-based (yellow) guardrails; T1–T8 bypass test results in [`tests/test_constraints.py`](tests/test_constraints.py) |
 | 5. Audit Trail Quality | `siftics/audit.py` — hash-chained `forensic_audit.jsonl` + `audit_verify.sh` |
-| 6. Usability and Documentation | This README + `docs/QUICKSTART.md` + the SIFTics web UI at `localhost:8080` |
+| 6. Usability and Documentation | This README + `docs/QUICKSTART.md` + the SIFTics web UI at `localhost:8080` — dashboard improvements: transcript persists across page reloads (sessionStorage), block-level markdown rendering (tables/lists/headings), separate message bubbles per agent turn; dedicated `/findings`, `/intel`, `/cases`, and `/report` pages |
 
 ---
 
@@ -75,8 +75,11 @@ cd SIFTics
 ./setup.sh --full-baseline              # ...but fetch the full ~100 MB DB from a Release
 ./setup.sh --build-baseline             # ...but build the full DB locally (~30 min)
 ./setup.sh --init-case --start-ui       # full express: case dir + UI on 127.0.0.1:8080
+./setup.sh --no-rag                     # skip the RAG index build (Step 7)
 ./setup.sh --help                       # all flags
 ```
+
+**Step 7 (RAG index):** `setup.sh` now automatically checks for `mcp_rag/index/` and builds the forensic-RAG index from GitHub sources if it is absent. Pass `--no-rag` to skip this step. If the build fails the script warns but does not abort.
 
 If `setup.sh` fails on a missing system package, it prints the exact `apt install` command and exits cleanly.
 
@@ -127,8 +130,33 @@ A 5-minute demo of this exact sequence runs in [`docs/demo_video.md`](docs/demo_
 
 - SIFT Workstation 2026.04 or newer (full OVA *or* WSL server-mode install — both supported)
 - Python 3.10+
-- ~4 GB free RAM, ~10 GB free disk for the bundled knowledge index
 - Claude Code (or any other Custom-MCP-capable agentic framework — `claude` CLI tested)
+
+### Recommended hardware
+
+SIFTics's compute footprint is dominated by the **forensic tools the agent
+drives** (mac_apt, Volatility, Plaso, Sleuth Kit, binwalk), not by SIFTics
+itself. The Flask UI + MCP servers + RAG index together use ~300 MB RAM.
+Right-size to your evidence:
+
+| Tier | CPU | RAM | Disk | What you can do |
+|---|---|---|---|---|
+| **Minimum** *(stock SIFT 2026.04 OVA)* | 4 vCPU | 8 GB | 50 GB free | Small CTF cases — PCAPs ≤ 100 MB, triage bundles ≤ 5 GB. Volatility against memory dumps ≤ 1 GB. Single case at a time. |
+| **Recommended** | 8 vCPU | 16 GB | 200 GB free | Full disk-image cases up to 25 GB mounted, memory dumps up to 4 GB, mac_apt FAST on macOS images, Plaso super-timelines on multi-GB EVTX. Multiple cases parallel. |
+| **Comfortable** *(what we tested on)* | 8 vCPU | 32 GB | 500 GB free | Everything above + parallel forensic-tool runs (mac_apt + Volatility + Plaso simultaneously). Full Rathbun baseline build (~30 min, ~5 GB cache, ~11 GB DB). All five evidence corpora resident. |
+| **Local LLM (Ollama)** | 16+ vCPU + GPU recommended | 64 GB (CPU-only) or 24 GB VRAM | 500 GB+ | Adds 20–60 GB for the model weights. `qwen2.5-coder:32b` (the configured default) needs ~24 GB VRAM for fast inference or ~64 GB system RAM for slow CPU inference. Without a GPU, expect 5–20× slower turn latency than Claude Code. |
+
+**Disk space breakdown** (full install):
+- SIFTics codebase + venv: ~600 MB
+- Forensic-RAG index: ~14 MB (Sigma 3,132 + ATT&CK 1,164 + Atomic Red Team 1,804 + LOLBAS 237)
+- Rathbun baseline DB: ~11 GB (seeded version is < 1 MB; full Rathbun via `--build-baseline`)
+- Per case: 2–50 GB depending on evidence type (raw `.pcap` < 100 MB; mounted disk image 20–50 GB)
+- Tool caches: `mcp_cti/cti_cache/` per case (< 5 MB), Plaso `~/.cache/plaso`, etc.
+
+**The hackathon judges' baseline** is the stock SIFT 2026.04 OVA (4 vCPU /
+8 GB / 100 GB). SIFTics's default demo case (`nitroba`, 56 MB PCAP) runs
+comfortably there. The larger reference cases (`cfreds` 21 GB disk image,
+`webserver` 25 GB extracted) need at least the **Recommended** tier.
 
 ### Install
 
@@ -153,16 +181,21 @@ pipx install --editable .
 │   ├── case_state.py                COP / ASR / CET / ITQ data layer
 │   ├── ic_approval.py               HMAC-SHA256 IC Authority Gate primitives
 │   └── cli.py                       sift-case-init, sift-approve
-├── siftics_ui/                      Flask + HTMX web UI (localhost:8080)
+├── siftics_ui/                      Flask + vanilla JS web UI (localhost:8080)
 │   ├── app.py
 │   ├── labels.yaml                  dual-label config (generic / cimtk)
-│   └── templates/                   Jinja templates (dashboard, gates, audit)
+│   ├── static/vendor/siftics.js     vanilla JS client (replaces HTMX)
+│   └── templates/                   Jinja templates (dashboard, gates, audit,
+│                                     findings, intel, cases, report)
 ├── mcp_broker/                      Velociraptor MCP — 10 typed functions
-├── mcp_case/                        Case-state MCP server (asr_append, itq_answer, etc.)
-├── mcp_rag/                         Embedded forensic RAG (sqlite-vec, 22k records)
-├── mcp_cti/                         OSM STIX + abuse.ch IOC lookups
+├── mcp_case/                        Case-state MCP server (asr_append, itq_answer,
+│                                     finding_record, etc.) — writes findings.jsonl
+├── mcp_rag/                         Embedded forensic RAG (sqlite-vec, 6,337 records)
+├── mcp_cti/                         IOC enrichment — abuse.ch (always on) + Shodan/VirusTotal/OSM (keyring-gated)
 ├── mcp_baseline/                    Rathbun known-good baseline lookup
 ├── mcp_ic_approval/                 Cryptographic Authority Gate MCP server
+├── mcp_intel/                       STIX 2.1 / YARA / Sigma IOC generation — writes intel.jsonl
+├── mcp_containment/                 Response action checklists + containment_action gate (Velociraptor / Elastic / Entra ID)
 ├── phases/                          20 forensic phase scripts (existing SIFTics)
 │   ├── run_ntfs.sh
 │   ├── run_registry.sh
@@ -171,11 +204,19 @@ pipx install --editable .
 │   ├── run_anomaly_check.sh         Phase 18
 │   ├── run_self_correct.sh
 │   └── …
-├── skills/                          NIMS ICS skill files (agent guidance)
+├── skills/                          NIMS ICS skill files (agent guidance) — 11 files
 │   ├── investigation-section-chief.md
 │   ├── triage-methodology.md
 │   ├── hypothesis-engine.md
-│   └── …
+│   ├── windows-artifacts.md
+│   ├── linux-server-artifacts.md
+│   ├── malware-triage.md
+│   ├── timeline-reconstruction.md
+│   ├── anti-forensics-detection.md
+│   ├── reporting-conventions.md
+│   ├── macos-artifacts.md           mac_apt plugin map, Unified Log, APFS, persistence triage
+│   ├── iot-ot-artifacts.md          firmware (binwalk), industrial protocol PCAPs, SCADA DBs
+│   └── daedalus.md                  tool finder/implementer for unknown artifacts; 6-step workflow
 ├── tests/
 │   └── test_constraints.py          T1–T8 bypass harness — Devpost criterion #4
 ├── templates/
@@ -192,6 +233,8 @@ pipx install --editable .
 └── examples/
     └── run_2026-XX-XX/              full case run — Devpost item #10
         ├── forensic_audit.jsonl
+        ├── findings.jsonl           evidence chain traceability (finding_record)
+        ├── intel.jsonl              STIX/YARA/Sigma IOC output (mcp_intel)
         ├── findings/
         └── hunt_packages/
 ```
@@ -201,6 +244,8 @@ pipx install --editable .
 ## How the architectural guardrails work
 
 The single most important architectural property of SIFTics is **the agent cannot bypass Authority Gates because the MCP functions that would let it bypass simply do not exist on its tool surface.**
+
+There are **four gated actions** that require a cryptographically signed `ICApproval` before they execute: `execute_hunt_package` (deploy Velociraptor hunt), `containment_action` (host isolation, account revocation, password reset — Velociraptor/Entra ID/manual), `publish_intel` (push IOCs to a Threat Intelligence Platform — Elastic SIEM), and `escalate_to_cold` (deep forensic acquisition on a live host). Each gate is distinct — an approval for one is rejected at all others.
 
 Specifically:
 
@@ -217,6 +262,45 @@ python -m pytest tests/test_constraints.py -v
 ```
 
 T8a–g specifically test the IC approval boundary. T1–T7 test the other architectural guardrails (read-only mounts, namespace-guarded Velociraptor uploads, prompt-injection sanitiser, etc.). All eight must pass for the submission to claim the *architectural* (not just prompt-based) guardrail badge in criterion #4.
+
+---
+
+## API key vault — keyring-first credential storage
+
+External integration credentials (Anthropic, Shodan, VirusTotal, OpenSourceMalware)
+are stored in the **OS keychain via the Python `keyring` library** — never in
+`agent.yaml`, never in `forensic_audit.jsonl`, never in git. On Linux this is
+libsecret/SecretService (GNOME Keyring, KWallet); on macOS it is Keychain Access;
+on Windows it is Credential Vault.
+
+If no OS keychain is available, the fallback is a `chmod 0600` file under
+`~/.config/siftics/<service>.key` owned by the analyst user. The fallback never
+relaxes the security boundary — keys are still inaccessible to other users on
+the same host.
+
+**The audit chain records only the storage location**, never the value:
+
+```json
+{"type": "cti_lookup", "payload": {
+    "backend": "shodan",
+    "ioc_type": "ip",
+    "ioc_value": "203.0.113.42",
+    "found": true,
+    "key_location": "keyring:siftics_shodan"
+}}
+```
+
+A reviewer can verify which credential was used without ever seeing the value.
+
+Manual configuration paths (in resolution order, highest precedence first):
+
+1. OS keychain — `keyring.set_password("siftics_<service>", "default", key)`
+2. Environment variable — `SIFTICS_SHODAN_API_KEY`, `SIFTICS_VT_API_KEY`,
+   `SIFTICS_OSM_API_KEY`
+3. File — `~/.config/siftics/<service>.key` (chmod 0600 enforced)
+
+See `/setup` in the web UI for the recommended path, or `docs/QUICKSTART.md`
+§ "Optional — external CTI integrations" for the full security posture.
 
 ---
 
@@ -262,8 +346,7 @@ Both passes are on by default. The intent is that the toolchain SIFTics runs for
 
 For questions during judging:
 
-- GitHub issues: [https://github.com/rjonhaas/SIFTics/issues](https://github.com/rjonhaas/SIFTics/issues) (preferred — we monitor 24/7 during the judging window)
-- Email: rjonhaas@example.com *(replace with submission contact)*
+- GitHub issues: [https://github.com/rjonhaas/SIFTics/issues](https://github.com/rjonhaas/SIFTics/issues) (preferred — monitored 24/7 during the judging window)
 
 For everyone else interested in DFIR + AI:
 

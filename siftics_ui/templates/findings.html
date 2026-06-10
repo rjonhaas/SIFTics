@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Findings{% endblock %}
+{% block content %}
+<div class="flex items-baseline gap-4 mb-4">
+  <h2 class="text-lg font-bold">Evidence Findings</h2>
+  <span class="text-slate-500 text-sm">{{ findings|length }} recorded</span>
+</div>
+
+{% if not findings %}
+  <p class="text-slate-500 text-sm">No findings recorded yet. The agent writes a finding for every factual claim via <code>finding_record()</code>.</p>
+{% else %}
+<div class="space-y-4">
+{% for f in findings %}
+<div class="bg-slate-900 rounded-lg p-4 border border-slate-800">
+  <div class="flex items-baseline gap-3 mb-2">
+    <span class="text-xs font-bold text-violet-400 font-mono">{{ f.finding_id }}</span>
+    {% if f.linked_itq %}
+      <span class="text-xs text-slate-500">→ {{ f.linked_itq }}</span>
+    {% endif %}
+    {% if f.linked_asr %}
+      <span class="text-xs text-slate-500">→ {{ f.linked_asr }}</span>
+    {% endif %}
+    <span class="ml-auto text-xs text-slate-600">{{ f.recorded_at }}</span>
+  </div>
+
+  <p class="text-sm text-slate-100 mb-3">{{ f.claim }}</p>
+
+  <div class="grid grid-cols-2 gap-x-6 gap-y-1 text-xs mb-3">
+    <div>
+      <span class="text-slate-500">Artifact</span>
+      <p class="font-mono text-slate-300 break-all">{{ f.artifact_path }}</p>
+    </div>
+    <div>
+      <span class="text-slate-500">Source image</span>
+      <p class="font-mono text-slate-300">{{ f.artifact_source }}</p>
+    </div>
+    <div class="mt-1">
+      <span class="text-slate-500">Tool</span>
+      <p class="font-mono text-cyan-400">{{ f.tool }}</p>
+    </div>
+    <div class="mt-1">
+      <span class="text-slate-500">Recorded by</span>
+      <p class="text-slate-400">{{ f.recorded_by }}</p>
+    </div>
+  </div>
+
+  <div class="mb-2">
+    <span class="text-xs text-slate-500">Command</span>
+    <pre class="mt-0.5 bg-slate-950 rounded p-2 text-xs font-mono text-emerald-300 overflow-x-auto whitespace-pre-wrap break-all">{{ f.command }}</pre>
+  </div>
+
+  <div>
+    <span class="text-xs text-slate-500">Output excerpt</span>
+    <pre class="mt-0.5 bg-slate-950 rounded p-2 text-xs font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap">{{ f.output_excerpt }}</pre>
+  </div>
+</div>
+{% endfor %}
+</div>
+{% endif %}
+{% endblock %}

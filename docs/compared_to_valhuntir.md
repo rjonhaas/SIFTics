@@ -18,7 +18,7 @@ This document is SIFTics's honest read of where it lands vs Valhuntir on each of
 | **3. Breadth and Depth** | 20 phases across Win/Linux/memory/PCAP/email/attack-path; HOT/WARM/COLD depth-on-demand | 15 parsers across similar territory; OpenSearch gives depth on huge cases | **Wash** (different kinds of depth) |
 | **4. Constraint Implementation** *(architectural vs prompt-based)* | T1–T8 measured bypass tests (14/14 pass); namespace-guarded MCP; cryptographic IC approval; budget circuit breaker | HMAC-signed approvals; PBKDF2 auth; typed MCP | **SIFTics edge** (measured bypass tests > claimed) |
 | **5. Audit Trail Quality** | Hash-chained `forensic_audit.jsonl` + `audit_verify.sh` (tamper-evident, end-to-end); per-finding cost traceability via `llm_call` events | Append-only logs; HMAC on approvals only | **SIFTics ahead** |
-| **6. Usability and Documentation** | Developer-focused; Flask + HTMX dashboard; setup wizard for 5 LLM backends including local Ollama; compliance README | Browser Examiner Portal; multi-examiner workflows; more polished | **Valhuntir ahead** (unless polish invested) |
+| **6. Usability and Documentation** | Developer-focused; Flask + vanilla JS dashboard with block-level markdown rendering, transcript persistence, IOC generation UI (/intel), and evidence chain traceability (/findings); setup wizard for 5 LLM backends including local Ollama; compliance README | Browser Examiner Portal; multi-examiner workflows; more polished | **Valhuntir ahead, gap narrowing** |
 
 **Net:** 2 wins + 1 slight edge + 1 edge + 1 wash + 1 loss. **Meaningfully ahead, not a blowout.**
 
@@ -57,7 +57,7 @@ Show Phase 18 catching a contradiction → `run_self_correct.sh` re-runs phase �
 
 ### What SIFTics has
 
-- **Measured accuracy** against two public CTFs: DEF CON 2019 DFIR + CyberDefenders 166. Score card in [`accuracy_report.md §2`](accuracy_report.md).
+- **Measured accuracy** against three public datasets: NIST CFReDS, Digital Corpora Nitroba, Ali Hadi web server. Score card in [`accuracy_report.md §2`](accuracy_report.md).
 - **Five independent signals** for binary classification (Rathbun baseline, imphash, ssdeep/TLSH, capa, semantic RAG) fused per finding.
 - **Zircolite** applies the SigmaHQ rule set to EVTX before the agent reasons over the events.
 - **Hash-chained provenance** — every finding traces to the tool execution that produced it.
@@ -87,6 +87,7 @@ Show Phase 18 catching a contradiction → `run_self_correct.sh` re-runs phase �
 ### What SIFTics has
 
 - 20 forensic phase scripts: NTFS, registry, EVTX, artifacts, execution, hunting, credential access, anti-forensics, IOC extraction, C2 beacon, browser, ransomware, web server, **email, Linux, CVE attribution, attack-path graph, anomaly check, memory, PCAP**.
+- **9 domain knowledge skill files** guiding the agent: `windows-artifacts`, `linux-server-artifacts`, `malware-triage`, `timeline-reconstruction`, `anti-forensics-detection`, `reporting-conventions`, plus the original ISC, triage-methodology, and hypothesis-engine skills.
 - HOT/WARM/COLD execution tiering — depth-on-demand.
 - Cross-machine attack-path graph (Mermaid output) — multi-host scope.
 
@@ -107,7 +108,7 @@ Show Phase 18 catching a contradiction → `run_self_correct.sh` re-runs phase �
 
 ### What SIFTics has
 
-- **13 architectural guardrails** documented and labelled in [`architecture.md §3`](architecture.md#3-trust-boundaries--architectural-vs-prompt-based) and [`constraint_implementation.md`](constraint_implementation.md).
+- **14 architectural guardrails** documented and labelled in [`architecture.md §3`](architecture.md#3-trust-boundaries--architectural-vs-prompt-based) and [`constraint_implementation.md`](constraint_implementation.md).
 - **T1–T8 bypass test harness** (14 sub-tests) — measured pass/fail. Run with `pytest tests/test_constraints.py -v`. **14/14 pass.**
 - **Cryptographic IC approval** — HMAC-SHA256, PBKDF2 key derivation, single-use enforcement (`O_EXCL`), wrong-gate rejection, agent-context drift detection, TTL expiry.
 - **Budget circuit breaker** at the LLM-call boundary — architectural, not prompt-based.
@@ -162,7 +163,12 @@ Run `audit_verify.sh` on-screen. Walk a single finding back through the chain. *
 ### What SIFTics has
 
 - Compliance README (this submission) with every Devpost item directly linked.
-- Flask + HTMX web UI: `/dashboard`, `/gates`, `/audit`, `/chat`, `/setup`.
+- Flask + vanilla JS web UI: `/dashboard`, `/gates`, `/audit`, `/chat`, `/setup`, `/report`, `/intel`, `/findings`.
+  - **Block-level markdown rendering** of agent output (tables, lists, headings rendered natively).
+  - **Transcript persistence** — agent output survives page navigation without a server round-trip.
+  - **`/intel` page** — IOC generation UI backed by `intel.jsonl` (STIX/YARA/Sigma outputs from `mcp_intel`).
+  - **`/findings` page** — evidence chain traceability; each finding links back to the tool execution events in `findings.jsonl`.
+  - **`/report` page** — structured case report generated from the completed investigation.
 - Setup wizard supports **5 LLM backends** — Claude Code, Anthropic API, OpenAI API, Ollama (local), Codex. Including Ollama is a fully-offline option Valhuntir does not have.
 - Quickstart that goes from `git clone` to *first finding* in 30 seconds.
 - Tested install on stock SIFT OVA *and* WSL-SIFT (per Rob's Slack 2026-05-13).
@@ -176,7 +182,7 @@ Run `audit_verify.sh` on-screen. Walk a single finding back through the chain. *
 
 ### Verdict
 
-**Valhuntir ahead, unless SIFTics polishes hard.** This is the most honest place where Valhuntir clearly wins today. Mitigation: nail the compliance README (done), ship a fresh-VM install script that works without intervention (in progress), do a 30-second "from clone to first finding" segment in the demo (planned). Don't try to match the portal — substitute substance.
+**Valhuntir ahead, gap narrowing.** Valhuntir's portal is more polished overall, but SIFTics now has multiple purpose-built analyst pages (findings traceability, IOC publishing UI, structured report view) that cover the most important investigation workflows. The remaining gap is polish and multi-examiner support, not feature coverage. Mitigation: nail the compliance README (done), ship a fresh-VM install script that works without intervention (in progress), do a 30-second "from clone to first finding" segment in the demo (planned). Don't try to match the portal — substitute substance.
 
 ---
 
@@ -196,7 +202,7 @@ These are architectural capabilities that exist in SIFTics and do not exist in V
 Equally honest:
 
 1. **OpenSearch-indexed evidence at scale.** SIFTics's per-phase JSONL outputs don't scale to "search across 50 cases simultaneously" the way OpenSearch does.
-2. **Browser Examiner Portal.** Mature multi-page UI vs. SIFTics's v1 single-pane dashboard.
+2. **Browser Examiner Portal.** More polished multi-examiner UI vs. SIFTics's analyst-focused dashboard.
 3. **Multi-examiner workflow.** Distributed teams with case export/merge are documented for Valhuntir; SIFTics is single-IC in v1.
 4. **Ed25519-class examiner identity.** Valhuntir's HMAC-signed approvals are mature; SIFTics's are equivalent at v1 (HMAC-SHA256) but the Ed25519 public/private split is planned for v2.
 

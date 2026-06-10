@@ -26,7 +26,7 @@ def run_main(argv: list[str] | None = None) -> int:
     if args.case_dir:
         os.environ["SIFTICS_CASE_DIR"] = str(args.case_dir.expanduser().resolve())
     if not os.environ.get("SIFTICS_CASE_DIR"):
-        raise SystemExit("SIFTICS_CASE_DIR is required (or pass --case-dir).")
+        os.environ["SIFTICS_CASE_DIR"] = str(Path.home() / "Desktop" / "cases")
 
     app = create_app()
     app.run(host=args.host, port=args.port, debug=args.debug, threaded=True)

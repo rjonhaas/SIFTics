@@ -53,12 +53,13 @@ flowchart TB
         end
 
         subgraph MCP["Custom MCP Servers"]
-            McpCase["mcp_case<br/>(case state — 14 typed fns)"]
+            McpCase["mcp_case<br/>(case state — finding_record, etc.)"]
             McpIC["mcp_ic_approval<br/>(Authority Gates)"]
             McpVR["mcp_broker<br/>(Velociraptor — 10 typed fns)"]
             McpRAG["mcp_rag"]
             McpCTI["mcp_cti<br/>(OSM + abuse.ch)"]
             McpBase["mcp_baseline<br/>(Rathbun lookup)"]
+            McpIntel["mcp_intel<br/>(STIX 2.1 / YARA / Sigma IOC gen)"]
         end
 
         subgraph State["Case state (filesystem)"]
@@ -67,6 +68,8 @@ flowchart TB
             CET["cca.jsonl (CET)"]
             ITQ["grid.jsonl (ITQ)"]
             Audit["forensic_audit.jsonl<br/>(SHA-256 chained)"]
+            Findings["findings.jsonl<br/>(evidence chain traceability)"]
+            Intel["intel.jsonl<br/>(STIX/YARA/Sigma IOCs)"]
             Approvals["approvals/<br/>{pending,signed,consumed}"]
             ICKey["ic_key.hmac<br/>(mode 0600)"]
         end
@@ -81,8 +84,8 @@ flowchart TB
         OSM["OSM STIX + abuse.ch"]
     end
 
-    Browser -->|HTTP/HTMX/SSE| Setup
-    Browser -->|HTTP/HTMX/SSE| State
+    Browser -->|HTTP/vanilla JS/SSE| Setup
+    Browser -->|HTTP/vanilla JS/SSE| State
     CC -->|MCP stdio| MCP
     ANT -->|in-proc executor| MCP
     OL  -->|in-proc executor| MCP
@@ -95,7 +98,7 @@ flowchart TB
     classDef arch fill:#451a1a,stroke:#dc2626,stroke-width:2px,color:#fff
     classDef prompt fill:#3f2e1a,stroke:#d97706,stroke-width:2px,color:#fff
     classDef plain fill:#1e293b,stroke:#475569,color:#e2e8f0
-    class MCP,McpCase,McpIC,McpVR,McpRAG,McpCTI,McpBase,Approvals,Audit,ICKey arch
+    class MCP,McpCase,McpIC,McpVR,McpRAG,McpCTI,McpBase,McpIntel,Approvals,Audit,ICKey arch
     class L2,L3,Narrate,Hypoth,AtkPath,SelfCor prompt
     class L1,Hot,Cold,Browser,External,State,Agent plain
 ```
@@ -109,7 +112,7 @@ version) or the ASCII fallback below.
                     ┌──────────────────────────────────┐
                     │ IC browser → localhost:8080      │
                     └──────────────┬───────────────────┘
-                                   │ HTMX + SSE
+                                   │ vanilla JS + SSE
             ╔══════════════════════════════════════════════════════╗
             ║                SIFT Workstation                      ║
             ║                                                      ║
@@ -122,6 +125,7 @@ version) or the ASCII fallback below.
             ║  │  mcp_case  ·  mcp_ic_approval                │    ║ guardrails
             ║  │  mcp_broker (Velociraptor)                   │    ║ (RED)
             ║  │  mcp_rag  ·  mcp_cti  ·  mcp_baseline        │    ║
+            ║  │  mcp_intel (STIX/YARA/Sigma IOC gen)         │    ║
             ║  └─────────┬────────────────────────────────────┘    ║
             ║            │                                          ║
             ║   ┌────────▼────────────────────────────────────┐    ║
@@ -142,6 +146,8 @@ version) or the ASCII fallback below.
             ║                                                      ║
             ║  Case state (filesystem)                             ║
             ║   case.json · suit.jsonl · cca.jsonl · grid.jsonl    ║
+            ║   findings.jsonl (evidence chain) ·                  ║
+            ║   intel.jsonl (STIX/YARA/Sigma IOCs)                 ║
             ║   approvals/ (pending,signed,consumed)               ║ ARCHITECTURAL:
             ║   forensic_audit.jsonl  (SHA-256 chained)            ║ ic_key.hmac
             ║   ic_key.hmac (mode 0600, IC-owned)                  ║ (RED)
@@ -185,9 +191,18 @@ surface.**
 | P2 | Phase-script ordering hints | prompt-based | `triage-methodology` skill + Daedalus run-plan manifest | not measured |
 | P3 | Hypothesis-engine usage guidance | prompt-based | Skill file `hypothesis-engine.md` | not measured |
 | P4 | Briefing cadence guidance | prompt-based | Skill file methodology hints | not measured |
+| P5 | Windows artifact triage guidance | prompt-based | Skill file `windows-artifacts.md` | not measured |
+| P6 | Linux server artifact triage guidance | prompt-based | Skill file `linux-server-artifacts.md` | not measured |
+| P7 | Malware triage procedure | prompt-based | Skill file `malware-triage.md` | not measured |
+| P8 | Timeline reconstruction approach | prompt-based | Skill file `timeline-reconstruction.md` | not measured |
+| P9 | Anti-forensics detection guidance | prompt-based | Skill file `anti-forensics-detection.md` | not measured |
+| P10 | Reporting conventions | prompt-based | Skill file `reporting-conventions.md` | not measured |
+| P11 | macOS artifact triage guidance (mac_apt, Unified Log, APFS, persistence) | prompt-based | Skill file `macos-artifacts.md` | not measured |
+| P12 | IoT/OT artifact guidance (firmware blobs, industrial PCAPs, SCADA DBs) | prompt-based | Skill file `iot-ot-artifacts.md` | not measured |
+| P13 | Daedalus tool-finder/implementer workflow (6-step; IC approval required before running unfamiliar tools) | prompt-based | Skill file `daedalus.md` | not measured |
 
 **Headline:** 13 architectural guardrails — 12 measurable, all 12 pass — vs.
-4 prompt-based. Compare to a Direct Agent Extension (Rob's #1 approach) which
+13 prompt-based. Compare to a Direct Agent Extension (Rob's #1 approach) which
 typically has 1-2 architectural and the rest prompt-based.
 
 ## 4. Data flow — a single investigation
@@ -210,7 +225,8 @@ typically has 1-2 architectural and the rest prompt-based.
              mcp_baseline → baseline_lookup (source_type: "deterministic")
              mcp_cti     → cti_lookup     (source_type: "deterministic")
 
-5.  Agent surfaces an Authority Gate proposal
+5.  Agent surfaces an Authority Gate proposal (one of four gates:
+    execute_hunt_package · containment_action · evidence_acquisition · publish_intel)
        └─> ic_request_approval(gate="execute_hunt_package", ...)
        └─> Pending request written; ic_request_approval audit event
 
@@ -263,7 +279,8 @@ Documented honestly here so judges and operators know what to wear:
 - Bypass test source: [`tests/test_constraints.py`](../tests/test_constraints.py)
 - IC approval implementation: [`siftics/ic_approval.py`](../siftics/ic_approval.py)
 - Audit chain: [`siftics/audit.py`](../siftics/audit.py)
-- mcp_case server: [`mcp_case/server.py`](../mcp_case/server.py)
+- mcp_case server: [`mcp_case/server.py`](../mcp_case/server.py) — writes `findings.jsonl` via `finding_record()`
+- mcp_intel server: [`mcp_intel/server.py`](../mcp_intel/server.py) — generates STIX 2.1 / YARA / Sigma from typed IOCs; writes `intel.jsonl`
 - mcp_ic_approval server: [`mcp_ic_approval/server.py`](../mcp_ic_approval/server.py)
 - Agent runtime backends: [`siftics/agent_runtime.py`](../siftics/agent_runtime.py)
 - Cost tracker / budget breaker: [`siftics/cost_tracker.py`](../siftics/cost_tracker.py)

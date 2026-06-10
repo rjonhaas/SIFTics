@@ -20,6 +20,9 @@ OPTIONS
                         (~30 min, ~5 GB disk cache, requires git + network)
     --no-baseline       Skip the baseline step entirely
 
+  Forensic RAG index (default: build if missing)
+    --no-rag            Skip the RAG index step (mcp_rag will return empty results)
+
   Case initialisation
     --init-case         Create the case directory, hash-chained audit log,
                         IC HMAC key, and 35-question ITQ seed
@@ -33,8 +36,9 @@ OPTIONS
     --no-runtimes       Skip the runtime prompt and install nothing
 
   Web UI
-    --start-ui          Launch siftics-ui on port 8080 after setup completes
+    --start-ui          Launch siftics-ui on port 8080 after setup completes (default: ON)
                         (binds to 0.0.0.0 — reachable from host browser)
+    --no-ui             Skip launching the UI
 
   Supply chain + system hardening
     --no-security-updates  Skip the unattended-upgrade pass (security-only
@@ -46,25 +50,26 @@ OPTIONS
     -h, --help          Show this help and exit
 
 EXAMPLES
-  # Express path — everything in one command:
-  ./setup.sh --init-case --start-ui
+  # Express path — UI starts automatically, no flags needed:
+  ./setup.sh
 
   # Full baseline + case + UI:
-  ./setup.sh --full-baseline --init-case --start-ui
+  ./setup.sh --full-baseline --init-case
 
   # Custom case directory:
-  ./setup.sh --init-case --case-dir ~/cases/defcon2019 --case-id defcon2019 --start-ui
+  ./setup.sh --init-case --case-dir ~/Desktop/cases/defcon2019 --case-id defcon2019
 
-  # Headless / CI (no TTY, skip IC key):
-  ./setup.sh --no-baseline --init-case
+  # Headless / CI (no TTY, skip IC key, no UI):
+  ./setup.sh --no-baseline --init-case --no-ui
 
-  # Re-run after a partial install (safe):
-  ./setup.sh --start-ui
+  # Re-run after a partial install (safe, UI restarts too):
+  ./setup.sh
 
 FILES
   .venv/                     Python virtual environment
   mcp_baseline/baseline.sqlite  Rathbun known-good Windows baseline DB
-  ~/cases/<case-id>/         Case directory (audit log, ASR, CET, ITQ, IC key)
+  mcp_rag/index/             Forensic RAG index (Sigma + ATT&CK + LOLBAS + Atomic Red Team)
+  ~/Desktop/cases/<case-id>/         Case directory (audit log, ASR, CET, ITQ, IC key)
   /tmp/siftics-ui.log        Web UI stdout / stderr
   /tmp/siftics_*.log         Per-step log files for baseline build / case init
 
@@ -85,8 +90,11 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 
 BASELINE_MODE="seed"        # seed | full | build | none
+BUILD_RAG="yes"             # yes | no
 INIT_CASE="no"
-START_UI="no"
+# UI starts by default (main's UX choice — most operators want this).
+# Pass --no-ui to skip when running headless / for CI.
+START_UI="yes"
 # Default to a timestamped case name. Each setup run that uses --init-case
 # produces a fresh, identifiable case directory — no "dry_run"-labelled
 # default that lingers on disk pretending to be a real investigation.
@@ -105,8 +113,10 @@ while [[ $# -gt 0 ]]; do
         --full-baseline)   BASELINE_MODE="full";   shift ;;
         --build-baseline)  BASELINE_MODE="build";  shift ;;
         --no-baseline)     BASELINE_MODE="none";   shift ;;
+        --no-rag)          BUILD_RAG="no";         shift ;;
         --init-case)       INIT_CASE="yes";        shift ;;
         --start-ui)        START_UI="yes";         shift ;;
+        --no-ui)           START_UI="no";          shift ;;
         --case-dir)        CASE_DIR="$2";          shift 2 ;;
         --case-id)         CASE_ID="$2";           shift 2 ;;
         --install-claude)  INSTALL_CLAUDE="yes";   shift ;;
@@ -166,8 +176,9 @@ _progress_install() {
     return $rc
 }
 
-TOTAL_STEPS=6
+TOTAL_STEPS=7
 [[ "$BASELINE_MODE" == "none" ]] && TOTAL_STEPS=$((TOTAL_STEPS - 1))
+[[ "$BUILD_RAG"      == "no"  ]] && TOTAL_STEPS=$((TOTAL_STEPS - 1))
 [[ "$INIT_CASE" == "yes"      ]] && TOTAL_STEPS=$((TOTAL_STEPS + 1))
 [[ "$START_UI"  == "yes"      ]] && TOTAL_STEPS=$((TOTAL_STEPS + 1))
 
@@ -314,6 +325,34 @@ if [[ "$NO_AUDIT" == "no" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
+# Step 3b — fix evtx_dump if shadowed by broken pip shim
+# ---------------------------------------------------------------------------
+# The `pip install evtx` package installs a Python entry-point shim at
+# ~/.local/bin/evtx_dump that often breaks (`ModuleNotFoundError: scripts`).
+# We install the canonical Rust binary in its place, which is faster, has no
+# Python dependency, and shadows the broken shim cleanly.
+
+step "3b" "$TOTAL_STEPS" "evtx_dump (Rust binary)"
+
+EVTX_BIN="$HOME/.local/bin/evtx_dump"
+EVTX_VER="v0.11.2"
+EVTX_URL="https://github.com/omerbenamram/evtx/releases/download/${EVTX_VER}/evtx_dump-${EVTX_VER}-x86_64-unknown-linux-musl"
+
+if [[ -x "$EVTX_BIN" ]] && "$EVTX_BIN" --version 2>/dev/null | grep -q "EVTX Parser"; then
+    skip "already installed ($("$EVTX_BIN" --version 2>/dev/null))"
+else
+    mkdir -p "$(dirname "$EVTX_BIN")"
+    if curl -fL --silent --show-error -o "$EVTX_BIN.new" "$EVTX_URL" 2>/tmp/siftics_evtx.log; then
+        chmod +x "$EVTX_BIN.new"
+        mv -f "$EVTX_BIN.new" "$EVTX_BIN"
+        ok "$EVTX_VER installed"
+    else
+        warn "download failed (see /tmp/siftics_evtx.log). EVTX parsing will fall back to evtx_dump.py."
+        rm -f "$EVTX_BIN.new"
+    fi
+fi
+
+# ---------------------------------------------------------------------------
 # Step 4 — man pages
 # ---------------------------------------------------------------------------
 
@@ -432,11 +471,33 @@ if [[ "$BASELINE_MODE" != "none" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Step 7 — init case dir (optional)
+# Step 7 — forensic RAG index
 # ---------------------------------------------------------------------------
 
 CUR_STEP=6
 [[ "$BASELINE_MODE" == "none" ]] && CUR_STEP=5
+
+if [[ "$BUILD_RAG" == "yes" ]]; then
+    CUR_STEP=$((CUR_STEP + 1))
+    step "$CUR_STEP" "$TOTAL_STEPS" "forensic RAG index (Sigma + ATT&CK + LOLBAS + Atomic)"
+
+    if [[ -s mcp_rag/index/records.jsonl ]]; then
+        records=$(wc -l < mcp_rag/index/records.jsonl 2>/dev/null || echo "?")
+        skip "already present ($records records)"
+    else
+        yel "(clones 4 repos from GitHub, ~10-30 min on first run)"
+        "$PY" -m mcp_rag.build_index --output mcp_rag/index \
+            > /tmp/siftics_rag.log 2>&1 \
+            && ok "$(wc -l < mcp_rag/index/records.jsonl) records" \
+            || warn "RAG index build failed — mcp_rag will return empty results
+       (see /tmp/siftics_rag.log). Re-run with internet access to fix."
+    fi
+fi
+
+# ---------------------------------------------------------------------------
+# Step 8 — init case dir (optional)
+# ---------------------------------------------------------------------------
+
 
 if [[ "$INIT_CASE" == "yes" ]]; then
     CUR_STEP=$((CUR_STEP + 1))
@@ -469,7 +530,7 @@ if [[ "$INIT_CASE" == "yes" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Step 6 — start UI (optional)
+# Final step — start UI (optional)
 # ---------------------------------------------------------------------------
 
 if [[ "$START_UI" == "yes" ]]; then

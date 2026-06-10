@@ -20,7 +20,7 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
-from siftics import case_state
+from siftics import case_state, findings as findings_lib
 
 mcp = FastMCP("siftics-case-state")
 
@@ -243,6 +243,72 @@ def briefing_post(summary_md: str) -> dict:
 def briefing_latest() -> dict | None:
     """Return the most recent briefing (id, written_at, summary_md)."""
     return case_state.briefing_latest()
+
+
+# ---------------------------------------------------------------------------
+# Evidence-linked findings register
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+def finding_record(
+    claim: str,
+    artifact_path: str,
+    artifact_source: str,
+    tool: str,
+    command: str,
+    output_excerpt: str,
+    linked_itq: str = "",
+    linked_asr: str = "",
+    linked_cet: str = "",
+) -> dict:
+    """Record a finding with full evidence chain: claim → artifact → tool → command → output.
+
+    Call this **every time** you state a factual claim that comes from an artifact.
+    A finding is reproducible — a third party must be able to re-run `command`
+    against `artifact_source` and see `output_excerpt` to verify `claim`.
+
+    Args:
+        claim:           One-sentence factual statement. What was found.
+                         e.g. "Subject authenticated <service> with <account identifier>"
+        artifact_path:   Path to the artifact inside the image or case dir.
+                         e.g. "C:\\Users\\<user>\\AppData\\Local\\<vendor>\\<app>\\<logfile>"
+        artifact_source: Which exhibit the artifact lives in.
+                         e.g. "<case_id>_workstation.dd" or "memdump.mem"
+        tool:            Tool used to extract/parse the artifact.
+                         e.g. "icat", "strings", "EvtxECmd", "pypff", "fls", "regipy"
+        command:         Exact command, reproducible by anyone with the image.
+                         e.g. "icat -o <offset> <image> <inode> | grep -i <pattern>"
+        output_excerpt:  Relevant slice of stdout that supports the claim (≤ 500 chars).
+                         e.g. "<timestamp> INFO Account: <recovered identifier>"
+        linked_itq:      ITQ-NNN this finding answers (optional).
+        linked_asr:      ASR serial this finding belongs to (optional).
+        linked_cet:      CCA number this finding belongs to (optional).
+
+    Returns the finding row including its assigned F-NNN id.
+    """
+    return findings_lib.finding_record(
+        claim=claim,
+        artifact_path=artifact_path,
+        artifact_source=artifact_source,
+        tool=tool,
+        command=command,
+        output_excerpt=output_excerpt,
+        linked_itq=linked_itq,
+        linked_asr=linked_asr,
+        linked_cet=linked_cet,
+        actor="investigation-section-chief",
+    )
+
+
+@mcp.tool()
+def finding_list(linked_itq: str = "", linked_asr: str = "") -> list[dict]:
+    """Return recorded findings, optionally filtered by ITQ or ASR link.
+
+    Use with no args to get all findings. Use linked_itq="ITQ-051" to see
+    only findings that support a specific triage answer.
+    """
+    return findings_lib.finding_list(linked_itq=linked_itq, linked_asr=linked_asr)
 
 
 # ---------------------------------------------------------------------------

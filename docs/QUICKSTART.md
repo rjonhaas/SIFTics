@@ -19,6 +19,7 @@ cd SIFTics
 | `--full-baseline` | …but fetch the ~100 MB full Rathbun DB from a GitHub Release (~30 s) |
 | `--build-baseline` | …but build the full DB locally from sources (~30 min, ~5 GB cache) |
 | `--no-baseline` | skip baseline step entirely |
+| `--no-rag` | skip the forensic-RAG index build (Step 7) |
 | `--init-case` | also create `~/cases/dry_run/` + IC HMAC key |
 | `--start-ui` | also launch siftics-ui on `127.0.0.1:8080` |
 
@@ -66,7 +67,7 @@ You now have:
 
 - A working case dir with header, hash-chained audit log, IC HMAC key, and the 35-question ITQ seeded.
 - A baseline DB for known-good Windows-file / registry / service / scheduled-task lookups.
-- The Flask UI at `localhost:8080` with `/dashboard`, `/gates`, `/audit`, `/chat`, `/setup`.
+- The Flask UI at `localhost:8080` with `/dashboard`, `/gates`, `/audit`, `/chat`, `/setup`, `/findings`, `/intel`, `/cases`, `/report`.
 
 ## Pick your agent runtime
 
@@ -81,6 +82,78 @@ Open `http://127.0.0.1:8080/setup` and choose one:
 | Codex CLI | Stub in v1 | covered by subscription |
 
 If you choose Anthropic API, paste your key in the wizard's password field. It's stored in the OS keychain (or a chmod-600 file as fallback) — never logged.
+
+## Optional — external CTI integrations
+
+The `/setup` page also accepts API keys for three optional CTI services that
+enrich `mcp_cti` lookups:
+
+| Service | What it adds | Free tier |
+|---|---|---|
+| **Shodan** | `lookup_shodan_ip()` — open ports, services, banners, CVEs for any IP | yes (1 query/sec) |
+| **VirusTotal** | `lookup_virustotal()` — hash / URL / domain / IP reputation across 70+ AV engines | yes (4 queries/min) |
+| **OpenSourceMalware** | `osm_lookup_indicator()` — STIX 2.1 indicator + relationship lookups | account required |
+
+All three keys are stored in the OS keychain (libsecret on Linux, Keychain on
+macOS, Credential Vault on Windows) via the Python `keyring` library. **Security
+posture:**
+
+- The raw key value is **never** written to `agent.yaml`, the audit log, or git
+- MCP tools record only the storage location (`keyring:siftics_shodan`,
+  `env:SIFTICS_SHODAN_API_KEY`, or `file:~/.config/siftics/shodan.key`) in
+  `forensic_audit.jsonl` — never the value itself
+- If the OS keychain is unavailable, the fallback is a `chmod 0600` file under
+  `~/.config/siftics/` — owned by the analyst user, unreadable by anyone else
+- Each integration degrades gracefully when its key is absent: the corresponding
+  MCP tool returns an empty result and the agent records the absence as a gap
+- Typing the literal string `CLEAR` (all caps) in any key field removes the
+  stored credential entirely
+
+Manual key configuration without the UI is still supported via env vars
+(`SIFTICS_SHODAN_API_KEY`, `SIFTICS_VT_API_KEY`, `SIFTICS_OSM_API_KEY`) or by
+running:
+
+```python
+from siftics import runtime_config as rc
+cfg = rc.load_config()
+rc.save_integration_key(cfg.integrations.shodan, "your-key-here", "shodan.key")
+```
+
+## Optional — response targets (Authority Gate destinations)
+
+The `/setup` page also accepts connection profiles for the systems that
+Authority Gates fire against. These are higher blast radius than CTI lookups
+and are wired separately:
+
+| Target | Authority Gate | Use case |
+|---|---|---|
+| **Velociraptor** | `execute_hunt_package`, host isolation in `containment_action` | Fleet hunts, network quarantine, live collection |
+| **Elastic SIEM** | `publish_intel` destination | Push generated STIX/YARA/Sigma IOCs to a threat-intel index |
+| **Microsoft Entra ID** | identity actions in `containment_action` | Revoke session tokens, force password reset, disable user accounts |
+
+**Universal output: the action checklist.** When you call `containment_action`,
+the agent always produces a structured action checklist. Configured targets
+upgrade each checklist item from "manual action required" to "executable" —
+they never the inverse. A SIFTics deployment with zero targets configured
+still produces useful output: a step-by-step plan the IC executes by hand.
+
+**Security model for response targets:**
+
+- Non-secret fields (URLs, cert file paths, tenant IDs, app client IDs) live
+  in `agent.yaml` — they are configuration, not credentials
+- Secret fields (Elastic API key, Entra app client secret, Velociraptor client
+  key file) follow the same keyring-first pattern as the CTI vault
+- Velociraptor cert files (`client.pem`, `client.key`, `ca.pem`) should be
+  `chmod 0600` in `~/.config/siftics/velociraptor/`
+- Entra ID ships in **stub mode by default** — `containment_action` approval
+  logs the intent to the audit chain but does NOT call Graph API until you
+  explicitly toggle LIVE mode in `/setup`. This is deliberate: real Graph
+  calls lock users out of their work; the stub mode lets you exercise the
+  full gate workflow without risk
+
+Each target degrades gracefully when not configured. The Authority Gate still
+fires, the audit chain still records the IC's decision, and the action
+checklist still lists the steps with the manual command/UI path documented.
 
 ## Smoke test
 
@@ -115,13 +188,14 @@ claude    # then type:  /investigation-section-chief
 
 ## Optional — full forensic-RAG knowledge corpus
 
-The shipped repo includes the schema + builder; the actual 22 000-record index is fetched as a release asset (or built locally):
+`setup.sh` **automatically builds the RAG index on first run (Step 7)**. It checks whether `mcp_rag/index/` is already present; if not, it builds from GitHub sources (~10–30 min, network-bound). If the build fails, setup warns but does not abort. Pass `--no-rag` to skip Step 7 entirely.
+
+The index contains 6,337 records (Sigma 3,132 · ATT&CK 1,164 · Atomic Red Team 1,804 · LOLBAS 237).
+
+If you need to rebuild manually after setup:
 
 ```bash
-# Try the GitHub release first; falls back to local build
-./scripts/download_rag_index.sh
-
-# Or always build locally (~10–30 min, network-bound)
+# Rebuild locally (~10–30 min, network-bound)
 ./scripts/download_rag_index.sh --build
 
 # Better embeddings — optional but recommended:
@@ -214,7 +288,11 @@ SIFTICS/
 │   ├── download_rag_index.sh
 │   └── sync_to_sift.sh
 └── (Python packages: siftics, siftics_ui, mcp_case, mcp_ic_approval,
-   mcp_baseline, mcp_cti, mcp_rag, mcp_broker, phases, templates, skills)
+   mcp_baseline, mcp_cti, mcp_rag, mcp_broker, mcp_intel, phases, templates,
+   skills [11 files: investigation-section-chief, triage-methodology,
+   hypothesis-engine, windows-artifacts, linux-server-artifacts,
+   malware-triage, timeline-reconstruction, anti-forensics-detection,
+   reporting-conventions, macos-artifacts, iot-ot-artifacts, daedalus])
 ```
 
 Submission deadline: **2026-06-15 23:45 EDT**. Submit ≥ 24h early; verify the YouTube link in incognito before hitting submit.

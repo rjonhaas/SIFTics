@@ -11,7 +11,7 @@ Ubuntu/Debian host.
 It is fully idempotent \(em re\-running is safe and skips steps that have
 already completed.
 .PP
-The script performs up to six steps, depending on flags:
+The script performs up to seven steps, depending on flags:
 .TP
 1.
 Check system prerequisites (Python\ 3.10+, curl, venv/ensurepip).
@@ -34,6 +34,15 @@ IC HMAC key, and 35\-question Initial Triage Questionnaire.
 .TP
 6.
 \fI(optional)\fR Launch the SIFTics web UI on port 8080.
+.TP
+7.
+Build the forensic\-RAG knowledge index at
+.IR mcp_rag/index/ ,
+if not already present.
+Clones and indexes from GitHub sources (~10\(en30\ min, network\-bound).
+If the build fails, setup warns but does not abort.
+Skip with
+.BR \-\-no\-rag .
 .SH OPTIONS
 .SS Baseline DB
 Mutually exclusive. Default: seed a ~50\-row demo baseline (instant).
@@ -48,6 +57,16 @@ Build the full DB locally from Rathbun sources
 .TP
 .B \-\-no\-baseline
 Skip the baseline step entirely.
+.SS Forensic-RAG index
+.TP
+.B \-\-no\-rag
+Skip Step\ 7 (forensic\-RAG index build).
+Use this flag when the index at
+.I mcp_rag/index/
+is already present, when running offline, or when disk space is limited.
+Without the index,
+.B mcp_rag
+falls back to a hash\-bag embedder (functional but lower\-quality semantic search).
 .SS Case initialisation
 .TP
 .B \-\-init\-case
@@ -97,6 +116,15 @@ on port 8080 after setup completes. Binds to
 .B 0.0.0.0
 so the dashboard is reachable from a host browser at
 .BI http:// <vm\-ip> :8080 .
+Available pages:
+.BR /dashboard ,
+.BR /gates ,
+.BR /audit ,
+.BR /chat ,
+.BR /setup ,
+.BR /report ,
+.BR /findings ,
+.BR /intel .
 .SS Miscellaneous
 .TP
 .BR \-q ", " \-\-quiet
@@ -129,8 +157,16 @@ Rathbun known\-good Windows baseline database.
 Case directory containing
 .IR case.json ,
 .IR forensic_audit.jsonl ,
+.IR findings.jsonl ,
+.IR intel.jsonl ,
 .IR ic_key.hmac ,
 and the ASR/CET/ITQ JSONL registers.
+.TP
+.I mcp_rag/index/
+Forensic\-RAG SQLite\-vec index (6,337 records: Sigma, ATT&CK, Atomic Red Team, LOLBAS).
+Built automatically by Step\ 7 on first run.
+Rebuild manually with
+.BR "./scripts/download_rag_index.sh \-\-build" .
 .TP
 .I /tmp/siftics\-ui.log
 Web UI stdout/stderr (tail with

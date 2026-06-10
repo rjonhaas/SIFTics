@@ -1,139 +1,126 @@
 {% extends "base.html" %}
 {% block title %}Report{% endblock %}
 {% block content %}
-<div class="max-w-5xl mx-auto">
-  <h2 class="text-2xl mb-2">Case report</h2>
+<div class="max-w-4xl mx-auto">
 
-  {% if not case %}
-    <div class="bg-slate-900 border border-slate-700 rounded p-6 text-slate-300">
-      <p class="mb-2">No active case is selected.</p>
-      <p>
-        Pick one from the
-        <a href="{{ url_for('cases_view') }}"
-           class="text-cyan-300 hover:text-cyan-200">Cases tab</a>,
-        or initialise a new case via
-        <a href="{{ url_for('new_case_view') }}"
-           class="text-emerald-400 hover:text-emerald-300">+ New case</a>.
-      </p>
-    </div>
+  <!-- Header bar -->
+  <div class="flex items-center justify-between mb-6">
+    <h2 class="text-xl font-bold">Case Report</h2>
+    <a href="{{ url_for('report_download') }}"
+       class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded text-sm font-semibold">
+      &#x2B07; Download Markdown
+    </a>
+  </div>
+
+  {% if not header %}
+  <div class="bg-amber-900/40 border border-amber-700 p-4 rounded text-sm text-amber-300">
+    No case loaded.
+  </div>
   {% else %}
 
-    <!-- ----- Header ----- -->
-    <div class="bg-slate-900 border border-slate-700 rounded p-5 mb-6">
-      <div class="flex items-baseline justify-between mb-2">
-        <div>
-          <span class="text-xs text-slate-500 uppercase tracking-wide">Case</span>
-          <h3 class="text-xl text-cyan-300 font-bold">{{ case.name }}</h3>
-        </div>
-        <span class="px-2 py-0.5 rounded text-xs
-          {% if case.status == 'closed' %}bg-slate-700 text-slate-200
-          {% else %}bg-emerald-900 text-emerald-200{% endif %}">
-          {{ case.status | default('open') }}
+  <!-- Case summary card -->
+  <div class="bg-slate-900 border border-slate-700 rounded-lg p-5 mb-6">
+    <h3 class="text-lg font-bold text-slate-100 mb-3">{{ header.name }}</h3>
+    <div class="grid grid-cols-2 gap-x-8 gap-y-1 text-sm">
+      <div><span class="text-slate-500">Case ID</span><span class="ml-3 text-slate-200">{{ header.case_id }}</span></div>
+      <div><span class="text-slate-500">Impact</span>
+        <span class="ml-3 font-bold
+          {% if header.impact_level == 'critical' %}text-rose-400
+          {% elif header.impact_level == 'high' %}text-orange-400
+          {% elif header.impact_level == 'moderate' %}text-amber-400
+          {% else %}text-slate-400{% endif %}">
+          {{ header.impact_level | upper }}
         </span>
       </div>
-      <dl class="grid grid-cols-2 gap-x-8 gap-y-1 text-sm mt-3">
-        <div><dt class="inline text-slate-500">Case ID:</dt> <dd class="inline font-mono">{{ case.case_id }}</dd></div>
-        <div><dt class="inline text-slate-500">Opened:</dt> <dd class="inline">{{ case.opened_at }}</dd></div>
-        <div><dt class="inline text-slate-500">Incident Commander:</dt> <dd class="inline">{{ case.incident_commander.name }}</dd></div>
-        <div><dt class="inline text-slate-500">Impact level:</dt> <dd class="inline">{{ case.impact_level | default('—') | upper }}</dd></div>
-      </dl>
+      <div><span class="text-slate-500">Commander</span><span class="ml-3 text-slate-200">{{ header.incident_commander.name }}</span></div>
+      <div><span class="text-slate-500">Opened</span><span class="ml-3 text-slate-200">{{ header.opened_at[:10] }}</span></div>
+      <div><span class="text-slate-500">Triage</span><span class="ml-3 text-slate-200">{{ itq.answered }} / {{ itq.total }} questions answered</span></div>
+      <div><span class="text-slate-500">Findings</span><span class="ml-3 text-slate-200">{{ findings | length }} affected system{{ 's' if findings | length != 1 else '' }}</span></div>
     </div>
+  </div>
 
-    <!-- ----- Findings + Timeline ----- -->
-    <div class="grid grid-cols-2 gap-4 mb-6">
-      <div class="bg-slate-900 border border-slate-700 rounded p-4">
-        <h4 class="text-sm text-slate-400 mb-3 uppercase tracking-wide">Findings</h4>
-        <div class="text-3xl font-bold text-cyan-300">{{ findings.total }}</div>
-        <div class="mt-2 text-sm space-y-0.5">
-          <div>Approved: <span class="text-emerald-300">{{ findings.approved }}</span></div>
-          <div>Draft: <span class="text-amber-300">{{ findings.draft }}</span></div>
-          {% if findings.other %}<div>Other: <span class="text-slate-300">{{ findings.other }}</span></div>{% endif %}
+  <!-- Affected systems -->
+  {% if findings %}
+  <section class="mb-6">
+    <h3 class="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3">Affected Systems</h3>
+    <div class="space-y-3">
+      {% for f in findings %}
+      <div class="bg-slate-900 border border-slate-700 rounded-lg p-4">
+        <div class="flex items-baseline justify-between mb-2">
+          <span class="font-bold text-slate-100">{{ f.serial_no }} — {{ f.system_identifier }}</span>
+          <span class="text-xs px-2 py-0.5 rounded-full
+            {% if f.impact_rating == 'critical' %}bg-rose-900 text-rose-300
+            {% elif f.impact_rating == 'high' %}bg-orange-900 text-orange-300
+            {% else %}bg-amber-900 text-amber-300{% endif %}">
+            {{ f.impact_rating }}
+          </span>
         </div>
-      </div>
-
-      <div class="bg-slate-900 border border-slate-700 rounded p-4">
-        <h4 class="text-sm text-slate-400 mb-3 uppercase tracking-wide">ITQ progress</h4>
-        <div class="text-3xl font-bold text-cyan-300">{{ itq_pct }}%</div>
-        <div class="mt-2 h-2 bg-slate-800 rounded">
-          <div class="h-2 bg-cyan-500 rounded" style="width: {{ itq_pct }}%"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ----- ASR / CET ----- -->
-    <div class="grid grid-cols-2 gap-4 mb-6">
-      <div class="bg-slate-900 border border-slate-700 rounded p-4">
-        <h4 class="text-sm text-slate-400 mb-2 uppercase tracking-wide">Affected Systems Register</h4>
-        <div class="text-sm space-y-1">
-          <div>Total: <span class="text-slate-200">{{ asr.total }}</span></div>
-          <div>Open: <span class="text-amber-300">{{ asr.open }}</span></div>
-          <div>Safe: <span class="text-emerald-300">{{ asr.safe }}</span></div>
-          <div>Critical: <span class="text-rose-300">{{ asr.critical }}</span></div>
-        </div>
-      </div>
-      <div class="bg-slate-900 border border-slate-700 rounded p-4">
-        <h4 class="text-sm text-slate-400 mb-2 uppercase tracking-wide">Containment / Eradication / Recovery Tasks</h4>
-        <div class="text-sm space-y-1">
-          <div>Total: <span class="text-slate-200">{{ cet.total }}</span></div>
-          <div>Pending: <span class="text-amber-300">{{ cet.pending }}</span></div>
-          <div>Remediated: <span class="text-emerald-300">{{ cet.remediated }}</span></div>
-          <div>High priority: <span class="text-rose-300">{{ cet.high_priority }}</span></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ----- Audit chain + SBOM ----- -->
-    <div class="bg-slate-900 border border-slate-700 rounded p-4 mb-6">
-      <h4 class="text-sm text-slate-400 mb-3 uppercase tracking-wide">Audit chain integrity</h4>
-      <div class="flex items-center gap-4 text-sm">
-        <span>Events: <span class="text-slate-200">{{ audit_summary.events }}</span></span>
-        <span>
-          Chain:
-          {% if audit_summary.chain_ok %}
-            <span class="text-emerald-300">✓ valid</span>
-          {% else %}
-            <span class="text-rose-300">✗ {{ audit_summary.chain_errors | length }} error(s)</span>
-          {% endif %}
-        </span>
-        {% if audit_summary.last_event %}
-          <span>Last event: <span class="text-slate-400">{{ audit_summary.last_event.ts }}</span></span>
+        <p class="text-sm text-slate-300 mb-2">{{ f.impact_description }}</p>
+        {% if f.how_determined %}
+        <p class="text-xs text-slate-500">{{ f.how_determined }}</p>
         {% endif %}
       </div>
-
-      {% if sbom_event %}
-        <div class="mt-3 pt-3 border-t border-slate-800 text-xs">
-          <div class="text-slate-400 mb-1">Toolchain SBOM hashed into row 1 of the audit chain:</div>
-          <div>SBOM hash: <code class="text-cyan-300">{{ sbom_event.payload.sbom_hash[:16] }}…</code></div>
-          <div class="text-slate-500">
-            {{ sbom_event.payload.package_count }} packages · python {{ sbom_event.payload.python_version }} ·
-            git <code>{{ (sbom_event.payload.siftics_git_head or '?')[:7] }}</code>
-          </div>
-        </div>
-      {% endif %}
-
-      {% if not audit_summary.chain_ok %}
-        <ul class="mt-3 text-xs text-rose-300 list-disc list-inside">
-          {% for err in audit_summary.chain_errors %}<li>{{ err }}</li>{% endfor %}
-        </ul>
-      {% endif %}
+      {% endfor %}
     </div>
+  </section>
+  {% endif %}
 
-    <!-- ----- Runtime / cost ----- -->
-    <div class="bg-slate-900 border border-slate-700 rounded p-4">
-      <h4 class="text-sm text-slate-400 mb-3 uppercase tracking-wide">Runtime</h4>
-      <div class="text-sm">
-        Active runtime: <code class="text-cyan-300">{{ runtime.runtime | default('—') }}</code>
+  <!-- Briefings -->
+  {% if briefings %}
+  <section class="mb-6">
+    <h3 class="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3">
+      Briefings ({{ briefings | length }})
+    </h3>
+    <div class="space-y-4">
+      {% for b in briefings %}
+      <details {% if loop.last %}open{% endif %}
+               class="bg-slate-900 border border-slate-700 rounded-lg">
+        <summary class="px-4 py-3 cursor-pointer text-sm text-slate-300 hover:text-slate-100
+                        flex items-center justify-between">
+          <span>{{ b.briefing_id }}</span>
+          <span class="text-slate-600 text-xs">{{ b.posted_at[:10] if b.posted_at else '' }}</span>
+        </summary>
+        <div class="px-4 pb-4 pt-1 prose prose-invert prose-sm max-w-none
+                    prose-headings:text-slate-200 prose-p:text-slate-300
+                    prose-li:text-slate-300 prose-code:text-cyan-300
+                    prose-table:text-slate-300 prose-strong:text-slate-200
+                    prose-blockquote:text-slate-400">
+          <pre class="whitespace-pre-wrap text-sm text-slate-300 font-sans leading-relaxed">{{ b.summary_md }}</pre>
+        </div>
+      </details>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  <!-- Triage Q&A -->
+  {% if itq_answered %}
+  <section class="mb-6">
+    <details class="bg-slate-900 border border-slate-700 rounded-lg">
+      <summary class="px-4 py-3 cursor-pointer text-sm text-slate-300 hover:text-slate-100">
+        Triage Questions — {{ itq_answered | length }} answered
+      </summary>
+      <div class="px-4 pb-4 space-y-3 mt-2">
+        {% for q in itq_answered %}
+        <div class="border-l-2 border-slate-700 pl-3">
+          <p class="text-xs text-slate-500 mb-0.5">{{ q.question_id }} — {{ q.question }}</p>
+          <p class="text-sm text-slate-300">{{ q.answer }}</p>
+        </div>
+        {% endfor %}
       </div>
-      {% if runtime.cost_usd is defined %}
-        <div class="text-sm mt-1">
-          Spend so far:
-          <span class="{% if runtime.warn %}text-amber-300{% elif runtime.over %}text-rose-300{% else %}text-emerald-300{% endif %}">
-            ${{ '%.2f' | format(runtime.cost_usd) }}
-          </span>
-          / ${{ '%.2f' | format(runtime.budget_usd) }} budget
-        </div>
-      {% endif %}
-    </div>
+    </details>
+  </section>
+  {% endif %}
+
+  {% if not briefings and not findings %}
+  <div class="text-center py-16 text-slate-500">
+    <p class="text-lg mb-2">No report content yet.</p>
+    <p class="text-sm">Start an investigation from the
+      <a href="{{ url_for('dashboard') }}" class="text-cyan-400 underline">Dashboard</a>
+      and the agent will post briefings as findings are recorded.
+    </p>
+  </div>
+  {% endif %}
 
   {% endif %}
 </div>

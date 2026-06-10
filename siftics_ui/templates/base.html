@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <title>{{ labels.case_header_short }} — {% block title %}SIFTics{% endblock %}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <script src="https://unpkg.com/htmx.org@2.0.4" defer></script>
-  <script src="https://unpkg.com/htmx-ext-sse@2.2.2" defer></script>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Vendored locally — no external CDN/network dependency -->
+  <script src="{{ url_for('static', filename='vendor/tailwind.js') }}"></script>
+  <script src="{{ url_for('static', filename='vendor/siftics.js') }}"></script>
   <style>
     .pulse-dot::before { content: ""; display: inline-block; width: .6em; height: .6em;
                          border-radius: 50%; margin-right: .4em; vertical-align: middle;
@@ -36,28 +36,21 @@
       </span>
     {% endif %}
     <nav class="ml-auto flex gap-4 text-sm">
-      <a href="{{ url_for('dashboard') }}"
-         class="hover:text-cyan-300">Dashboard</a>
-      <a href="{{ url_for('gates') }}"
-         class="hover:text-cyan-300">
-         Authority Gates
-         <span id="pending-pill"
-               hx-get="{{ url_for('gates_pending_count') }}"
-               hx-trigger="sse:ic_request_approval, sse:ic_approval_signed, every 30s"
-               hx-swap="innerHTML">{% include "_pending_gates.html" %}</span>
+      <a href="{{ url_for('dashboard') }}" class="hover:text-cyan-300">Dashboard</a>
+      <a href="{{ url_for('gates') }}" class="hover:text-cyan-300">
+        Authority Gates
+        <span id="pending-pill"></span>
       </a>
-      <a href="{{ url_for('cases_view') }}"
-         class="hover:text-cyan-300">Cases</a>
-      <a href="{{ url_for('report_view') }}"
-         class="hover:text-cyan-300">Report</a>
-      <a href="{{ url_for('setup_view') }}"
-         class="hover:text-cyan-300">Setup</a>
-      <a href="{{ url_for('new_case_view') }}"
-         class="hover:text-cyan-300 text-emerald-400">+ New case</a>
+      <a href="{{ url_for('report_view') }}" class="hover:text-cyan-300">Report</a>
+      <a href="{{ url_for('findings_view') }}" class="hover:text-cyan-300">Findings</a>
+      <a href="{{ url_for('intel_view') }}" class="hover:text-cyan-300">Intel</a>
+      <a href="{{ url_for('setup_view') }}" class="hover:text-cyan-300">Setup</a>
+      <a href="{{ url_for('cases_list') }}" class="hover:text-cyan-300 text-emerald-400">Cases</a>
+      <a href="{{ url_for('new_case_view') }}" class="hover:text-cyan-300 text-slate-300">+ New case</a>
     </nav>
   </header>
 
-  <main class="flex-1 p-4" hx-ext="sse" sse-connect="{{ url_for('sse_events') }}">
+  <main class="flex-1 p-4">
     {% block content %}{% endblock %}
   </main>
 
@@ -67,5 +60,18 @@
     SIFTics &middot; SANS Find Evil! hackathon submission &middot;
     audit chain: <span class="pulse-dot text-emerald-400">live</span>
   </footer>
+
+  <script>
+    // Connect SSE and keep the pending-gates pill fresh
+    Siftics.connectSSE("{{ url_for('sse_events') }}");
+    Siftics.livePanel(
+      '#pending-pill',
+      "{{ url_for('gates_pending_count') }}",
+      ['ic_request_approval', 'ic_approval_signed'],
+      30000
+    );
+    // Fetch initial pill value on load
+    Siftics.fetchHTML("{{ url_for('gates_pending_count') }}", '#pending-pill');
+  </script>
 </body>
 </html>

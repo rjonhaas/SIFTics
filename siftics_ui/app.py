@@ -1,31 +1,22 @@
-"""SIFTics web UI — Flask + HTMX.
+"""SIFTics web UI — Flask + vanilla JS.
 
-Run:
-    SIFTICS_CASE_DIR=/path/to/case flask --app siftics_ui.app run --port 8080
-
-Localhost-only by default. Provides:
-    /              redirect → /dashboard
-    /dashboard     Incident COP header, latest briefing, ASR/CET/ITQ summaries
-    /gates         Pending Authority Gates + sign/deny actions
-    /gates/sign    POST — HMAC-sign an approval (passphrase form)
-    /gates/deny    POST — HMAC-sign a denial
-    /audit         Live audit-chain tail + verify button
-    /audit/verify  POST — recompute audit chain
-    /events        SSE — pushes audit events to the dashboard as they land
-
-Partials served via HX-Request detection so the same routes work for
-full-page loads and HTMX fragment swaps.
+Run via: siftics-ui run   (preferred)
+     or: SIFTICS_CASE_DIR=/path/to/case flask --app siftics_ui.app:create_app run --port 8080
 """
 from __future__ import annotations
 
+import copy
 import json
 import os
 import queue
+import subprocess
+import sys
+import tempfile
 import threading
 import time
 from pathlib import Path
 
-from flask import Flask, Response, abort, jsonify, redirect, render_template, request, url_for
+from flask import Flask, Response, jsonify, redirect, render_template, request, url_for
 
 from siftics import (
     agent_runtime,
@@ -50,6 +41,13 @@ def create_app() -> Flask:
     @app.context_processor
     def _inject_labels() -> dict:
         return {"labels": app.config["LABELS"]}
+
+    @app.after_request
+    def _no_cache(response):
+        if "text/html" in response.content_type:
+            response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+            response.headers["Pragma"] = "no-cache"
+        return response
 
     # -----------------------------------------------------------------
     # Pages
@@ -101,16 +99,204 @@ def create_app() -> Flask:
     def gates_deny():
         return _sign_request(decision="denied")
 
-    @app.route("/audit")
-    def audit_view():
-        events = list(audit.iter_events(limit=200))
-        events.reverse()  # newest first
-        return render_template("audit.html", events=events)
+    @app.route("/report")
+    def report_view():
+        try:
+            header = case_state.case_get_header()
+        except Exception:
+            header = None
+        try:
+            briefings = case_state.briefing_history(limit=50)
+            briefings.reverse()  # chronological
+        except Exception:
+            briefings = []
+        try:
+            findings = case_state.asr_all()
+        except Exception:
+            findings = []
+        try:
+            itq = case_state.itq_progress()
+            itq_answered = [q for q in case_state.itq_all() if q.get("answer")]
+        except Exception:
+            itq = {}
+            itq_answered = []
+        return render_template("report.html",
+                               header=header,
+                               briefings=briefings,
+                               findings=findings,
+                               itq=itq,
+                               itq_answered=itq_answered)
 
-    @app.route("/audit/verify", methods=["POST"])
-    def audit_verify():
-        ok, errors = audit.verify_chain()
-        return jsonify({"ok": ok, "errors": errors})
+    @app.route("/report/download")
+    def report_download():
+        try:
+            header = case_state.case_get_header()
+        except Exception:
+            header = {}
+        try:
+            briefings = case_state.briefing_history(limit=50)
+            briefings.reverse()
+        except Exception:
+            briefings = []
+        try:
+            findings = case_state.asr_all()
+        except Exception:
+            findings = []
+        try:
+            itq_answered = [q for q in case_state.itq_all() if q.get("answer")]
+        except Exception:
+            itq_answered = []
+
+        lines = []
+        lines.append(f"# Case Report — {header.get('name', 'Unknown')}\n")
+        lines.append(f"**Case ID:** {header.get('case_id', '')}  ")
+        lines.append(f"**Incident Commander:** {header.get('incident_commander', {}).get('name', '')}  ")
+        lines.append(f"**Opened:** {header.get('opened_at', '')[:10]}  ")
+        lines.append(f"**Impact:** {header.get('impact_level', '').upper()}  \n")
+
+        # Evidence findings chain
+        try:
+            from siftics import findings as findings_lib
+            evidence_findings = findings_lib.finding_list()
+        except Exception:
+            evidence_findings = []
+        if evidence_findings:
+            lines.append("---\n## Evidence Findings\n")
+            for ef in evidence_findings:
+                lines.append(f"### {ef.get('finding_id')} — {ef.get('claim', '')}")
+                lines.append(f"**Artifact:** `{ef.get('artifact_path', '')}` in `{ef.get('artifact_source', '')}`  ")
+                lines.append(f"**Tool:** {ef.get('tool', '')}  ")
+                lines.append(f"**Command:** `{ef.get('command', '')}`  ")
+                lines.append(f"**Output:**\n```\n{ef.get('output_excerpt', '')}\n```\n")
+
+        if findings:
+            lines.append("---\n## Affected Systems\n")
+            for f in findings:
+                lines.append(f"### {f.get('serial_no')} — {f.get('system_identifier')}")
+                lines.append(f"**Impact:** {f.get('impact_rating')}  ")
+                lines.append(f"**Status:** {f.get('system_safe')}  \n")
+                lines.append(f.get('impact_description', '') + "\n")
+
+        if itq_answered:
+            lines.append("---\n## Triage Questions\n")
+            for q in itq_answered:
+                lines.append(f"**{q.get('question_id')}** — {q.get('question', '')}")
+                lines.append(f"> {q.get('answer', '')}\n")
+
+        for b in briefings:
+            lines.append("\n---\n")
+            lines.append(b.get("summary_md", ""))
+
+        md = "\n".join(lines)
+        filename = f"report_{header.get('case_id', 'case')}.md"
+        return Response(md, mimetype="text/markdown",
+                        headers={"Content-Disposition": f"attachment; filename={filename}"})
+
+    @app.route("/findings")
+    def findings_view():
+        from siftics import findings as findings_lib
+        try:
+            rows = findings_lib.finding_list()
+        except Exception:
+            rows = []
+        return render_template("findings.html", findings=rows)
+
+    @app.route("/intel")
+    def intel_view():
+        from siftics import intel as intel_lib
+        try:
+            rows = intel_lib.ioc_list()
+        except Exception:
+            rows = []
+        return render_template("intel.html", iocs=rows)
+
+    @app.route("/intel/artifact/<ioc_id>/<fmt>")
+    def intel_artifact(ioc_id: str, fmt: str):
+        from siftics import intel as intel_lib
+        row = intel_lib.ioc_get(ioc_id)
+        if not row:
+            return "IOC not found", 404
+        content = row.get("artifacts", {}).get(fmt, "")
+        if not content:
+            return f"Format {fmt} not available for {ioc_id}", 404
+        mt = "application/json" if fmt == "stix" else "text/plain"
+        fname = f"{ioc_id}.{fmt}{'rule' if fmt == 'yara' else '.yaml' if fmt == 'sigma' else '.json'}"
+        return Response(content, mimetype=mt,
+                        headers={"Content-Disposition": f"attachment; filename={fname}"})
+
+    # NB: /audit and /audit/verify routes intentionally removed — the raw
+    # audit chain (forensic_audit.jsonl) is still written on disk and can be
+    # inspected with `audit_verify.sh` or any JSONL tool. A UI view of the
+    # raw events was not useful to operators.
+
+    # -----------------------------------------------------------------
+    # Cases list + switch
+    # -----------------------------------------------------------------
+
+    def _scan_cases(base: Path) -> list[dict]:
+        cases = []
+        if not base.is_dir():
+            return cases
+        for p in sorted(base.iterdir()):
+            if not p.is_dir():
+                continue
+            cj = p / "case.json"
+            if not cj.exists():
+                continue
+            try:
+                data = json.loads(cj.read_text())
+            except Exception:
+                continue
+            evidence_dir = p / "evidence"
+            evidence_files = sorted(f.name for f in evidence_dir.iterdir() if not f.name.startswith('.')) if evidence_dir.exists() else []
+            cases.append({
+                "path": str(p),
+                "case_id": data.get("case_id", p.name),
+                "name": data.get("name", ""),
+                "ic_name": data.get("incident_commander", {}).get("name", ""),
+                "impact_level": data.get("impact_level", "unknown"),
+                "opened_at": data.get("opened_at", ""),
+                "active": str(p) == str(audit.case_dir()) if _case_loaded() else False,
+                "evidence_files": evidence_files,
+                "evidence_dir": str(evidence_dir),
+            })
+        return cases
+
+    def _case_loaded() -> bool:
+        try:
+            d = audit.case_dir()
+            return (d / "case.json").exists()
+        except Exception:
+            return False
+
+    @app.route("/cases")
+    def cases_list():
+        base = Path(request.args.get("base", "~/Desktop/cases")).expanduser()
+        cases = _scan_cases(base)
+        return render_template("cases.html", cases=cases, base=str(base))
+
+    @app.route("/cases/switch", methods=["POST"])
+    def cases_switch():
+        case_path = request.form.get("case_path", "").strip()
+        if not case_path or not (Path(case_path) / "case.json").exists():
+            return Response("Invalid case path.", status=400, mimetype="text/html")
+        # Block switching while an agent is running — prevents SIFTICS_CASE_DIR
+        # changing mid-stream and mixing writes from two different cases.
+        try:
+            current = audit.case_dir()
+            lock = _case_lock(str(current))
+            if not lock.acquire(blocking=False):
+                return Response(
+                    "Cannot switch cases while an agent is running. "
+                    "Wait for the agent to finish or stop it first.",
+                    status=409, mimetype="text/plain")
+            lock.release()
+        except RuntimeError:
+            pass  # no current case loaded — switching is safe
+        os.environ["SIFTICS_CASE_DIR"] = case_path
+        resp = Response("", status=200)
+        resp.headers["X-Redirect"] = url_for("dashboard")
+        return resp
 
     # -----------------------------------------------------------------
     # New case landing page
@@ -122,7 +308,7 @@ def create_app() -> Flask:
 
     @app.route("/api/list-cases")
     def api_list_cases():
-        base = Path(request.args.get("base", "~/cases")).expanduser()
+        base = Path(request.args.get("base", "~/Desktop/cases")).expanduser()
         try:
             dirs = sorted(
                 str(p) for p in base.iterdir() if p.is_dir()
@@ -139,51 +325,62 @@ def create_app() -> Flask:
     def setup_view():
         cfg = runtime_config.load_config(case_dir=audit.case_dir())
         options = _setup_options(cfg)
+        # Probe each integration key without exposing the value
+        integrations_status = {
+            name: runtime_config.integration_key_present(getattr(cfg.integrations, name))
+            for name in ("shodan", "virustotal", "osm")
+        }
+        # Probe response target credential presence (only the keyring-backed ones)
+        targets_status = {
+            "elastic_api_key": runtime_config.integration_key_present(cfg.response_targets.elastic.api_key),
+            "entra_client_secret": runtime_config.integration_key_present(cfg.response_targets.entra_id.client_secret),
+        }
         return render_template("setup.html",
                                 cfg=cfg,
                                 options=options,
                                 current_runtime=cfg.runtime,
+                                integrations_status=integrations_status,
+                                targets_status=targets_status,
                                 config_path=str(runtime_config.DEFAULT_USER_CONFIG)
                                             if runtime_config.DEFAULT_USER_CONFIG.exists() else None)
 
     @app.route("/setup/init-case", methods=["POST"])
     def setup_init_case():
         case_dir_raw = request.form.get("case_dir", "").strip()
-        case_id = request.form.get("case_id", "").strip()
-        name = request.form.get("name", "").strip()
-        ic_name = request.form.get("ic_name", "").strip()
-        passphrase = request.form.get("passphrase", "").strip()
+        case_id      = request.form.get("case_id", "").strip()
+        name         = request.form.get("name", "").strip()
+        ic_name      = request.form.get("ic_name", "").strip()
+        passphrase   = request.form.get("passphrase", "").strip()
+
+        def _fail(messages):
+            html = "".join(
+                f'<p class="text-rose-400 font-semibold">&#x26A0; {m}</p>'
+                for m in messages
+            )
+            return Response(html, status=200, mimetype="text/html")
 
         errors = []
-        if not case_dir_raw:
-            errors.append("Case directory is required.")
-        if not case_id:
-            errors.append("Case ID is required.")
-        if not name:
-            errors.append("Incident name is required.")
-        if not ic_name:
-            errors.append("IC name is required.")
-        if not passphrase:
-            errors.append("IC passphrase is required.")
+        if not case_dir_raw: errors.append("Case directory is required.")
+        if not case_id:      errors.append("Case ID is required.")
+        if not name:         errors.append("Incident name is required.")
+        if not ic_name:      errors.append("Incident Commander is required.")
+        if not passphrase:   errors.append("IC passphrase is required.")
         if errors:
-            return Response("<br>".join(errors), status=400, mimetype="text/html")
+            return _fail(errors)
 
-        import os as _os
         case_path = Path(case_dir_raw).expanduser().resolve()
         try:
             case_path.mkdir(parents=True, exist_ok=True)
-            _os.environ["SIFTICS_CASE_DIR"] = str(case_path)
+            (case_path / "evidence").mkdir(exist_ok=True)
+            os.environ["SIFTICS_CASE_DIR"] = str(case_path)
             itq_tmpl = Path(__file__).parent.parent / "templates" / "itq_questions.yaml"
             case_state.init_case(
-                case_id=case_id,
-                name=name,
-                ic_name=ic_name,
-                ic_contact="",
+                case_id=case_id, name=name, ic_name=ic_name, ic_contact="",
                 itq_template=itq_tmpl if itq_tmpl.exists() else None,
             )
             ic_approval.init_ic_key(passphrase, ic_name=ic_name)
         except Exception as exc:
-            return Response(f"Case init failed: {exc}", status=500, mimetype="text/html")
+            return _fail([f"Case init failed: {exc}"])
 
         audit.append_event("case_init_via_ui",
                            {"case_dir": str(case_path), "case_id": case_id, "ic_name": ic_name},
@@ -191,7 +388,7 @@ def create_app() -> Flask:
         if not app.config.get("AUDIT_TAILER_STARTED"):
             _start_audit_tailer(app)
         resp = Response("", status=200)
-        resp.headers["HX-Redirect"] = url_for("dashboard")
+        resp.headers["X-Redirect"] = url_for("dashboard")
         return resp
 
     @app.route("/setup/save", methods=["POST"])
@@ -202,17 +399,99 @@ def create_app() -> Flask:
             cfg.cost_budget_per_case_usd = float(request.form.get("budget") or cfg.cost_budget_per_case_usd)
         except ValueError:
             pass
-        path = runtime_config.save_config(cfg)
+
+        # Anthropic key — separate flow (legacy)
         key = (request.form.get("anthropic_key") or "").strip()
-        key_location: str | None = None
+        anthropic_key_location: str | None = None
         if key:
-            key_location = runtime_config.save_anthropic_key(cfg.anthropic, key)
-        # Don't audit the key value; do audit the location.
+            anthropic_key_location = runtime_config.save_anthropic_key(cfg.anthropic, key)
+
+        # Integration keys — Shodan / VirusTotal / OSM
+        # Blank = no change; CLEAR = remove.
+        integration_locations: dict[str, str] = {}
+        for name, fallback_file in [
+            ("shodan", "shodan.key"),
+            ("virustotal", "virustotal.key"),
+            ("osm", "osm.key"),
+        ]:
+            field = (request.form.get(f"{name}_key") or "").strip()
+            ikey = getattr(cfg.integrations, name)
+            if field == "CLEAR":
+                runtime_config.clear_integration_key(ikey)
+                integration_locations[name] = "cleared"
+            elif field:
+                integration_locations[name] = runtime_config.save_integration_key(
+                    ikey, field, fallback_file)
+
+        # Response targets — Velociraptor / Elastic / Entra ID
+        # Non-secret fields (URL, cert paths, tenant ID, etc.) go in agent.yaml.
+        # Secret fields (Elastic API key, Entra client secret) go in keyring.
+        targets_form = {
+            "velociraptor_enabled": "velociraptor_enabled" in request.form,
+            "velociraptor_url": (request.form.get("velociraptor_url") or "").strip(),
+            "velociraptor_client_cert": (request.form.get("velociraptor_client_cert") or "").strip(),
+            "velociraptor_client_key": (request.form.get("velociraptor_client_key") or "").strip(),
+            "velociraptor_ca_cert": (request.form.get("velociraptor_ca_cert") or "").strip(),
+            "elastic_enabled": "elastic_enabled" in request.form,
+            "elastic_url": (request.form.get("elastic_url") or "").strip(),
+            "elastic_index": (request.form.get("elastic_index") or "").strip(),
+            "entra_enabled": "entra_enabled" in request.form,
+            "entra_live": "entra_live" in request.form,
+            "entra_tenant": (request.form.get("entra_tenant") or "").strip(),
+            "entra_client_id": (request.form.get("entra_client_id") or "").strip(),
+        }
+        rt = cfg.response_targets
+        rt.velociraptor.enabled = targets_form["velociraptor_enabled"]
+        if targets_form["velociraptor_url"]:
+            rt.velociraptor.api_url = targets_form["velociraptor_url"]
+        if targets_form["velociraptor_client_cert"]:
+            rt.velociraptor.client_cert_path = targets_form["velociraptor_client_cert"]
+        if targets_form["velociraptor_client_key"]:
+            rt.velociraptor.client_key_path = targets_form["velociraptor_client_key"]
+        if targets_form["velociraptor_ca_cert"]:
+            rt.velociraptor.ca_cert_path = targets_form["velociraptor_ca_cert"]
+        rt.elastic.enabled = targets_form["elastic_enabled"]
+        if targets_form["elastic_url"]:
+            rt.elastic.url = targets_form["elastic_url"]
+        if targets_form["elastic_index"]:
+            rt.elastic.index = targets_form["elastic_index"]
+        rt.entra_id.enabled = targets_form["entra_enabled"]
+        rt.entra_id.live_mode = targets_form["entra_live"]
+        if targets_form["entra_tenant"]:
+            rt.entra_id.tenant_id = targets_form["entra_tenant"]
+        if targets_form["entra_client_id"]:
+            rt.entra_id.client_id = targets_form["entra_client_id"]
+
+        # Keyring-backed secrets for response targets
+        target_secret_locations: dict[str, str] = {}
+        for name, ikey, fallback_file in [
+            ("elastic_api_key", rt.elastic.api_key, "elastic.key"),
+            ("entra_client_secret", rt.entra_id.client_secret, "entra_client_secret.key"),
+        ]:
+            field = (request.form.get(name) or "").strip()
+            if field == "CLEAR":
+                runtime_config.clear_integration_key(ikey)
+                target_secret_locations[name] = "cleared"
+            elif field:
+                target_secret_locations[name] = runtime_config.save_integration_key(
+                    ikey, field, fallback_file)
+
+        path = runtime_config.save_config(cfg)
+
+        # Audit the LOCATIONS, never the key values.
         audit.append_event("runtime_config_saved",
                             {"runtime": cfg.runtime,
                              "budget_usd": cfg.cost_budget_per_case_usd,
                              "config_path": str(path),
-                             "api_key_location": key_location},
+                             "anthropic_key_location": anthropic_key_location,
+                             "integration_keys_updated": integration_locations or None,
+                             "response_targets_enabled": {
+                                 "velociraptor": rt.velociraptor.enabled,
+                                 "elastic": rt.elastic.enabled,
+                                 "entra_id": rt.entra_id.enabled,
+                                 "entra_live_mode": rt.entra_id.live_mode,
+                             },
+                             "response_target_secrets_updated": target_secret_locations or None},
                             actor="ic")
         return redirect(url_for("dashboard"))
 
@@ -226,168 +505,202 @@ def create_app() -> Flask:
                                 runtime=_runtime_status())
 
     # -----------------------------------------------------------------
-    # Cases — list + selector (replaces the old Chat tab in the nav)
+    # Claude Code agent — subprocess integration
     # -----------------------------------------------------------------
 
-    @app.route("/cases")
-    def cases_view():
-        """List every case under the configured cases root and let the
-        examiner switch the active one. The Flask process reads
-        ``SIFTICS_CASE_DIR`` from os.environ on every audit/case_state call,
-        so updating it process-wide is enough to flip the active case
-        without restarting the server."""
-        active = os.environ.get("SIFTICS_CASE_DIR") or ""
-        bases: list[Path] = []
-        for raw in (request.args.get("base"),
-                    os.environ.get("SIFTICS_CASES_ROOT"),
-                    str(Path.home() / "cases")):
-            if not raw:
-                continue
-            p = Path(raw).expanduser()
-            if p.is_dir() and p not in bases:
-                bases.append(p)
-
-        cases: list[dict] = []
-        for base in bases:
-            try:
-                children = sorted(base.iterdir())
-            except PermissionError:
-                continue
-            for d in children:
-                if not d.is_dir():
-                    continue
-                meta = _case_meta(d)
-                if meta is None:
-                    continue
-                meta["path"] = str(d)
-                meta["is_active"] = (str(d) == active)
-                cases.append(meta)
-
-        return render_template("cases.html",
-                                cases=cases,
-                                bases=[str(b) for b in bases],
-                                active=active)
-
-    @app.route("/cases/select", methods=["POST"])
-    def cases_select():
-        """Set the active case dir for the running Flask process and bounce
-        the browser to the dashboard."""
-        path_raw = request.form.get("case_dir", "").strip()
-        if not path_raw:
-            return Response("case_dir required", status=400)
-        path = Path(path_raw).expanduser().resolve()
-        if not path.is_dir():
-            return Response(f"not a directory: {path}", status=400)
-        if not (path / "case.json").exists():
-            return Response(f"no case.json in {path}", status=400)
-        os.environ["SIFTICS_CASE_DIR"] = str(path)
-        audit.append_event("case_switched_via_ui",
-                           {"case_dir": str(path)}, actor="ic")
-        resp = Response("", status=200)
-        resp.headers["HX-Redirect"] = url_for("dashboard")
-        return resp
-
-    # -----------------------------------------------------------------
-    # Report — single-case rundown (replaces the old Audit chain tab)
-    # -----------------------------------------------------------------
-
-    @app.route("/report")
-    def report_view():
-        """Read-only summary of where the active case stands: header, ITQ
-        progress, ASR/CET totals, findings tally, recent audit activity,
-        cost snapshot, and an audit-chain integrity light."""
+    @app.route("/api/agent/start", methods=["POST"])
+    def api_agent_start():
         try:
-            case = case_state.case_get_header()
-        except FileNotFoundError:
-            return render_template("report.html", case=None)
-
-        events = list(audit.iter_events())
-        # SBOM event is row 1 if the case was init'd by current case_state.
-        sbom_event = next((e for e in events if e.get("type") == "sbom_snapshot"), None)
-        chain_ok, chain_errors = audit.verify_chain()
-
-        findings_path = case_state.case_dir() / "findings.jsonl"
-        findings_total = 0
-        findings_approved = 0
-        findings_draft = 0
-        if findings_path.exists():
-            for line in findings_path.read_text(encoding="utf-8").splitlines():
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    row = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                findings_total += 1
-                status = (row.get("status") or "draft").lower()
-                if status == "approved":
-                    findings_approved += 1
-                elif status == "draft":
-                    findings_draft += 1
-
-        return render_template(
-            "report.html",
-            case=case,
-            asr=_asr_summary(),
-            cet=_cet_summary(),
-            itq_pct=_itq_progress_pct(),
-            findings={
-                "total": findings_total,
-                "approved": findings_approved,
-                "draft": findings_draft,
-                "other": findings_total - findings_approved - findings_draft,
-            },
-            audit_summary={
-                "events": len(events),
-                "chain_ok": chain_ok,
-                "chain_errors": chain_errors[:5],
-                "last_event": events[-1] if events else None,
-            },
-            sbom_event=sbom_event,
-            runtime=_runtime_status(),
-        )
-
-    # -----------------------------------------------------------------
-    # Chat panel (kept as a route for any deep links; no longer in nav)
-    # -----------------------------------------------------------------
-
-    @app.route("/chat")
-    def chat_view():
-        try:
-            cfg = runtime_config.load_config(case_dir=audit.case_dir())
+            case_path = audit.case_dir()
         except Exception:
-            cfg = runtime_config.RuntimeConfig()
-        return render_template("chat.html", cfg=cfg)
+            return Response("No case loaded.", status=400)
+        evidence_dir = case_path / "evidence"
+        evidence_files = sorted(evidence_dir.iterdir()) if evidence_dir.exists() else []
+        evidence_list = "\n".join(f"  - {f.name}" for f in evidence_files) if evidence_files else "  (no files yet — drop evidence into the evidence/ folder)"
+        prompt = (
+            f"You are the Investigation Section Chief for this case.\n\n"
+            f"Evidence is in: {evidence_dir}\n"
+            f"Evidence files:\n{evidence_list}\n\n"
+            f"Case directory: {case_path}\n\n"
+            f"Introduce yourself briefly, confirm what evidence you can see, "
+            f"read the open triage questions, state your initial plan, then begin working. "
+            f"Use /investigation-section-chief to guide your workflow — it lists all available "
+            f"domain skills (/windows-artifacts, /linux-server-artifacts, /macos-artifacts, "
+            f"/iot-ot-artifacts, /malware-triage, /timeline-reconstruction, "
+            f"/anti-forensics-detection, /reporting-conventions, /daedalus). "
+            f"Load the relevant domain skill before working in that area. "
+            f"Work continuously through the loop — do not stop to ask if you should continue. "
+            f"Post briefings as you go and keep going. The IC will interrupt if they need to redirect you."
+        )
+        cmd, env = _make_agent_cmd(case_path, prompt)
+        def generate():
+            yield "data: " + json.dumps({"type": "ui", "subtype": "agent_starting"}) + "\n\n"
+            yield from _stream_agent(cmd, env, case_path)
+            yield "data: " + json.dumps({"type": "ui", "subtype": "agent_done"}) + "\n\n"
+        return Response(generate(), mimetype="text/event-stream",
+                        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
-    @app.route("/chat/stream", methods=["POST"])
-    def chat_stream():
-        user_msg = request.form.get("message", "").strip()
-        if not user_msg:
-            return Response("empty message", status=400)
-        cfg = runtime_config.load_config(case_dir=audit.case_dir())
-        runtime = agent_runtime.runtime_for_config(cfg)
-        from siftics_ui.executor import InProcessToolExecutor
-        executor = InProcessToolExecutor()
-        system_prompt = _build_system_prompt()
-        messages = [{"role": "user", "content": user_msg}]
-
-        def stream():
+    @app.route("/api/agent/message", methods=["POST"])
+    def api_agent_message():
+        try:
+            case_path = audit.case_dir()
+        except Exception:
+            return Response("No case loaded.", status=400)
+        message = request.form.get("message", "").strip()
+        if not message:
+            return Response("Empty message.", status=400)
+        sess = _read_session(case_path)
+        session_id = sess.get("session_id")
+        # Validate that the stored session belongs to this case, not a
+        # different one that was accidentally left in this directory.
+        if session_id and sess.get("case_id"):
             try:
-                for ev in runtime.chat(system=system_prompt, messages=messages,
-                                        executor=executor,
-                                        task_class="investigator",
-                                        purpose="chat panel"):
-                    payload = _event_to_dict(ev)
-                    yield f"event: {payload['kind']}\n" \
-                          f"data: {json.dumps(payload, separators=(',', ':'))}\n\n"
-                yield "event: end\ndata: {}\n\n"
-            except cost_tracker.BudgetExceeded as e:
-                yield f"event: budget_exceeded\ndata: {json.dumps({'message': str(e)})}\n\n"
-            except Exception as e:
-                yield f"event: error\ndata: {json.dumps({'message': str(e)})}\n\n"
+                header = case_state.case_get_header()
+                if sess["case_id"] != header.get("case_id", ""):
+                    # Session is from a different case — start fresh.
+                    session_id = None
+            except Exception:
+                pass
+        cmd, env = _make_agent_cmd(case_path, message, session_id=session_id)
+        def generate():
+            yield from _stream_agent(cmd, env, case_path)
+            yield "data: " + json.dumps({"type": "ui", "subtype": "agent_done"}) + "\n\n"
+        return Response(generate(), mimetype="text/event-stream",
+                        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
-        return Response(stream(), mimetype="text/event-stream")
+    @app.route("/api/agent/status")
+    def api_agent_status():
+        try:
+            case_path = audit.case_dir()
+        except Exception:
+            return jsonify({"has_session": False, "running": False})
+        sess = _read_session(case_path)
+        lock = _case_lock(str(case_path))
+        running = not lock.acquire(blocking=False)
+        if not running:
+            lock.release()
+        return jsonify({
+            "has_session": bool(sess.get("session_id")),
+            "session_id": sess.get("session_id"),
+            "running": running,
+        })
+
+    # -----------------------------------------------------------------
+    # Investigation control — status, activity feed, phase runner
+    # -----------------------------------------------------------------
+
+    @app.route("/api/investigation/status")
+    def api_investigation_status():
+        try:
+            events = list(audit.iter_events(limit=500))
+        except Exception:
+            events = []
+        types = {e["type"] for e in events}
+        llm_calls = sum(1 for e in events if e["type"] == "llm_call")
+        itq_answered = sum(1 for e in events if e["type"] == "itq_answered")
+        asr_count = sum(1 for e in events if e["type"] in ("asr_appended", "asr_updated"))
+        if llm_calls == 0:
+            state = "fresh"
+        elif any(e["type"] == "case_closed" for e in events):
+            state = "complete"
+        else:
+            state = "active"
+        phase_runs = {}
+        for e in events:
+            pid = e.get("payload", {}).get("phase_id")
+            if pid:
+                phase_runs[pid] = e["ts"]
+        return jsonify({
+            "state": state,
+            "llm_calls": llm_calls,
+            "itq_answered": itq_answered,
+            "asr_count": asr_count,
+            "phase_runs": phase_runs,
+        })
+
+    @app.route("/api/activity/feed")
+    def api_activity_feed():
+        try:
+            events = list(audit.iter_events(limit=40))
+        except Exception:
+            events = []
+        events.reverse()
+        readable = []
+        labels = {
+            "llm_call":             "Agent LLM call",
+            "itq_answered":         "ITQ question answered",
+            "asr_appended":         "Finding recorded",
+            "asr_updated":          "Finding updated",
+            "cet_appended":         "CET entry added",
+            "ic_request_approval":  "Authority Gate requested",
+            "ic_approval_signed":   "Authority Gate signed",
+            "rag_lookup":           "RAG knowledge lookup",
+            "baseline_lookup":      "Baseline hash check",
+            "cti_lookup":           "CTI IOC lookup",
+            "briefing_posted":      "Briefing posted",
+            "finding_recorded":     "Evidence finding recorded",
+            "ioc_generated":        "IOC artifact generated",
+            "intel_published":      "Intel published",
+            "case_initialised":     "Case initialised",
+            "itq_seeded":           "ITQ seeded",
+            "phase_started":        "Phase started",
+            "phase_complete":       "Phase complete",
+        }
+        for e in events:
+            label = labels.get(e["type"], e["type"])
+            payload = e.get("payload", {})
+            detail = ""
+            if e["type"] == "itq_answered":
+                detail = payload.get("question_id", "")
+            elif e["type"] in ("asr_appended", "asr_updated"):
+                detail = payload.get("title", payload.get("host", ""))
+            elif e["type"] == "ic_request_approval":
+                detail = payload.get("gate", "")
+            elif e["type"] == "llm_call":
+                cost = payload.get("cost_usd")
+                detail = f"${cost:.4f}" if cost else ""
+            elif e["type"] in ("phase_started", "phase_complete"):
+                detail = payload.get("phase_id", "")
+            elif e["type"] == "finding_recorded":
+                detail = payload.get("finding_id", "")
+            elif e["type"] == "ioc_generated":
+                detail = payload.get("ioc_id", "") + " " + payload.get("ioc_type", "")
+            elif e["type"] == "intel_published":
+                detail = f"{payload.get('count', '')} IOCs"
+            readable.append({
+                "ts": e["ts"],
+                "type": e["type"],
+                "label": label,
+                "detail": detail,
+                "actor": e.get("actor", ""),
+            })
+        return jsonify(readable)
+
+    @app.route("/api/phase/run/<phase_id>", methods=["POST"])
+    def api_phase_run(phase_id):
+        phase = next((p for p in PHASES if p["id"] == phase_id), None)
+        if not phase:
+            return jsonify({"ok": False, "output": "Unknown phase."}), 400
+        if not phase.get("runnable"):
+            return jsonify({"ok": False, "output": phase.get("reason", "Not runnable from the UI.")}), 400
+        case_path = str(audit.case_dir())
+        env = {**os.environ, "SIFTICS_CASE_DIR": case_path}
+        try:
+            audit.append_event("phase_started", {"phase_id": phase_id}, actor="ui")
+            proc = subprocess.Popen(
+                [sys.executable, "-m", f"phases.{phase_id}"] + phase.get("args", []),
+                cwd=str(Path(__file__).parent.parent),
+                env=env,
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+            )
+            out, _ = proc.communicate(timeout=120)
+            audit.append_event("phase_complete",
+                               {"phase_id": phase_id, "returncode": proc.returncode,
+                                "output_lines": len(out.splitlines())},
+                               actor="ui")
+            return jsonify({"ok": proc.returncode == 0, "output": out[-3000:] or "(no output)"})
+        except Exception as exc:
+            return jsonify({"ok": False, "output": str(exc)}), 500
 
     # -----------------------------------------------------------------
     # SSE
@@ -420,6 +733,176 @@ def create_app() -> Flask:
 
 
 # ---------------------------------------------------------------------------
+# Phase definitions
+# ---------------------------------------------------------------------------
+
+# runnable=True  → one-click, reads from SIFTICS_CASE_DIR
+# runnable=False → needs specific inputs; UI explains instead of showing Run
+PHASES = [
+    {"id": "fast_persistence_scan",   "name": "Persistence Scan",
+     "description": "Check run keys, services, and scheduled tasks against the known-good baseline.",
+     "runnable": True,  "args": []},
+    {"id": "fast_evtx_attack_filter", "name": "Windows Event Log Filter",
+     "description": "Scan Windows event logs for attack-relevant event IDs.",
+     "runnable": False, "reason": "Requires a folder of .evtx files — run from the agent."},
+    {"id": "classify_binary",         "name": "Binary Classifier",
+     "description": "Hash check + MalwareBazaar + ThreatFox lookup for a suspicious file.",
+     "runnable": False, "reason": "Requires a file path or hash — run from the agent."},
+    {"id": "anomaly_check",           "name": "Anomaly Check",
+     "description": "Look for contradictions across all findings collected so far.",
+     "runnable": True,  "args": []},
+]
+
+
+# ---------------------------------------------------------------------------
+# Agent subprocess helpers
+# ---------------------------------------------------------------------------
+
+_agent_locks: dict = {}
+_agent_lock_meta = threading.Lock()
+
+
+def _case_lock(case_path: str) -> threading.Lock:
+    with _agent_lock_meta:
+        if case_path not in _agent_locks:
+            _agent_locks[case_path] = threading.Lock()
+        return _agent_locks[case_path]
+
+
+def _session_file(case_path: Path) -> Path:
+    return case_path / "agent_session.json"
+
+
+def _read_session(case_path: Path) -> dict:
+    sf = _session_file(case_path)
+    if sf.exists():
+        try:
+            return json.loads(sf.read_text())
+        except Exception:
+            pass
+    return {}
+
+
+def _write_session(case_path: Path, data: dict) -> None:
+    _session_file(case_path).write_text(json.dumps(data))
+
+
+def _mcp_config(case_path: str, venv_python: str) -> dict:
+    env_block = {"SIFTICS_CASE_DIR": case_path}
+    servers = {
+        "siftics_case":        {"command": venv_python, "args": ["-m", "mcp_case.server"],        "env": env_block},
+        "siftics_ic_approval": {"command": venv_python, "args": ["-m", "mcp_ic_approval.server"], "env": env_block},
+        "siftics_baseline":    {"command": venv_python, "args": ["-m", "mcp_baseline.server"],    "env": env_block},
+        "siftics_rag":         {"command": venv_python, "args": ["-m", "mcp_rag.server"],         "env": env_block},
+        "siftics_cti":         {"command": venv_python, "args": ["-m", "mcp_cti.server"],         "env": env_block},
+        "siftics_broker":      {"command": venv_python, "args": ["-m", "mcp_broker.server"],      "env": env_block},
+        "siftics_intel":       {"command": venv_python, "args": ["-m", "mcp_intel.server"],       "env": env_block},
+        "siftics_containment": {"command": venv_python, "args": ["-m", "mcp_containment.server"], "env": env_block},
+    }
+    return {"mcpServers": servers}
+
+
+def _stream_agent(cmd: list, env: dict, case_path: Path):
+    """Run claude subprocess and yield SSE data lines."""
+    lock = _case_lock(str(case_path))
+    if not lock.acquire(blocking=False):
+        yield "data: " + json.dumps({"type": "error", "message": "Agent is already running."}) + "\n\n"
+        return
+    # Accumulate token usage across all assistant turns so we can write a
+    # single llm_call audit event when the result event arrives.
+    _usage = {"input": 0, "cached_read": 0, "cached_creation": 0, "output": 0, "model": ""}
+    try:
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                text=True, env=env)
+        for raw in proc.stdout:
+            raw = raw.strip()
+            if not raw:
+                continue
+            try:
+                evt = json.loads(raw)
+            except Exception:
+                continue
+            if evt.get("type") == "system" and evt.get("session_id"):
+                sess = _read_session(case_path)
+                sess["session_id"] = evt["session_id"]
+                # Bind session to this case so resuming it in the wrong case
+                # is detectable.
+                try:
+                    header = case_state.case_get_header()
+                    sess["case_id"] = header.get("case_id", "")
+                except Exception:
+                    pass
+                _write_session(case_path, sess)
+            elif evt.get("type") == "assistant":
+                msg = evt.get("message", {})
+                if not _usage["model"] and msg.get("model"):
+                    _usage["model"] = msg["model"]
+                u = msg.get("usage") or {}
+                _usage["input"] += int(u.get("input_tokens", 0))
+                _usage["cached_read"] += int(u.get("cache_read_input_tokens", 0))
+                _usage["cached_creation"] += int(u.get("cache_creation_input_tokens", 0))
+                _usage["output"] += int(u.get("output_tokens", 0))
+            elif evt.get("type") == "result":
+                try:
+                    cost_usd = float(
+                        evt.get("total_cost_usd") or evt.get("cost_usd") or 0.0
+                    )
+                    inp = _usage["input"]
+                    hit_rate = round(_usage["cached_read"] / inp, 4) if inp else 0.0
+                    old_case = os.environ.get("SIFTICS_CASE_DIR")
+                    os.environ["SIFTICS_CASE_DIR"] = str(case_path)
+                    try:
+                        audit.append_event("llm_call", {
+                            "model": _usage["model"] or "claude-code",
+                            "task_class": "investigator",
+                            "purpose": "claude_code_agent_turn",
+                            "input_tokens": inp,
+                            "cached_read_tokens": _usage["cached_read"],
+                            "cached_creation_tokens": _usage["cached_creation"],
+                            "output_tokens": _usage["output"],
+                            "cost_usd": round(cost_usd, 6),
+                            "cache_hit_rate": hit_rate,
+                        }, actor="claude_code_agent")
+                    finally:
+                        if old_case is None:
+                            os.environ.pop("SIFTICS_CASE_DIR", None)
+                        else:
+                            os.environ["SIFTICS_CASE_DIR"] = old_case
+                except Exception:
+                    pass
+            yield "data: " + json.dumps(evt) + "\n\n"
+        proc.wait()
+    finally:
+        lock.release()
+
+
+def _make_agent_cmd(case_path: Path, prompt: str,
+                    session_id: str | None = None) -> tuple[list, dict]:
+    venv_bin = str(Path(__file__).parent.parent / ".venv" / "bin")
+    venv_python = str(Path(venv_bin) / "python3")
+    mcp_file = Path(tempfile.mktemp(suffix=".json", prefix="siftics_mcp_"))
+    mcp_file.write_text(json.dumps(_mcp_config(str(case_path), venv_python)))
+    # Prompt must come before variadic flags (--mcp-config consumes subsequent args).
+    # --dangerously-skip-permissions required: permission prompts block in the background
+    # process and cannot be answered from the browser UI.
+    cmd = ["claude", "-p", prompt,
+           "--output-format", "stream-json",
+           "--verbose",
+           "--dangerously-skip-permissions",
+           "--mcp-config", str(mcp_file),
+           "--add-dir", str(case_path)]
+    if session_id:
+        cmd += ["--resume", session_id]
+    # Prepend venv bin to PATH so the agent's bash commands resolve pip3,
+    # python3, and all venv-installed tools to the venv versions, not the
+    # system ones (which reject installs with PEP 668 on Ubuntu 23+).
+    env = {**os.environ, "SIFTICS_CASE_DIR": str(case_path)}
+    env["PATH"] = venv_bin + os.pathsep + env.get("PATH", "")
+    env["VIRTUAL_ENV"] = str(Path(venv_bin).parent)
+    return cmd, env
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
@@ -429,6 +912,10 @@ def _dashboard_context() -> dict:
         header = case_state.case_get_header()
     except FileNotFoundError:
         header = None
+    try:
+        cfg = runtime_config.load_config(case_dir=audit.case_dir())
+    except Exception:
+        cfg = runtime_config.RuntimeConfig()
     return {
         "case": header,
         "latest_briefing": case_state.briefing_latest(),
@@ -436,7 +923,10 @@ def _dashboard_context() -> dict:
         "cet": _cet_summary(),
         "itq": case_state.itq_progress(),
         "pending_gate_count": len(_list_pending_gates()),
+        "draft_ioc_count": _draft_ioc_count(),
         "runtime": _runtime_status(),
+        "cfg": cfg,
+        "phases": PHASES,
     }
 
 
@@ -455,8 +945,10 @@ def _runtime_status() -> dict:
         pass
     budget = cfg.cost_budget_per_case_usd
     pct = (cur_cost / budget * 100.0) if budget > 0 else 0.0
+    # The agent is always run via `claude` subprocess regardless of agent.yaml;
+    # reflect the actual runtime label rather than the config value.
     return {
-        "runtime": cfg.runtime,
+        "runtime": "claude_code",
         "budget_usd": budget,
         "spent_usd": round(cur_cost, 4),
         "pct": round(pct, 1),
@@ -467,115 +959,28 @@ def _runtime_status() -> dict:
 
 
 def _setup_options(cfg) -> list[dict]:
-    """Probe each runtime backend; return a list of card dicts for the wizard.
-
-    Trimmed to the two paths Find Evil! hackathon rules permit: the Claude
-    Code CLI (preferred, uses the user's existing claude subscription) and
-    the in-process Anthropic API loop (for headless / pinned-model runs).
-    Other runtimes (Ollama, OpenAI, Codex CLI) are intentionally hidden;
-    they remain selectable via ``runtime_config`` for non-hackathon
-    deployments but aren't surfaced as options in the wizard.
-    """
+    """Probe each runtime backend; return a list of card dicts for the wizard."""
     out = []
     for value, label, desc, recommended in [
         ("claude_code",   "Claude Code (recommended)",
-            "Uses your existing claude CLI subscription. SIFTics writes MCP "
-            "server registrations into ~/.claude/settings.json so claude "
-            "calls them. Matches the Find Evil! hackathon's primary deployment.",
+            "Uses your existing Claude Code subscription. SIFTics registers its tool "
+            "servers with Claude so the agent can read evidence, record findings, and "
+            "request approvals automatically.",
             True),
         ("anthropic_api", "Anthropic API key",
-            "In-process chat loop in SIFTics's UI. Routes per task class "
-            "(Sonnet 4.6 default, Haiku 4.5 for classification, Opus 4.7 for "
-            "deep review). Prompt caching enabled. Cost tracking + per-case "
-            "budget circuit breaker active. Use when you need a pinned "
-            "model or a fully-headless run.",
+            "In-process chat loop in SIFTics's UI. Prompt caching enabled. "
+            "Cost tracking + per-case budget circuit breaker active.",
             False),
     ]:
-        rt = agent_runtime.runtime_for_config(_force_runtime(cfg, value))
+        c = copy.deepcopy(cfg)
+        c.runtime = value
+        rt = agent_runtime.runtime_for_config(c)
         ok, status = rt.setup_check()
         out.append({
             "value": value, "label": label, "description": desc,
             "recommended": recommended, "detected": ok, "status": status,
         })
     return out
-
-
-def _force_runtime(cfg, runtime_value):
-    """Helper for setup_check() — clone cfg with a different runtime to probe each."""
-    import copy
-    c = copy.deepcopy(cfg)
-    c.runtime = runtime_value
-    return c
-
-
-def _build_system_prompt() -> str:
-    """Minimal v1 system prompt — production version reads from skills/*.md."""
-    return (
-        "You are the Investigation Section Chief for an IR case under NIMS ICS "
-        "doctrine. The human analyst is the Incident Commander.\n\n"
-        "Your tactical autonomy: drive the investigation through the case's "
-        "MCP tool surface (asr_*, cet_*, itq_*, briefing_post, ic_request_approval).\n\n"
-        "Authority Gates: any fleet-wide action (hunt deployment, host isolation, "
-        "cold-path escalation) requires `ic_request_approval` followed by IC "
-        "sign-off in another surface (the /gates UI or `sift-approve` CLI). "
-        "You cannot execute these actions yourself; the action MCP functions "
-        "reject calls without a signed approval object.\n\n"
-        "Start each turn by checking ITQ progress and the open ASR/CET state. "
-        "Drive unanswered ITQ questions toward closure using available tools. "
-        "Post briefings when material findings change the IC's picture."
-    )
-
-
-def _event_to_dict(ev) -> dict:
-    """Convert AgentRuntime event dataclasses to JSON-serialisable dicts."""
-    out = {"kind": getattr(ev, "kind", "unknown")}
-    for f in ("text", "tool_name", "tool_input", "tool_use_id",
-              "content", "cost_usd", "model", "task_class", "message"):
-        if hasattr(ev, f):
-            v = getattr(ev, f)
-            if v not in (None, "", {}):
-                out[f] = v
-    return out
-
-
-def _itq_progress_pct() -> int:
-    """Return the percentage of the ITQ that's been answered, 0-100. Resilient
-    to either a list of rows or a dict layout in itq.jsonl."""
-    try:
-        rows = case_state.itq_all()
-    except Exception:
-        return 0
-    if not rows:
-        return 0
-    answered = sum(1 for r in rows if r.get("answer") or r.get("answered_at"))
-    return int(round(100 * answered / max(1, len(rows))))
-
-
-def _case_meta(case_dir: Path) -> dict | None:
-    """Read a case directory's case.json header without touching the audit
-    log or globals. Returns None if the directory isn't a real case."""
-    header_path = case_dir / "case.json"
-    if not header_path.exists():
-        return None
-    try:
-        h = json.loads(header_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
-    # Quick file-size feel for how mature the case is.
-    audit_lines = 0
-    audit_path = case_dir / "forensic_audit.jsonl"
-    if audit_path.exists():
-        with audit_path.open("r", encoding="utf-8") as fh:
-            audit_lines = sum(1 for _ in fh)
-    return {
-        "case_id": h.get("case_id"),
-        "name": h.get("name"),
-        "opened_at": h.get("opened_at"),
-        "ic_name": (h.get("incident_commander") or {}).get("name"),
-        "status": h.get("status", "open"),
-        "impact_level": h.get("impact_level"),
-        "audit_lines": audit_lines,
-    }
 
 
 def _asr_summary() -> dict:
@@ -599,6 +1004,14 @@ def _cet_summary() -> dict:
         "high_priority": sum(1 for r in pending if r.get("priority_order", 99) <= 3),
         "recent": sorted(rows, key=lambda r: r.get("written_at", ""), reverse=True)[:5],
     }
+
+
+def _draft_ioc_count() -> int:
+    try:
+        from siftics import intel as intel_lib
+        return intel_lib.ioc_count(status="draft")
+    except Exception:
+        return 0
 
 
 def _list_pending_gates() -> list[dict]:

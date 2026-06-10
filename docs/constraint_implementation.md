@@ -4,7 +4,7 @@
 > evaluate *"where security boundaries are enforced and whether they were tested
 > for bypass."*
 >
-> SIFTics's answer: **13 architectural guardrails, all measured by `tests/test_constraints.py`; 14/14 pass.**
+> SIFTics's answer: **15 architectural guardrails, all measured by `tests/test_constraints.py`; 14/14 pass.**
 
 For a detailed list of guardrails see [`architecture.md §3`](architecture.md#3-trust-boundaries--architectural-vs-prompt-based). This file is the auditor-facing summary plus the constraint-test report.
 
@@ -22,7 +22,7 @@ SIFTics's rules cannot be ignored because the offending function calls **never r
 
 ---
 
-## 2. The 14 architectural guardrails — at a glance
+## 2. The 15 architectural guardrails — at a glance
 
 | # | Guardrail | Mechanism | Test | Result |
 |---|---|---|---|---|
@@ -39,7 +39,8 @@ SIFTics's rules cannot be ignored because the offending function calls **never r
 | G11 | Read-only evidence mounts | `verify_readonly_mounts.sh` pre-flight | T1 | ✅ (policy) |
 | G12 | No `execute_shell()` / `eval()` MCP function | Surface review — only typed functions exposed | mcp_case enumerates 14 typed fns | ✅ (review) |
 | G13 | Prompt-injection sanitiser | Regex scrub at MCP boundary before output reaches agent | T3 | ✅ |
-| G14 | Toolchain SBOM hash-chained at case-init | `siftics/sbom.py:compute_sbom` snapshot written into audit row 1 by `case_state.init_case`; `<case>/sbom.json` is the persisted copy; drift detectable by re-computing and comparing to the chained hash | manual via `compute_sbom` + `verify_chain`; Authority-Gate refusal on drift staged for v1.1 | ✅ (write); manual (verify) |
+| G14 | IOC publishing requires signed `ICApproval` | `publish_intel()` requires typed approval parameter — same structural rule as G1 (execute_hunt) and the containment_action gate | (not yet in test suite) | stub |
+| G15 | Toolchain SBOM hash-chained at case-init | `siftics/sbom.py:compute_sbom` snapshot written into audit row 1 by `case_state.init_case`; `<case>/sbom.json` is the persisted copy; drift detectable by re-computing and comparing to the chained hash | manual via `compute_sbom` + `verify_chain`; Authority-Gate refusal on drift staged for v1.1 | ✅ (write); manual (verify) |
 
 **14 sub-tests in the harness (T1 through T8g). All pass.** Re-run any time with:
 
@@ -47,9 +48,19 @@ SIFTics's rules cannot be ignored because the offending function calls **never r
 python -m pytest tests/test_constraints.py -v
 ```
 
+### When do Authority Gates fire?
+
+The three gated MCP actions (`execute_hunt_package`, `escalate_to_cold`, `isolate_host`) are **response-side actions** that only arise in live, active investigations with fleet EDR and reachable endpoints. For static offline forensic image analysis — the primary use case demonstrated in the NIST CFReDS walkthrough — none of these actions are ever called, by design.
+
+This is intentional, not a gap. Read-only forensic analysis (mounting images, running phase scripts, querying the COP) carries **no blast radius**: the worst a misaligned agent can do is write a wrong finding to a local JSONL file, which the IC can correct. Gating every phase script invocation would add friction with no safety value.
+
+The gates exist for the moment an investigation pivots from *analysis* to *active containment* — fleet-wide hunts, cold-path deep forensics on live hosts, or network isolation orders. Those are the decisions that cannot be undone and warrant cryptographic IC sign-off.
+
+**In offline DFIR demos:** the gate mechanism is fully exercised by the bypass-attempt tests (T5, T6, T8a–T8g). Judges wanting to see a live gate flow can trigger one manually — call `request_approval` from the `mcp_ic_approval` surface, then open `http://localhost:8080/gates` to approve it with the IC passphrase.
+
 ---
 
-## 3. The 4 prompt-based guardrails (honestly labelled)
+## 3. The prompt-based guardrails (honestly labelled)
 
 These are *guidance*, not guards. A misaligned model can disregard them; that's why they are clearly separated.
 
@@ -59,8 +70,17 @@ These are *guidance*, not guards. A misaligned model can disregard them; that's 
 | P2 | Phase-script ordering hints | `skills/triage-methodology.md` + Daedalus run-plan |
 | P3 | Hypothesis Engine usage guidance | `skills/hypothesis-engine.md` |
 | P4 | Briefing cadence guidance | methodology hints in skills |
+| P5 | Windows artifact triage guidance | `skills/windows-artifacts.md` |
+| P6 | Linux server artifact triage guidance | `skills/linux-server-artifacts.md` |
+| P7 | Malware triage procedure | `skills/malware-triage.md` |
+| P8 | Timeline reconstruction approach | `skills/timeline-reconstruction.md` |
+| P9 | Anti-forensics detection guidance | `skills/anti-forensics-detection.md` |
+| P10 | Reporting conventions | `skills/reporting-conventions.md` |
+| P11 | macOS artifact triage (mac_apt, Unified Log, APFS, persistence) | `skills/macos-artifacts.md` |
+| P12 | IoT/OT artifact guidance (firmware blobs, industrial PCAPs, SCADA DBs) | `skills/iot-ot-artifacts.md` |
+| P13 | Daedalus tool-finder/implementer workflow (6-step; IC approval required before running unfamiliar tools) | `skills/daedalus.md` |
 
-These four are documented as prompt-based **deliberately** — the architectural-vs-prompt distinction is more credible when you don't try to dress up every guideline as a guardrail.
+P1–P4 are core procedural guidance. P5–P13 are domain-knowledge skill files that guide methodology for specific artifact types and the Daedalus unknown-artifact workflow. None of these enforce security boundaries — they are clearly separated from the architectural guardrails above. The distinction is more credible when every guideline is not dressed up as a guardrail.
 
 ---
 
@@ -75,7 +95,7 @@ The hackathon rules describe 4 approaches. Per Rob T. Lee's Slack: *Custom MCP S
 | 3. Multi-Agent Frameworks (AutoGen/CrewAI/LangGraph) | depends on inter-agent message validation | many | n/a |
 | 4. Alternative Agentic IDEs (Cursor/Cline/Aider) | 0–1 (file-write confirmations) | most | n/a |
 
-SIFTics sits squarely in #2 with **13 architectural guardrails** and only 4 prompt-based — heavily inverted ratio compared to the other approaches.
+SIFTics sits squarely in #2 with **15 architectural guardrails** and 13 prompt-based (domain-knowledge skill files) — heavily inverted ratio on the security-boundary axis compared to the other approaches.
 
 ---
 

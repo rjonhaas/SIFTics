@@ -58,17 +58,17 @@ These are *reference data*, not case evidence. Indexed into MCP backends so the 
 
 | Corpus | Records (~) | Used by | License | Source |
 |---|---|---|---|---|
-| **SigmaHQ rules** | ~3 000 | `mcp_rag` | DRL 1.0 | [github.com/SigmaHQ/sigma](https://github.com/SigmaHQ/sigma) |
-| **MITRE ATT&CK Enterprise** | ~1 200 | `mcp_rag` | MITRE Open License | [github.com/mitre/cti](https://github.com/mitre/cti) |
-| **LOLBAS** | ~200 | `mcp_rag` + direct lookups | MIT | [lolbas-project.github.io](https://lolbas-project.github.io) |
-| **Atomic Red Team** | ~1 500 tests | `mcp_rag` | MIT | [github.com/redcanaryco/atomic-red-team](https://github.com/redcanaryco/atomic-red-team) |
-| **AndrewRathbun VanillaWindowsReference** | ~5 000 baseline entries | `mcp_baseline` | MIT | [github.com/AndrewRathbun/VanillaWindowsReference](https://github.com/AndrewRathbun/VanillaWindowsReference) |
-| **AndrewRathbun VanillaWindowsRegistryHives** | ~3 000 baseline keys | `mcp_baseline` | MIT | [github.com/AndrewRathbun/VanillaWindowsRegistryHives](https://github.com/AndrewRathbun/VanillaWindowsRegistryHives) |
+| **SigmaHQ rules** | 3,132 | `mcp_rag` | DRL 1.0 | [github.com/SigmaHQ/sigma](https://github.com/SigmaHQ/sigma) |
+| **MITRE ATT&CK Enterprise** | 1,164 | `mcp_rag` | MITRE Open License | [github.com/mitre/cti](https://github.com/mitre/cti) |
+| **LOLBAS** | 237 | `mcp_rag` + direct lookups | MIT | [lolbas-project.github.io](https://lolbas-project.github.io) |
+| **Atomic Red Team** | 1,804 tests | `mcp_rag` | MIT | [github.com/redcanaryco/atomic-red-team](https://github.com/redcanaryco/atomic-red-team) |
+| **AndrewRathbun VanillaWindowsReference** | **24,594,056 file entries** | `mcp_baseline` | MIT | [github.com/AndrewRathbun/VanillaWindowsReference](https://github.com/AndrewRathbun/VanillaWindowsReference) |
+| **AndrewRathbun VanillaWindowsRegistryHives** | 0 *(v1 — hives are zipped binaries; CSV parser found no exports; registry lookup is a v2 item)* | `mcp_baseline` | MIT | [github.com/AndrewRathbun/VanillaWindowsRegistryHives](https://github.com/AndrewRathbun/VanillaWindowsRegistryHives) |
 | **abuse.ch URLhaus / MalwareBazaar / ThreatFox** | API-served | `mcp_cti` | abuse.ch terms | [abuse.ch](https://abuse.ch) |
 | **OpenSourceMalware.com STIX** | ~10 000 indicators | `mcp_cti` | OSM terms | [opensourcemalware.com](https://opensourcemalware.com) (API key required) |
 | **wagga40 Zircolite rules** | bundled with Zircolite | `phases/run_zircolite.sh` | DRL 1.0 | [github.com/wagga40/Zircolite-Rules-v2](https://github.com/wagga40/Zircolite-Rules-v2) |
 
-**Total knowledge records indexed by `mcp_rag` (v1):** ~22 000 — matches Valhuntir's stated forensic-rag-mcp size; SIFTics's corpus is **broader on the threat-intel side** (multi-source vs. OpenCTI alone) and **community-blessed on the baseline side** (Rathbun is the EZ Tools maintainer — credible to a SANS audience).
+**Total knowledge records indexed by `mcp_rag` (v1):** 6,337 (Sigma 3,132 · ATT&CK 1,164 · Atomic Red Team 1,804 · LOLBAS 237). The index is **pre-built and available locally** at `mcp_rag/index/` — no download step required. SIFTics's corpus is **broader on the threat-intel side** (multi-source vs. OpenCTI alone) and **community-blessed on the baseline side** (Rathbun is the EZ Tools maintainer — credible to a SANS audience).
 
 ---
 
