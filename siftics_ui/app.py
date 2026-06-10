@@ -768,32 +768,6 @@ def create_app() -> Flask:
             })
         return jsonify(readable)
 
-    @app.route("/api/phase/run/<phase_id>", methods=["POST"])
-    def api_phase_run(phase_id):
-        phase = next((p for p in PHASES if p["id"] == phase_id), None)
-        if not phase:
-            return jsonify({"ok": False, "output": "Unknown phase."}), 400
-        if not phase.get("runnable"):
-            return jsonify({"ok": False, "output": phase.get("reason", "Not runnable from the UI.")}), 400
-        case_path = str(audit.case_dir())
-        env = {**os.environ, "SIFTICS_CASE_DIR": case_path}
-        try:
-            audit.append_event("phase_started", {"phase_id": phase_id}, actor="ui")
-            proc = subprocess.Popen(
-                [sys.executable, "-m", f"phases.{phase_id}"] + phase.get("args", []),
-                cwd=str(Path(__file__).parent.parent),
-                env=env,
-                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-            )
-            out, _ = proc.communicate(timeout=120)
-            audit.append_event("phase_complete",
-                               {"phase_id": phase_id, "returncode": proc.returncode,
-                                "output_lines": len(out.splitlines())},
-                               actor="ui")
-            return jsonify({"ok": proc.returncode == 0, "output": out[-3000:] or "(no output)"})
-        except Exception as exc:
-            return jsonify({"ok": False, "output": str(exc)}), 500
-
     # -----------------------------------------------------------------
     # SSE
     # -----------------------------------------------------------------
@@ -827,24 +801,6 @@ def create_app() -> Flask:
 # ---------------------------------------------------------------------------
 # Phase definitions
 # ---------------------------------------------------------------------------
-
-# runnable=True  → one-click, reads from SIFTICS_CASE_DIR
-# runnable=False → needs specific inputs; UI explains instead of showing Run
-PHASES = [
-    {"id": "fast_persistence_scan",   "name": "Persistence Scan",
-     "description": "Check run keys, services, and scheduled tasks against the known-good baseline.",
-     "runnable": True,  "args": []},
-    {"id": "fast_evtx_attack_filter", "name": "Windows Event Log Filter",
-     "description": "Scan Windows event logs for attack-relevant event IDs.",
-     "runnable": False, "reason": "Requires a folder of .evtx files — run from the agent."},
-    {"id": "classify_binary",         "name": "Binary Classifier",
-     "description": "Hash check + MalwareBazaar + ThreatFox lookup for a suspicious file.",
-     "runnable": False, "reason": "Requires a file path or hash — run from the agent."},
-    {"id": "anomaly_check",           "name": "Anomaly Check",
-     "description": "Look for contradictions across all findings collected so far.",
-     "runnable": True,  "args": []},
-]
-
 
 # ---------------------------------------------------------------------------
 # Agent subprocess helpers
@@ -1018,7 +974,6 @@ def _dashboard_context() -> dict:
         "draft_ioc_count": _draft_ioc_count(),
         "runtime": _runtime_status(),
         "cfg": cfg,
-        "phases": PHASES,
     }
 
 
