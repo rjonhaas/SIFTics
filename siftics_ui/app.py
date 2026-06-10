@@ -341,10 +341,21 @@ def create_app() -> Flask:
             "elastic_api_key": runtime_config.integration_key_present(cfg.response_targets.elastic.api_key),
             "entra_client_secret": runtime_config.integration_key_present(cfg.response_targets.entra_id.client_secret),
         }
+        # Auth state for the template — tells it which radio to select
+        # and whether to show the "claude.ai subscription detected" badge.
+        oauth_creds = (Path.home() / ".claude" / ".credentials.json")
+        oauth_creds_alt = (Path.home() / ".claude" / "credentials.json")
+        oauth_detected = oauth_creds.exists() or oauth_creds_alt.exists()
+        env_key_set = bool(os.environ.get("ANTHROPIC_API_KEY"))
+        current_auth_mode = "api_key" if env_key_set else "subscription_oauth"
+
         return render_template("setup.html",
                                 cfg=cfg,
                                 options=options,
                                 current_runtime=cfg.runtime,
+                                current_auth_mode=current_auth_mode,
+                                oauth_detected=oauth_detected,
+                                env_key_set=env_key_set,
                                 integrations_status=integrations_status,
                                 targets_status=targets_status,
                                 config_path=str(runtime_config.DEFAULT_USER_CONFIG)
@@ -484,6 +495,41 @@ def create_app() -> Flask:
 
         path = runtime_config.save_config(cfg)
 
+        # ----------------------------------------------------------------
+        # Auth method switch — apply to the running Flask process so the
+        # NEXT agent subprocess inherits the new credential without
+        # restarting siftics-ui. Without this, the operator can change
+        # auth in /setup but the running case keeps using whatever
+        # ANTHROPIC_API_KEY was inherited from the shell that launched
+        # siftics-ui, and the case appears to "freak out" because the
+        # UI says one thing but claude is doing another.
+        #
+        # Two modes recognised on the form:
+        #   auth_mode=api_key          → ensure os.environ has the key
+        #   auth_mode=subscription     → pop the env var so `claude` falls
+        #                                through to its own ~/.claude OAuth
+        #
+        # If the form doesn't carry auth_mode (older client), we infer
+        # from whether a new key was provided.
+        # ----------------------------------------------------------------
+        prev_auth_method = "api_key" if os.environ.get("ANTHROPIC_API_KEY") else "subscription_oauth"
+        auth_mode = (request.form.get("auth_mode") or "").strip()
+        if not auth_mode:
+            auth_mode = "api_key" if (key or anthropic_key_location) else prev_auth_method
+
+        if auth_mode == "api_key":
+            try:
+                resolved = runtime_config.resolve_anthropic_key(cfg.anthropic)
+                os.environ["ANTHROPIC_API_KEY"] = resolved
+                new_auth_method = "api_key"
+            except runtime_config.MissingAPIKey:
+                # User picked api_key mode but nothing is on disk yet —
+                # leave any pre-existing env var alone, audit the intent.
+                new_auth_method = "api_key_pending"
+        else:  # subscription
+            os.environ.pop("ANTHROPIC_API_KEY", None)
+            new_auth_method = "subscription_oauth"
+
         # Audit the LOCATIONS, never the key values.
         audit.append_event("runtime_config_saved",
                             {"runtime": cfg.runtime,
@@ -499,6 +545,16 @@ def create_app() -> Flask:
                              },
                              "response_target_secrets_updated": target_secret_locations or None},
                             actor="ic")
+
+        # Auth method change is its own event — easier for a reviewer
+        # replaying the chain to explain "turns 1-13 ran on API key,
+        # turns 14+ ran on subscription" without having to diff configs.
+        if prev_auth_method != new_auth_method:
+            audit.append_event("runtime_auth_changed",
+                                {"from": prev_auth_method,
+                                 "to": new_auth_method,
+                                 "env_var_set": bool(os.environ.get("ANTHROPIC_API_KEY"))},
+                                actor="ic")
         return redirect(url_for("dashboard"))
 
     # -----------------------------------------------------------------

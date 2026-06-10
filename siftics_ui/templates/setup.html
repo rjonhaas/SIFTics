@@ -37,19 +37,50 @@
     {% endfor %}
 
     <fieldset class="bg-slate-900 border border-slate-700 rounded p-4 mt-6">
-      <legend class="px-2 text-sm text-slate-300">Anthropic API key</legend>
-      <p class="text-xs text-slate-400 mb-2">
-        Required if you picked <strong>Anthropic API key</strong>. Claude
-        Code uses your <code>claude</code> CLI subscription separately, so
-        leave this blank when Claude Code is selected.
+      <legend class="px-2 text-sm text-slate-300">Anthropic authentication</legend>
+      <p class="text-xs text-slate-400 mb-3">
+        Pick one. Switching here takes effect on the <em>next</em>
+        message — the running case keeps going, no restart needed.
       </p>
-      <input type="password" name="anthropic_key" placeholder="sk-ant-…"
-             autocomplete="off"
-             class="w-full bg-slate-800 border border-slate-700 px-3 py-2 rounded font-mono text-sm">
-      <p class="text-xs text-slate-500 mt-2">
-        Stored in the OS keychain if available; otherwise a chmod-600 file at
-        <code>~/.config/siftics/anthropic.key</code>. Never written to git or audit logs.
-      </p>
+
+      <label class="block bg-slate-800 border border-slate-700 hover:border-cyan-500 rounded p-3 cursor-pointer mb-2
+                    {% if current_auth_mode == 'subscription_oauth' %}border-cyan-500{% endif %}">
+        <input type="radio" name="auth_mode" value="subscription_oauth"
+               {% if current_auth_mode == 'subscription_oauth' %}checked{% endif %}
+               class="mr-2">
+        <span class="font-bold text-cyan-300">Claude.ai subscription (Pro / Max / Team)</span>
+        {% if oauth_detected %}
+          <span class="ml-2 text-xs px-2 py-0.5 rounded bg-emerald-900 text-emerald-300">detected ✓</span>
+        {% else %}
+          <span class="ml-2 text-xs px-2 py-0.5 rounded bg-amber-900 text-amber-300">run <code>claude login</code> first</span>
+        {% endif %}
+        <p class="text-xs text-slate-400 mt-1">
+          Uses your existing claude CLI OAuth credentials at <code>~/.claude/</code>.
+          No per-token billing on this side. Best for development.
+        </p>
+      </label>
+
+      <label class="block bg-slate-800 border border-slate-700 hover:border-cyan-500 rounded p-3 cursor-pointer
+                    {% if current_auth_mode == 'api_key' %}border-cyan-500{% endif %}">
+        <input type="radio" name="auth_mode" value="api_key"
+               {% if current_auth_mode == 'api_key' %}checked{% endif %}
+               class="mr-2">
+        <span class="font-bold text-cyan-300">Anthropic API key</span>
+        {% if env_key_set %}
+          <span class="ml-2 text-xs px-2 py-0.5 rounded bg-emerald-900 text-emerald-300">key in env ✓</span>
+        {% endif %}
+        <p class="text-xs text-slate-400 mt-1">
+          Per-token billing on console.anthropic.com. Paste below to set or rotate.
+          Leave blank to keep the current key.
+        </p>
+        <input type="password" name="anthropic_key" placeholder="sk-ant-…"
+               autocomplete="off"
+               class="mt-2 w-full bg-slate-900 border border-slate-700 px-3 py-2 rounded font-mono text-sm">
+        <p class="text-xs text-slate-500 mt-2">
+          Stored in OS keychain if available; otherwise chmod-600
+          <code>~/.config/siftics/anthropic.key</code>. Never written to git or audit logs.
+        </p>
+      </label>
     </fieldset>
 
     <fieldset class="bg-slate-900 border border-slate-700 rounded p-4">
