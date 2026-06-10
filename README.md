@@ -43,7 +43,7 @@ The hackathon submission is **Layer 1**. Layers 2 and 3 exist to show that Layer
 | 4 | **Live deployment URL OR local setup instructions** | Local — [Quickstart](#quickstart-30-seconds-from-clone-to-first-finding) below |
 | 5 | **Text description (features and functionality)** | [Project Description](#project-description) below |
 | 6 | **Demo video (≤ 5 min, live terminal, audio narration)** | [`docs/demo_video.md`](docs/demo_video.md) — YouTube link + storyboard |
-| 7 | **Architecture Diagram** | [`docs/architecture.md`](docs/architecture.md) + [`docs/architecture.png`](docs/architecture.png) — trust boundaries colour-coded (red = architectural, yellow = prompt-based) |
+| 7 | **Architecture Diagram** | [`docs/architecture.md`](docs/architecture.md) — three-layer deployment framing (§0), Mermaid + ASCII rendering of the agent/integration-contract/reference-deployment split, trust boundaries colour-coded (red = architectural, yellow = prompt-based) |
 | 8 | **Evidence Dataset Documentation** | [`docs/datasets.md`](docs/datasets.md) — DEF CON DFIR CTF + CyberDefenders Case 166 + hunt_lab generated case |
 | 9 | **Accuracy Report** | [`docs/accuracy_report.md`](docs/accuracy_report.md) — measured FP/FN, hallucinations, integrity, T1–T8 bypass test results |
 | 10 | **Agent Execution Logs** | [`examples/run_2026-XX-XX/forensic_audit.jsonl`](examples/) — hash-chained, end-to-end trace from finding → tool execution |

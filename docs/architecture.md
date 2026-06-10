@@ -8,9 +8,82 @@ Devpost submission item #7 — *Architecture Diagram*.
 > hash-chained audit log — every guardrail enforced **structurally** rather than by
 > prompt instruction.
 
-This file is the canonical architecture overview. The companion image
-`docs/architecture.png` is the colour-coded poster (red = architectural,
-yellow = prompt-based); this markdown is the source of truth.
+This file is the canonical architecture overview. ASCII diagrams are
+embedded inline — the markdown is the source of truth. Section 0
+shows the deployment framing (what's in the submission vs. what
+exists to demonstrate it); sections 1+ show the internal execution
+model in detail.
+
+## 0. Deployment framing — three layers
+
+The README leads with this; here's what it looks like as a diagram.
+The vertical bar in the middle is the **MCP integration contract**
+— the typed tool surface that makes Layer 1 oblivious to whatever
+specific environment is on the right.
+
+```
+   ┌──────────────────────────────┐ │ ┌──────────────────────────────┐
+   │  Layer 1 — SIFTics agent     │ │ │  Layer 3 — Reference          │
+   │  THE SUBMISSION              │ │ │  deployment                   │
+   │                              │ │ │  THE PROOF POINT              │
+   │   NIMS IC framework          │ │ │                               │
+   │   HMAC Authority Gates       │ │ │   sister repo: hunt_lab        │
+   │   Hash-chained audit         │ │ │                               │
+   │   Safety + Legal Officers    │ │ │   Caldera adversary emulation │
+   │   (architectural guardrails) │ │ │   Velociraptor + ELK + AD     │
+   │                              │ │ │   3 prebuilt scenarios:       │
+   │   Forensic phases 1-20       │ │ │     RansomHub-13-Step         │
+   │   HOT / WARM / COLD layers   │ │ │     Identity-Chain-5-Step     │
+   │   Phase 18 self-correction   │ │ │     OT-SSH-Brute-WaterPlant   │
+   │                              │ │ │                               │
+   │   /setup · /gates · /audit   │ │ │   Generates triage bundles    │
+   │   Flask UI on :8080          │ │ │   + ground_truth.json keys    │
+   │                              │ │ │                               │
+   └──────────────┬───────────────┘ │ └───────────────┬───────────────┘
+                  │                  │                 │
+                  │  ─── mock mode ─►│◄─── real mode ──│
+                  │                  │                 │
+                  └──────────────────┴─────────────────┘
+                                     │
+                  ╔══════════════════▼═══════════════════╗
+                  ║  Layer 2 — INTEGRATION CONTRACT      ║
+                  ║  THE ARCHITECTURE                    ║
+                  ║                                      ║
+                  ║   Typed MCP tool surface             ║
+                  ║   (vendor-agnostic; same signature   ║
+                  ║    whether the right-hand side is    ║
+                  ║    hunt_lab, a production Velociraptor║
+                  ║    cluster, an EDR, or a TIP)        ║
+                  ║                                      ║
+                  ║   mcp_broker     list_clients,       ║
+                  ║                  start_hunt, etc.    ║
+                  ║   mcp_containment  isolate_host,     ║
+                  ║                    disable_account   ║
+                  ║   mcp_intel      publish_iocs        ║
+                  ║                                      ║
+                  ║   Each carries _MODE = mock | real   ║
+                  ║   flipped from /setup; the agent     ║
+                  ║   doesn't know which side it's on.   ║
+                  ╚══════════════════════════════════════╝
+```
+
+**What's in this repository:** Layers 1 and 2. Layer 3 lives at
+[github.com/rjonhaas/hunt_lab](https://github.com/rjonhaas/hunt_lab)
+and is an *example* of what plugs into the Layer-2 contract —
+not a dependency of the submission.
+
+**Mock mode** (Layer 2 default, judges' path): the broker's typed
+functions return deterministic stub data (`WKSTN-A14`, `FS-CORP-02`,
+`siem-collector-01`). The agent has a complete tool surface and
+can be graded end-to-end without any external infrastructure.
+
+**Real mode** (the demo-video path): the broker's typed functions
+call out to whatever Velociraptor/EDR/TIP is configured. The same
+agent, the same audit chain, the same Authority Gates — now with
+hunts actually firing across an enterprise. This is the path that
+demonstrates "fighting back at AI-speed."
+
+---
 
 ## 1. Layered execution model
 
