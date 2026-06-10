@@ -479,15 +479,39 @@ if [[ "$START_UI" == "yes" ]]; then
         skip "already running (pid $(pgrep -f 'siftics-ui run' | head -1))"
     else
         export SIFTICS_CASE_DIR="$CASE_DIR"
+        # Make sure the case dir at least exists — siftics-ui starts without it
+        # but several routes assume the directory tree is present.
+        mkdir -p "$CASE_DIR"
         nohup .venv/bin/siftics-ui run --case-dir "$CASE_DIR" \
             > /tmp/siftics-ui.log 2>&1 &
         UI_PID=$!
-        sleep 2
-        if kill -0 "$UI_PID" 2>/dev/null; then
-            ok "pid $UI_PID"
-        else
-            die "" "siftics-ui exited immediately. See /tmp/siftics-ui.log"
+
+        # Poll for port 8080 to actually accept connections. The old check was
+        # `sleep 2 && kill -0 $PID`, which passed while siftics-ui was still
+        # importing dependencies — the URL printed at the end of setup, the
+        # user clicked it, the browser hit ERR_CONNECTION_REFUSED. Wait up to
+        # 20 seconds and probe the real port; fail loud (with log content) if
+        # we never reach a listening socket.
+        UI_READY=0
+        for _ in $(seq 1 20); do
+            if curl -sf --max-time 1 -o /dev/null "http://127.0.0.1:8080/" 2>/dev/null; then
+                UI_READY=1
+                break
+            fi
+            if ! kill -0 "$UI_PID" 2>/dev/null; then
+                # Process is gone before the port came up — die with the log.
+                LOG_TAIL=$(tail -15 /tmp/siftics-ui.log 2>/dev/null | sed 's/^/       /')
+                die "" "siftics-ui exited before opening port 8080. Log tail:
+${LOG_TAIL}"
+            fi
+            sleep 1
+        done
+        if [[ "$UI_READY" -eq 0 ]]; then
+            LOG_TAIL=$(tail -15 /tmp/siftics-ui.log 2>/dev/null | sed 's/^/       /')
+            die "" "siftics-ui did not open port 8080 within 20s. Log tail:
+${LOG_TAIL}"
         fi
+        ok "pid $UI_PID"
     fi
 fi
 
