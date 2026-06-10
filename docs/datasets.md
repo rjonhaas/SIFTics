@@ -117,7 +117,7 @@ These are *reference data*, not case evidence. Indexed into MCP backends so the 
 ## 4. Privacy and licensing
 
 - **No PII in this repo.** All public corpora are licensed for redistribution (MIT, DRL, or MITRE Open). All redistribution is via reference — the build script clones from upstream; we do not commit upstream content into this repo.
-- **No SANS course material in this repo.** Although the IC/COP framework is inspired by NIMS ICS / FEMA / NIST and (with permission, pending) SANS LDR553 CIMTK, no SANS course text or proprietary toolkit content is included.
+- **No SANS course material in this repo.** Although the Incident Commander (IC) / Common Operating Picture (COP) framework is inspired by the National Incident Management System (NIMS) Incident Command System / FEMA / NIST and (with permission, pending) SANS LDR553 CIMTK, no SANS course text or proprietary toolkit content is included.
 - **OSM API key** is required for the OpenSourceMalware STIX feed. The key is supplied per-deployment via env var or keyring; never committed.
 
 ---
@@ -159,7 +159,7 @@ examples/
 │   │       ├── forensic_audit.jsonl     hash-chained execution trace
 │   │       ├── findings/
 │   │       ├── case.json
-│   │       ├── grid.jsonl               ITQ answers
+│   │       ├── grid.jsonl               Initial Triage Questionnaire (ITQ) answers
 │   │       └── score_card.md            vs answer key
 ├── cfreds_data_leakage/runs/<…>
 ├── cfreds_hacking/runs/<…>

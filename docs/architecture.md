@@ -72,6 +72,8 @@ specific environment is on the right.
 and is an *example* of what plugs into the Layer-2 contract —
 not a dependency of the submission.
 
+> *NIMS = National Incident Management System; IC = Incident Commander. The full role mapping is in §2c.*
+
 **Mock mode** (Layer 2 default, judges' path): the broker's typed
 functions return deterministic stub data (`WKSTN-A14`, `FS-CORP-02`,
 `siem-collector-01`). The agent has a complete tool surface and
@@ -136,10 +138,10 @@ flowchart TB
         end
 
         subgraph State["Case state (filesystem)"]
-            CaseJSON["case.json (COP header)"]
-            ASR["suit.jsonl (ASR)"]
-            CET["cca.jsonl (CET)"]
-            ITQ["grid.jsonl (ITQ)"]
+            CaseJSON["case.json (Common Operating Picture / COP header)"]
+            ASR["suit.jsonl (Affected Systems Register / ASR)"]
+            CET["cca.jsonl (Containment & Eradication Tracker / CET)"]
+            ITQ["grid.jsonl (Initial Triage Questionnaire / ITQ)"]
             Audit["forensic_audit.jsonl<br/>(SHA-256 chained)"]
             Findings["findings.jsonl<br/>(evidence chain traceability)"]
             Intel["intel.jsonl<br/>(STIX/YARA/Sigma IOCs)"]

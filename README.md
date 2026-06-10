@@ -12,13 +12,13 @@
 
 ## What SIFTics is — and how it's deployed
 
-> **The asymmetry SIFTics targets:** detection has been operating at AI-speed for years; response is still human-speed because **authority cannot be delegated to a model**. SIFTics is the bridge — it lets a human Incident Commander authorise active response at the speed an AI can propose it, with cryptographically-enforced gates so the IC never loses control of *what* gets executed.
+> **The asymmetry SIFTics targets:** detection has been operating at AI-speed for years; response is still human-speed because **authority cannot be delegated to a model**. SIFTics is the bridge — it lets a human Incident Commander (IC) authorise active response at the speed an AI can propose it, with cryptographically-enforced gates so the IC never loses control of *what* gets executed.
 
 The submission is structured in three deliberately-separated layers. A judge can grade Layer 1 in isolation; Layers 2 and 3 show what the same agent looks like when wired to a real SOC.
 
 | Layer | What it is | What lives here |
 |---|---|---|
-| **1. SIFTics agent** *(the submission)* | The standalone agentic DFIR analyst. NIMS Incident Command framework, HMAC-signed Authority Gates, hash-chained audit, Safety / Legal Officer architectural guardrails. Runs against any evidence bundle on the SIFT Workstation; **no external infrastructure required**. | this repo — `siftics/`, `mcp_*/`, `siftics_ui/`, `phases/`, `skills/` |
+| **1. SIFTics agent** *(the submission)* | The standalone agentic DFIR analyst. National Incident Management System (NIMS) Incident Command framework, HMAC-signed Authority Gates, hash-chained audit, Safety / Legal Officer architectural guardrails. Runs against any evidence bundle on the SIFT Workstation; **no external infrastructure required**. | this repo — `siftics/`, `mcp_*/`, `siftics_ui/`, `phases/`, `skills/` |
 | **2. Integration contract** *(the architecture)* | A typed MCP tool surface that any environment can plug into — Velociraptor, an EDR, a TIP, an Entra ID tenant. The agent doesn't know or care which vendor is on the other side; the contract is identical. | `mcp_broker/`, `mcp_containment/`, `mcp_intel/` — each with a `_MODE = mock \| real` flag |
 | **3. Reference deployment** *(the proof point)* | A live Caldera + Velociraptor + ELK + Active-Directory environment that shows the agent **fighting back at AI-speed** against real adversary emulation. **Not a dependency** of the submission — it's the demonstration of what Layer 2 enables. | sister repo: [github.com/rjonhaas/hunt_lab](https://github.com/rjonhaas/hunt_lab) |
 
@@ -60,7 +60,7 @@ SIFTics turns the SIFT Workstation into a **machine-speed incident response agen
 2. **Operates under NIMS Incident Command System doctrine.** The Claude Code agent functions as the *Investigation Section Chief* (tactical autonomy); the human analyst is the *Incident Commander* (strategic authority). Authority Gates between them are **architecturally enforced** via HMAC-signed approval objects, not by prompt instructions.
 3. **Maintains a tamper-evident audit chain.** Every tool execution, every IC decision, and every action result is logged as a hash-chained JSONL row; the chain is verifiable end-to-end with `audit_verify.sh`.
 4. **Self-corrects under doctrine.** Phase-18 anomaly detection scans for cross-artifact contradictions and re-runs upstream phases up to three iterations until the contradiction count decreases.
-5. **Drives Velociraptor as an active hunt controller** (not just a parser). Findings become typed `HuntPackage` objects; approved packages execute as enterprise-wide hunts; results feed back into the COP.
+5. **Drives Velociraptor as an active hunt controller** (not just a parser). Findings become typed `HuntPackage` objects; approved packages execute as enterprise-wide hunts; results feed back into the Common Operating Picture (COP).
 6. **Grounds AI enrichment in retrieved evidence, not model memory.** Every MITRE technique alignment, LOLBAS context note, and Sigma rule explanation is backed by a record retrieved from the embedded `mcp_rag` forensic index — not generated from training-time knowledge alone. Deterministic lookups (baseline hash checks, IOC exact-match) are typed separately from LLM enrichment in `forensic_audit.jsonl`, so analysts know exactly what to verify. See [`docs/accuracy_report.md §3`](docs/accuracy_report.md) for the full hallucination accounting.
 
 ### How SIFTics maps to the six judging criteria
@@ -139,7 +139,7 @@ claude  # launches Claude Code in the SIFTics MCP context
 > /investigation-section-chief
 ```
 
-The agent will read the seeded ITQ, walk the questionnaire by picking the right phase scripts, write findings into the ASR / CET registers, and propose Authority Gates when scope expansion or active actions become appropriate.
+The agent will read the seeded Initial Triage Questionnaire (ITQ), walk the questionnaire by picking the right phase scripts, write findings into the Affected Systems Register (ASR) / Containment & Eradication Tracker (CET) registers, and propose Authority Gates when scope expansion or active actions become appropriate.
 
 A 5-minute demo of this exact sequence runs in [`docs/demo_video.md`](docs/demo_video.md).
 

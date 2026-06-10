@@ -15,7 +15,7 @@ For a detailed list of guardrails see [`architecture.md §3`](architecture.md#3-
 | Type | Definition | Example |
 |---|---|---|
 | **Architectural** | Enforced by the *absence* of capability. Even a maximally misaligned agent cannot bypass it because the code path that would let it bypass does not exist on the MCP surface. | `execute_hunt_package()` requires a typed `ICApproval` parameter; there is no `execute_hunt_package_unapproved()`. |
-| **Prompt-based** | Enforced by instructing the model. A correctly-aligned model follows the rule; a misaligned or jailbroken model can ignore it. | Skill file `investigation-section-chief.md` tells the agent to surface scope-expansion to the IC. |
+| **Prompt-based** | Enforced by instructing the model. A correctly-aligned model follows the rule; a misaligned or jailbroken model can ignore it. | Skill file `investigation-section-chief.md` tells the agent to surface scope-expansion to the Incident Commander (IC). |
 
 Hackathon rule: *"If your submission uses an alternative IDE, your accuracy report must document what happens when the model ignores read-only rules."*
 SIFTics's rules cannot be ignored because the offending function calls **never reach the model in the first place** — they're not on the MCP surface.
@@ -30,7 +30,7 @@ SIFTics's rules cannot be ignored because the offending function calls **never r
 | G2 | HMAC signature verification | `hmac.compare_digest` over canonical payload | T8a, T8e | ✅ |
 | G3 | Single-use approval (double-spend prevention) | Atomic `O_EXCL` create of `consumed/<id>.json` | T5 | ✅ |
 | G4 | Wrong-gate rejection | `require_approval(expected_gate=…)` check | T6 | ✅ |
-| G5 | Agent-context drift detection | Re-hash COP-changing audit events; compare | T8d | ✅ |
+| G5 | Agent-context drift detection | Re-hash Common Operating Picture (COP)-changing audit events; compare | T8d | ✅ |
 | G6 | Approval TTL expiry | UTC age vs `meta.ttl_seconds` | T8c | ✅ |
 | G7 | IC key separation | `ic_key.hmac` mode 0600; `ic_verifier.hmac` mode 0640 | n/a v1; v2 Ed25519 | manual |
 | G8 | Audit chain tamper detection | SHA-256 chained `line_hash` over canonical event JSON | T4 | ✅ |
@@ -68,7 +68,7 @@ These are *guidance*, not guards. A misaligned model can disregard them; that's 
 
 | # | Prompt-based rule | Source |
 |---|---|---|
-| P1 | NIMS ICS role assignment (Section Chief vs IC) | `skills/investigation-section-chief.md` |
+| P1 | National Incident Management System (NIMS) Incident Command System role assignment (Section Chief vs IC) | `skills/investigation-section-chief.md` |
 | P2 | Phase-script ordering hints | `skills/triage-methodology.md` + Daedalus run-plan |
 | P3 | Hypothesis Engine usage guidance | `skills/hypothesis-engine.md` |
 | P4 | Briefing cadence guidance | methodology hints in skills |

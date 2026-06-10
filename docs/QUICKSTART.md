@@ -20,7 +20,7 @@ cd SIFTics
 | `--build-baseline` | …but build the full DB locally from sources (~30 min, ~5 GB cache) |
 | `--no-baseline` | skip baseline step entirely |
 | `--no-rag` | skip the forensic-RAG index build (Step 7) |
-| `--init-case` | also create `~/cases/dry_run/` + IC HMAC key |
+| `--init-case` | also create `~/cases/dry_run/` + Incident Commander (IC) HMAC key |
 | `--start-ui` | also launch siftics-ui on `127.0.0.1:8080` |
 
 The script:
@@ -65,7 +65,7 @@ siftics-ui run --case-dir "$SIFTICS_CASE_DIR" &
 
 You now have:
 
-- A working case dir with header, hash-chained audit log, IC HMAC key, and the 35-question ITQ seeded.
+- A working case dir with header, hash-chained audit log, IC HMAC key, and the 35-question Initial Triage Questionnaire (ITQ) seeded.
 - A baseline DB for known-good Windows-file / registry / service / scheduled-task lookups.
 - The Flask UI at `localhost:8080` with `/dashboard`, `/gates`, `/audit`, `/chat`, `/setup`, `/findings`, `/intel`, `/cases`, `/report`.
 

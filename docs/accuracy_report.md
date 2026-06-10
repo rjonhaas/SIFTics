@@ -137,7 +137,7 @@ blind spot in Linux server artifact coverage — documented here per the
 Caldera-driven attack scenario against `win11-victim` (mimikatz variant renamed
 to `lsass_helper.exe`, dropped in `C:\Users\Public\`, Sandcat beacon to
 `192.168.56.30:8888`). Used to exercise the HOT layer + hunt-package
-generation + IC Authority Gate flow in the demo video.
+generation + Incident Commander (IC) Authority Gate flow in the demo video.
 
 Ground truth is **known by construction** (we drove the attack) so this is the
 strongest validation surface.
@@ -283,7 +283,7 @@ Honest list — these are real and accepted in v1:
    The `forensic_audit.jsonl` `source_type` field distinguishes AI-enriched
    from deterministic findings at the event level, but the SIFTics web dashboard
    does not yet surface a `[AI]` vs `[TOOL]` badge on individual findings. An
-   analyst reviewing the ASR register cannot immediately see which enrichments
+   analyst reviewing the Affected Systems Register (ASR) cannot immediately see which enrichments
    came from LLM reasoning vs. an exact-match tool result. Planned for v2:
    per-finding provenance chips in the dashboard UI, mirroring the approach
    Cyber Triage 3.18 uses for its AI Enrichment field. Until then, analysts
