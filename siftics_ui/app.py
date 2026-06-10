@@ -349,6 +349,14 @@ def create_app() -> Flask:
         env_key_set = bool(os.environ.get("ANTHROPIC_API_KEY"))
         current_auth_mode = "api_key" if env_key_set else "subscription_oauth"
 
+        # Response posture — drives mcp_broker's _MODE via env var.
+        # The broker reads SIFTICS_BROKER_MODE at its own subprocess start;
+        # patching os.environ here means the next broker spawn picks it up
+        # without restarting siftics-ui.
+        current_broker_mode = os.environ.get("SIFTICS_BROKER_MODE", "mock").lower()
+        if current_broker_mode not in ("mock", "real"):
+            current_broker_mode = "mock"
+
         return render_template("setup.html",
                                 cfg=cfg,
                                 options=options,
@@ -356,6 +364,7 @@ def create_app() -> Flask:
                                 current_auth_mode=current_auth_mode,
                                 oauth_detected=oauth_detected,
                                 env_key_set=env_key_set,
+                                current_broker_mode=current_broker_mode,
                                 integrations_status=integrations_status,
                                 targets_status=targets_status,
                                 config_path=str(runtime_config.DEFAULT_USER_CONFIG)
@@ -554,6 +563,27 @@ def create_app() -> Flask:
                                 {"from": prev_auth_method,
                                  "to": new_auth_method,
                                  "env_var_set": bool(os.environ.get("ANTHROPIC_API_KEY"))},
+                                actor="ic")
+
+        # ----------------------------------------------------------------
+        # Response posture — same in-process env-patch pattern as auth.
+        # Patching SIFTICS_BROKER_MODE here means the next mcp_broker
+        # subprocess inherits the new posture (the agent re-spawns brokers
+        # per turn, so this takes effect on the next message).
+        # ----------------------------------------------------------------
+        prev_broker_mode = os.environ.get("SIFTICS_BROKER_MODE", "mock").lower()
+        if prev_broker_mode not in ("mock", "real"):
+            prev_broker_mode = "mock"
+        new_broker_mode = (request.form.get("broker_mode") or prev_broker_mode).strip().lower()
+        if new_broker_mode not in ("mock", "real"):
+            new_broker_mode = prev_broker_mode
+
+        os.environ["SIFTICS_BROKER_MODE"] = new_broker_mode
+
+        if prev_broker_mode != new_broker_mode:
+            audit.append_event("response_posture_changed",
+                                {"from": prev_broker_mode,
+                                 "to": new_broker_mode},
                                 actor="ic")
         return redirect(url_for("dashboard"))
 

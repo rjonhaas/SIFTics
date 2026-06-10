@@ -83,6 +83,50 @@
       </label>
     </fieldset>
 
+    <fieldset class="bg-slate-900 border border-slate-700 rounded p-4 mt-6">
+      <legend class="px-2 text-sm text-slate-300">Response posture</legend>
+      <p class="text-xs text-slate-400 mb-3">
+        Decides whether the MCP broker's response tools return generic
+        placeholders <em>(judges' default — no environment needed)</em> or
+        talk to a real Velociraptor server <em>(connected demo path)</em>.
+        Switching here takes effect on the <em>next</em> message — running
+        cases keep going, no restart needed.
+      </p>
+
+      <label class="block bg-slate-800 border border-slate-700 hover:border-cyan-500 rounded p-3 cursor-pointer mb-2
+                    {% if current_broker_mode == 'mock' %}border-cyan-500{% endif %}">
+        <input type="radio" name="broker_mode" value="mock"
+               {% if current_broker_mode == 'mock' %}checked{% endif %}
+               class="mr-2">
+        <span class="font-bold text-cyan-300">Mock — standalone</span>
+        <span class="ml-2 text-xs px-2 py-0.5 rounded bg-emerald-900 text-emerald-300">no infrastructure</span>
+        <p class="text-xs text-slate-400 mt-1">
+          <code>list_clients</code>, <code>start_hunt</code>, and friends
+          return deterministic stub data. <code>WKSTN-A14 / FS-CORP-02 /
+          siem-collector-01</code>. Use this for offline replay, audit-chain
+          verification, and grading the agent independently of any one
+          adversary-emulation lab.
+        </p>
+      </label>
+
+      <label class="block bg-slate-800 border border-slate-700 hover:border-cyan-500 rounded p-3 cursor-pointer
+                    {% if current_broker_mode == 'real' %}border-cyan-500{% endif %}">
+        <input type="radio" name="broker_mode" value="real"
+               {% if current_broker_mode == 'real' %}checked{% endif %}
+               class="mr-2">
+        <span class="font-bold text-cyan-300">Live — connected</span>
+        <span class="ml-2 text-xs px-2 py-0.5 rounded bg-amber-900 text-amber-300">requires Velociraptor mTLS</span>
+        <p class="text-xs text-slate-400 mt-1">
+          MCP broker speaks to a real Velociraptor server. Set the URL +
+          cert paths in <code>agent.yaml</code> under <code>response_targets.velociraptor</code>
+          (v1 — per-target UI cards land in v1.1). The reference deployment
+          is the sister <a href="https://github.com/rjonhaas/hunt_lab"
+          class="text-cyan-400 hover:text-cyan-300" target="_blank">hunt_lab</a>
+          repo; any Velociraptor server speaking the same API works.
+        </p>
+      </label>
+    </fieldset>
+
     <fieldset class="bg-slate-900 border border-slate-700 rounded p-4">
       <legend class="px-2 text-sm text-slate-300">Per-case budget circuit breaker</legend>
       <label class="block text-sm">
