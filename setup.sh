@@ -492,29 +492,12 @@ if [[ "$START_UI" == "yes" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Summary
+# Summary — single line, just the URL. Everything else moved to docs/.
 # ---------------------------------------------------------------------------
 
-ELAPSED=$(( $(date +%s) - START_TS ))
-MINS=$((ELAPSED / 60))
-SECS=$((ELAPSED % 60))
-
-UI_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
-UI_IP="${UI_IP:-127.0.0.1}"
-
-echo
-green "Setup complete in ${MINS}m ${SECS}s."
-echo
-echo "Next steps:"
 if [[ "$START_UI" == "yes" ]]; then
-    echo "  • Open the UI:        http://${UI_IP}:8080"
-    echo "  • Tail UI log:        tail -F /tmp/siftics-ui.log"
+    UI_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+    UI_IP="${UI_IP:-127.0.0.1}"
+    echo
+    echo "http://${UI_IP}:8080"
 fi
-if [[ "$INIT_CASE" != "yes" ]]; then
-    echo "  • Create a case:      see README QUICKSTART, or rerun with --init-case"
-fi
-echo "  • Bypass tests:       .venv/bin/python -m pytest tests/test_constraints.py -v"
-echo "  • Start the agent:    claude  → /investigation-section-chief"
-echo "  • Choose runtime:     http://${UI_IP}:8080/setup"
-echo
-echo "Docs: docs/QUICKSTART.md  ·  docs/architecture.md"
