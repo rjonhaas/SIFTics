@@ -24,6 +24,7 @@ import uuid
 from pathlib import Path
 from typing import Any, Literal
 
+from . import audit as _audit_module
 from .audit import append_event, case_dir
 from .case_state import _now_iso  # noqa: WPS450 (intentional reuse)
 
@@ -49,6 +50,37 @@ _IC_META_FILE = "ic_key.meta.json"
 
 class ApprovalInvalidError(Exception):
     """Raised when an action MCP function is called with a bad approval."""
+
+
+class SafetyConsultRequired(Exception):
+    """Raised by request_approval when the Safety Officer has not yet
+    assessed this action (audit chain has no matching `safety_assessment`
+    event within the freshness window)."""
+
+
+class SafetyHardStop(Exception):
+    """Raised by request_approval when the Safety Officer's most recent
+    assessment for this action returned ``verdict: hard_stop`` — typically
+    because `personnel_safety` was scored `high`/`critical`. This is the
+    architectural enforcement of G16: the function refuses to construct a
+    signable ApprovalRequest. No override flag exists; the IC must update
+    the case context (e.g. record a finding that changes the asset
+    classification) and re-request, at which point the Safety Officer is
+    consulted fresh."""
+
+
+class LegalConsultRequired(Exception):
+    """Raised by request_approval when the Legal Officer has not yet
+    assessed this action (audit chain has no matching `legal_review`
+    event within the freshness window)."""
+
+
+class LegalCounselRequired(Exception):
+    """Raised by request_approval when the Legal Officer's most recent
+    assessment for this action returned ``verdict: outside_counsel_required``
+    AND no matching ``counsel_acknowledged`` event exists. The IC must
+    append a counsel_acknowledged event (via the `sift-counsel-acknowledge`
+    CLI or the /gates UI flow) before the gate is signable."""
 
 
 # ---------------------------------------------------------------------------
@@ -138,15 +170,133 @@ def init_ic_key(passphrase: str, ic_name: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
+_CONSULT_FRESHNESS_SECONDS = 600  # consults are valid for 10 minutes
+
+
+def action_hash(action: dict[str, Any]) -> str:
+    """Deterministic SHA-256 of an action dict — the link between an
+    Authority Gate request and its Command Staff consults. Both the
+    agent (when calling `consult_safety_officer` / `consult_legal_officer`)
+    and the gate (`request_approval`) compute this from the same canonical
+    JSON shape, so they bind to the same row in the audit log."""
+    return hashlib.sha256(_canonical(action)).hexdigest()
+
+
+def _parse_iso_to_epoch(ts: str) -> float | None:
+    """Parse the audit timestamp format (`YYYY-MM-DDTHH:MM:SSZ`) into
+    a Unix epoch float. Returns None on malformed input."""
+    try:
+        return calendar.timegm(time.strptime(ts, "%Y-%m-%dT%H:%M:%SZ"))
+    except (ValueError, TypeError):
+        return None
+
+
+def _find_recent_consult(event_type: str, ah: str) -> dict | None:
+    """Walk the audit log newest-first looking for the most recent matching
+    consult (by event type + action_hash) within the freshness window."""
+    now_epoch = time.time()
+    events = list(_audit_module.iter_events())
+    for ev in reversed(events):
+        if ev.get("type") != event_type:
+            continue
+        payload = ev.get("payload") or {}
+        if payload.get("action_hash") != ah:
+            continue
+        epoch = _parse_iso_to_epoch(ev.get("ts", ""))
+        if epoch is None:
+            continue
+        if now_epoch - epoch > _CONSULT_FRESHNESS_SECONDS:
+            return None  # too old; nothing newer is going to be in range either
+        return ev
+    return None
+
+
+def _counsel_acknowledged_for(matter_id: str | None) -> bool:
+    """Has counsel been recorded as acknowledged for this matter?
+    With no matter_id (single-matter case), any counsel_acknowledged
+    event satisfies."""
+    for ev in _audit_module.iter_events():
+        if ev.get("type") != "counsel_acknowledged":
+            continue
+        if matter_id:
+            if (ev.get("payload") or {}).get("matter_id") != matter_id:
+                continue
+        return True
+    return False
+
+
 def request_approval(gate: str, summary: str, action: dict[str, Any],
                      proposed_by: str = "investigation-section-chief") -> dict[str, Any]:
-    """Open an Authority Gate. Writes pending/<id>.json + audit event."""
+    """Open an Authority Gate. Writes pending/<id>.json + audit event.
+
+    Refuses to construct a signable request unless:
+
+      1. A `safety_assessment` event for this action's hash exists in the
+         audit chain within the freshness window
+         (``SafetyConsultRequired`` otherwise).
+      2. That safety assessment's verdict is not ``hard_stop``
+         (``SafetyHardStop`` otherwise — architectural G16 enforcement).
+      3. A `legal_review` event for this action's hash exists, similarly
+         (``LegalConsultRequired`` otherwise).
+      4. If the legal verdict is ``outside_counsel_required``, a matching
+         `counsel_acknowledged` event also exists
+         (``LegalCounselRequired`` otherwise — G17 enforcement).
+
+    Tests and callers that want to bypass the consults (because the
+    consult flow is being exercised separately) should seed clean
+    ``safety_assessment`` and ``legal_review`` events with
+    ``verdict: clear`` before calling — see
+    ``tests/test_constraints.py:_seed_clear_consults`` for the canonical
+    shape.
+    """
+    ah = action_hash(action)
+
+    # --- G16: Safety Officer consult required, hard_stop blocks ---
+    safety = _find_recent_consult("safety_assessment", ah)
+    if safety is None:
+        raise SafetyConsultRequired(
+            f"Authority Gate {gate!r} requires a Safety Officer consult first. "
+            f"Call mcp_case.consult_safety_officer with the assessment for "
+            f"action_hash={ah[:12]}…"
+        )
+    safety_verdict = (safety.get("payload") or {}).get("verdict")
+    if safety_verdict == "hard_stop":
+        ps_rationale = (safety["payload"]["dimensions"]
+                        .get("personnel_safety", {})
+                        .get("rationale", ""))
+        raise SafetyHardStop(
+            f"Safety Officer hard_stop for action_hash={ah[:12]}…: "
+            f"personnel_safety — {ps_rationale}"
+        )
+
+    # --- G17: Legal Officer consult required, counsel-required gates on ack ---
+    legal = _find_recent_consult("legal_review", ah)
+    if legal is None:
+        raise LegalConsultRequired(
+            f"Authority Gate {gate!r} requires a Legal Officer consult first. "
+            f"Call mcp_case.consult_legal_officer with the assessment for "
+            f"action_hash={ah[:12]}…"
+        )
+    legal_verdict = (legal.get("payload") or {}).get("verdict")
+    if legal_verdict == "outside_counsel_required":
+        matter_id = ((legal.get("payload") or {}).get("matter_id")
+                     or action.get("matter_id"))
+        if not _counsel_acknowledged_for(matter_id):
+            raise LegalCounselRequired(
+                f"Legal Officer requires outside counsel for "
+                f"action_hash={ah[:12]}…. Append a counsel_acknowledged "
+                f"event via sift-counsel-acknowledge (or /gates UI) before "
+                f"re-requesting."
+            )
+
+    # --- Proceed: construct + persist the signable request ---
     request_id = uuid.uuid4().hex
     request = {
         "request_id": request_id,
         "gate": gate,
         "summary": summary,
         "action": action,
+        "action_hash": ah,
         "agent_context_hash": _current_context_hash(),
         "requested_at": _now_iso(),
         "proposed_by": proposed_by,
@@ -156,6 +306,7 @@ def request_approval(gate: str, summary: str, action: dict[str, Any],
     p.write_text(json.dumps(request, indent=2, sort_keys=True), encoding="utf-8")
     append_event("ic_request_approval",
                  {"request_id": request_id, "gate": gate,
+                  "action_hash": ah,
                   "summary_first_120": summary[:120]},
                  actor=proposed_by)
     return request

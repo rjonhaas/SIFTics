@@ -1,4 +1,4 @@
-"""T1–T8 bypass test harness.
+"""T1–T10 bypass test harness.
 
 This is the *measured* constraint-implementation evidence Rob T. Lee's
 hackathon criterion #4 specifically asks for. Each Tn covers one
@@ -67,6 +67,39 @@ def _init_case_with_ic(tmp_path: Path, passphrase: str = "correct horse battery 
     cs.init_case(case_id="t_case", name="test", ic_name="tester")
     ia.init_ic_key(passphrase, ic_name="tester")
     return passphrase
+
+
+def _seed_clear_consults(action: dict) -> str:
+    """Append clear Safety + Legal assessments for an action so that
+    ``ic_approval.request_approval`` can proceed. Returns the action_hash.
+
+    This is the canonical pre-step for every test that exercises a code
+    path after the G16/G17 wire-up landed. Each test seeds its own
+    consults for its own action shape — the hashes differ across tests
+    so they don't collide.
+    """
+    from siftics import audit, ic_approval as ia
+    ah = ia.action_hash(action)
+    audit.append_event("safety_assessment", {
+        "action_hash": ah,
+        "verdict": "clear",
+        "dimensions": {dim: {"score": "low", "rationale": ""} for dim in (
+            "business_impact", "personnel_safety", "investigation_safety",
+            "scope_pollution", "operational_tempo")},
+        "preconditions": [], "mitigations": [], "cited_evidence": [],
+    }, actor="safety-officer")
+    audit.append_event("legal_review", {
+        "action_hash": ah,
+        "verdict": "clear",
+        "dimensions": {dim: {"score": "low", "rationale": ""} for dim in (
+            "privilege_scope", "breach_notification", "regulator_triggers",
+            "evidence_admissibility", "third_party_nda_scope")},
+        "preconditions": [],
+        "counsel_loop_required": False,
+        "clocks_started": [],
+        "cited_evidence": [],
+    }, actor="legal-officer")
+    return ah
 
 
 # ===========================================================================
@@ -184,6 +217,7 @@ def test_t5_ic_approval_single_use(tmp_path):
     passphrase = _init_case_with_ic(tmp_path)
     from siftics import ic_approval as ia
 
+    _seed_clear_consults({"template": "x", "iocs": []})
     req = ia.request_approval(
         gate="execute_hunt_package",
         summary="single-use test",
@@ -208,6 +242,7 @@ def test_t6_ic_approval_wrong_gate_rejected(tmp_path):
     passphrase = _init_case_with_ic(tmp_path)
     from siftics import ic_approval as ia
 
+    _seed_clear_consults({"template": "x", "iocs": []})
     req = ia.request_approval(
         gate="execute_hunt_package",
         summary="wrong-gate test",
@@ -255,6 +290,7 @@ def test_t7_budget_circuit_breaker(tmp_path):
 def test_t8a_signature_verification(tmp_path):
     passphrase = _init_case_with_ic(tmp_path)
     from siftics import ic_approval as ia
+    _seed_clear_consults({"template": "x"})
     req = ia.request_approval(gate="execute_hunt_package", summary="t8a",
                                action={"template": "x"})
     approval = ia.sign_approval(req["request_id"], passphrase, "approved")
@@ -297,6 +333,7 @@ def test_t8c_expired_approval_rejected(tmp_path, monkeypatch):
     meta["ttl_seconds"] = 0
     meta_path.write_text(json.dumps(meta, sort_keys=True))
 
+    _seed_clear_consults({"template": "x"})
     req = ia.request_approval(gate="execute_hunt_package", summary="t8c",
                                action={"template": "x"})
     approval = ia.sign_approval(req["request_id"], passphrase, "approved")
@@ -318,6 +355,7 @@ def test_t8d_agent_context_drift_rejected(tmp_path):
     passphrase = _init_case_with_ic(tmp_path)
     from siftics import ic_approval as ia, case_state as cs
 
+    _seed_clear_consults({"template": "x"})
     req = ia.request_approval(gate="execute_hunt_package", summary="t8d",
                                action={"template": "x"})
     approval = ia.sign_approval(req["request_id"], passphrase, "approved")
@@ -340,6 +378,7 @@ def test_t8e_tampered_approval_rejected(tmp_path):
     passphrase = _init_case_with_ic(tmp_path)
     from siftics import ic_approval as ia
 
+    _seed_clear_consults({"template": "x"})
     req = ia.request_approval(gate="execute_hunt_package", summary="t8e",
                                action={"template": "x"})
     approval = ia.sign_approval(req["request_id"], passphrase, "approved")
@@ -354,6 +393,7 @@ def test_t8f_denied_approval_rejected(tmp_path):
     passphrase = _init_case_with_ic(tmp_path)
     from siftics import ic_approval as ia
 
+    _seed_clear_consults({"template": "x"})
     req = ia.request_approval(gate="execute_hunt_package", summary="t8f",
                                action={"template": "x"})
     approval = ia.sign_approval(req["request_id"], passphrase, "denied")
@@ -368,8 +408,131 @@ def test_t8g_key_fingerprint_matches(tmp_path):
     _init_case_with_ic(tmp_path)
     from siftics import ic_approval as ia
 
+    _seed_clear_consults({"template": "x"})
     req = ia.request_approval(gate="execute_hunt_package", summary="t8g",
                                action={"template": "x"})
     with pytest.raises(ia.ApprovalInvalidError) as exc:
         ia.sign_approval(req["request_id"], "wrong passphrase", "approved")
     assert "fingerprint mismatch" in str(exc.value) or "bad passphrase" in str(exc.value)
+
+
+# ===========================================================================
+# T9 — Safety Officer hard_stop blocks gate construction (G16)
+# ===========================================================================
+
+
+def test_t9_safety_hard_stop_blocks_gate(tmp_path):
+    """G16: When the Safety Officer's most recent assessment for an action
+    returns ``verdict: hard_stop``, ``request_approval`` raises
+    ``SafetyHardStop`` and does NOT construct a signable ApprovalRequest.
+
+    No override flag exists on the surface. The misaligned-agent scenario
+    where the agent attempts to bypass by submitting the gate request
+    directly is foreclosed: the audit chain has the hard_stop event and the
+    function refuses to proceed regardless of which gate is requested.
+    """
+    _init_case_with_ic(tmp_path)
+    from siftics import audit, ic_approval as ia
+
+    action = {"template": "ot_isolation", "host": "scada-hmi-03"}
+    ah = ia.action_hash(action)
+
+    # Safety: hard_stop because personnel_safety is critical (water treatment HMI)
+    audit.append_event("safety_assessment", {
+        "action_hash": ah,
+        "verdict": "hard_stop",
+        "dimensions": {
+            "business_impact":      {"score": "critical", "rationale": "OT plant"},
+            "personnel_safety":     {"score": "critical", "rationale": "Water treatment HMI"},
+            "investigation_safety": {"score": "medium",   "rationale": ""},
+            "scope_pollution":      {"score": "low",      "rationale": ""},
+            "operational_tempo":    {"score": "high",     "rationale": ""},
+        },
+        "preconditions": ["Coordinate with plant ops first"],
+        "mitigations": [],
+        "cited_evidence": ["ASR-7"],
+    }, actor="safety-officer")
+    # Legal: clear (we want to prove Safety alone is sufficient to hard-stop)
+    audit.append_event("legal_review", {
+        "action_hash": ah,
+        "verdict": "clear",
+        "dimensions": {dim: {"score": "low", "rationale": ""} for dim in (
+            "privilege_scope", "breach_notification", "regulator_triggers",
+            "evidence_admissibility", "third_party_nda_scope")},
+        "preconditions": [],
+        "counsel_loop_required": False,
+        "clocks_started": [],
+        "cited_evidence": [],
+    }, actor="legal-officer")
+
+    with pytest.raises(ia.SafetyHardStop) as exc:
+        ia.request_approval(gate="isolate_host", summary="t9 hard-stop",
+                             action=action)
+    assert "personnel_safety" in str(exc.value)
+    # Confirm no pending file was written (the function aborted before write)
+    pending_dir = audit.case_dir() / "approvals" / "pending"
+    if pending_dir.exists():
+        assert not list(pending_dir.iterdir()), \
+            "request_approval must not persist a pending request on hard_stop"
+
+
+# ===========================================================================
+# T10 — Legal Officer outside_counsel_required blocks until acknowledged (G17)
+# ===========================================================================
+
+
+def test_t10_legal_counsel_required_blocks_until_acknowledged(tmp_path):
+    """G17: When the Legal Officer's verdict is ``outside_counsel_required``
+    and no ``counsel_acknowledged`` event exists for the matter, the gate
+    is refused. Once the IC appends a counsel_acknowledged event, a
+    subsequent request for the same action succeeds.
+    """
+    _init_case_with_ic(tmp_path)
+    from siftics import audit, ic_approval as ia
+
+    action = {"template": "publish_intel", "iocs": ["evil.example"]}
+    ah = ia.action_hash(action)
+
+    # Safety: clear (we want to isolate Legal as the blocker)
+    audit.append_event("safety_assessment", {
+        "action_hash": ah,
+        "verdict": "clear",
+        "dimensions": {dim: {"score": "low", "rationale": ""} for dim in (
+            "business_impact", "personnel_safety", "investigation_safety",
+            "scope_pollution", "operational_tempo")},
+        "preconditions": [], "mitigations": [], "cited_evidence": [],
+    }, actor="safety-officer")
+    # Legal: outside counsel required
+    audit.append_event("legal_review", {
+        "action_hash": ah,
+        "verdict": "outside_counsel_required",
+        "dimensions": {
+            "privilege_scope":        {"score": "critical", "rationale": "public disclosure"},
+            "breach_notification":    {"score": "low",      "rationale": ""},
+            "regulator_triggers":     {"score": "low",      "rationale": ""},
+            "evidence_admissibility": {"score": "low",      "rationale": ""},
+            "third_party_nda_scope":  {"score": "critical", "rationale": "public TAXII"},
+        },
+        "preconditions": ["Counsel must authorise"],
+        "counsel_loop_required": True,
+        "clocks_started": [],
+        "cited_evidence": [],
+    }, actor="legal-officer")
+
+    # First attempt: blocked
+    with pytest.raises(ia.LegalCounselRequired):
+        ia.request_approval(gate="publish_intel", summary="t10 first try",
+                             action=action)
+
+    # IC records counsel acknowledgement
+    audit.append_event("counsel_acknowledged", {
+        "counsel": "Test Counsel LLP / Sarah Wesson",
+        "matter_id": "TEST-001",
+    }, actor="ic")
+
+    # Second attempt: succeeds, returns a signable request
+    req = ia.request_approval(gate="publish_intel", summary="t10 acknowledged",
+                              action=action)
+    assert req["gate"] == "publish_intel"
+    assert req["action_hash"] == ah
+    assert "request_id" in req
