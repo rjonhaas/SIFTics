@@ -162,15 +162,11 @@ def create_app() -> Flask:
         lines.append(f"**Opened:** {header.get('opened_at', '')[:10]}  ")
         lines.append(f"**Impact:** {header.get('impact_level', '').upper()}  \n")
 
-        lines.append("---\n## Executive Summary\n")
-        lines.append(f"**Who (affected):** {exec_summary['who_affected']}  ")
-        lines.append(f"**Who (attacker):** {exec_summary['who_attacker']}  ")
-        lines.append(f"**What:** {exec_summary['what']}  ")
-        lines.append(f"**When:** {exec_summary['when']}  ")
-        lines.append(f"**Where:** {exec_summary['where']}  ")
-        lines.append(f"**Why:** {exec_summary['why']}  ")
-        lines.append(f"**What did we do:** {exec_summary['what_we_did']}  ")
-        lines.append(f"**What needs to be done:** {exec_summary['what_remains']}  \n")
+        if exec_summary:
+            lines.append("---\n## Executive Summary\n")
+            for para in exec_summary:
+                lines.append(para)
+                lines.append("")  # blank line between paragraphs
 
         # Evidence findings chain
         try:
@@ -1059,43 +1055,41 @@ def _asr_summary() -> dict:
     }
 
 
-def _executive_summary(header: dict, findings: list, briefings: list, itq: dict) -> dict:
-    """Derive a 7-row executive summary from current case state.
+def _executive_summary(header: dict, findings: list, briefings: list, itq: dict) -> list[str]:
+    """Derive an executive-summary in narrative paragraphs.
 
-    All eight values are str (never None) so the template can render
-    them unconditionally; "—" means the answer isn't derivable from the
-    case state yet. As findings/briefings/audit data accumulate, the
-    derived view sharpens — there's no separate field for the agent
-    to maintain.
+    Returns a list of paragraph strings (typically 2): the first covers
+    who / what / when / where / why; the second covers what we did and
+    what remains. Empty list if no findings exist yet — the template
+    then suppresses the section entirely.
 
-    Heuristics:
-      who_affected   ASR system_identifiers grouped by impact rating
-      who_attacker   non-private IPs found in ASR notes / how_determined
-      what           earliest briefing summary, else the worst finding's
-                     impact_description
-      when           opened_at (detection) + ASR date_of_compromise range
-      where          unique ASR location values
-      why            header.motivation if set, else placeholder
-      what_we_did    fleet hunts fired (linked_hunts), isolation requests
-                     visible in ASR notes, briefings posted
-      what_remains   non-safe ASR rows' planned_action; unanswered ITQ count
+    Composed from existing case state (header, ASR rows, briefings, ITQ
+    progress) on every render — sharpens automatically as data accrues.
+    No separate field for the agent to maintain.
     """
     import re
 
-    # WHO (affected) — group system identifiers by impact rating, worst first
+    if not findings:
+        # Empty case — nothing meaningful to summarise as prose
+        return []
+
+    # --- derivations (same logic as before, but kept as locals, not returned) ---
+
+    # WHO (affected)
     by_impact: dict[str, list[str]] = {}
     for f in findings:
         rating = (f.get("impact_rating") or "low").lower()
         by_impact.setdefault(rating, []).append(f.get("system_identifier") or "?")
-    who_affected_parts = []
+    worst_systems: list[str] = []
+    worst_label = "affected"
     for rating in ("critical", "high", "moderate", "medium", "low"):
         if by_impact.get(rating):
-            sids = ", ".join(sorted(set(by_impact[rating])))
-            who_affected_parts.append(f"{len(set(by_impact[rating]))} {rating}: {sids}")
-    who_affected = "; ".join(who_affected_parts) or "—"
+            worst_systems = sorted(set(by_impact[rating]))
+            worst_label = rating
+            break
+    n_total = len({(f.get("system_identifier") or "?") for f in findings})
 
-    # WHO (attacker) — scan ASR notes + how_determined for external IPs.
-    # Skip RFC-1918 ranges so we surface only candidate adversary infra.
+    # WHO (attacker) — non-RFC1918 IPs from ASR notes
     ip_re = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
     private_prefixes = ("10.", "192.168.", "127.", "0.")
     external_ips: set[str] = set()
@@ -1106,108 +1100,172 @@ def _executive_summary(header: dict, findings: list, briefings: list, itq: dict)
             for ip in ip_re.findall(fld):
                 if ip.startswith(private_prefixes):
                     continue
-                # Skip 172.16-31.x.x (RFC-1918) too
                 if ip.startswith("172."):
                     second = ip.split(".")[1]
                     if second.isdigit() and 16 <= int(second) <= 31:
                         continue
                 external_ips.add(ip)
-    who_attacker = (
-        "External infrastructure observed: " + ", ".join(sorted(external_ips))
-        if external_ips
-        else "Attribution analysis ongoing."
-    )
 
-    # WHAT — earliest briefing text, else worst-impact finding description
-    what = "—"
+    # WHAT — earliest briefing narrative or worst finding's impact_description
+    narrative = ""
     if briefings:
-        # briefings list passed in already chronological (oldest first)
         text = briefings[0].get("text") or briefings[0].get("summary") or ""
-        if text:
-            what = text[:280] + ("…" if len(text) > 280 else "")
-    if what == "—" and findings:
-        # Sort by impact severity, take the worst
+        narrative = text.strip()
+    if not narrative:
         rank = {"critical": 0, "high": 1, "moderate": 2, "medium": 2, "low": 3}
-        worst = sorted(
-            findings,
-            key=lambda r: rank.get((r.get("impact_rating") or "low").lower(), 9),
-        )[0]
-        what = worst.get("impact_description") or "—"
+        worst = sorted(findings, key=lambda r: rank.get((r.get("impact_rating") or "low").lower(), 9))[0]
+        narrative = (worst.get("impact_description") or "").strip()
+    # Strip trailing period — we re-add when joining sentences
+    narrative = narrative.rstrip(".").strip()
 
-    # WHEN — detection date + compromise window from ASR
-    when_parts = []
+    # WHEN
     detected = (header.get("opened_at") or "")[:10]
-    if detected:
-        when_parts.append(f"Detected {detected}")
     compromise_dates = sorted(
         {(f.get("date_of_compromise") or "")[:10] for f in findings if f.get("date_of_compromise")}
     )
-    if compromise_dates:
-        if len(compromise_dates) == 1:
-            when_parts.append(f"compromise observed {compromise_dates[0]}")
-        else:
-            when_parts.append(f"compromise window {compromise_dates[0]} → {compromise_dates[-1]}")
-    when = "; ".join(when_parts) or "—"
 
-    # WHERE — unique ASR location values, joined
+    # WHERE
     locations = sorted({(f.get("location") or "").strip() for f in findings if f.get("location")})
-    where = "; ".join(locations) if locations else "—"
 
-    # WHY — header.motivation if the agent set it, else placeholder
-    why = (
-        header.get("motivation")
-        or header.get("why")
-        or "Pending Incident Commander (IC) determination — see briefings for working hypotheses."
-    )
+    # WHY
+    motivation = (header.get("motivation") or header.get("why") or "").strip()
 
-    # WHAT DID WE DO — actions visible in the case state
-    we_did_parts = []
+    # WHAT WE DID
     hunt_ids: set[str] = set()
     for f in findings:
         for h in f.get("linked_hunts") or []:
             if h:
                 hunt_ids.add(h)
-    if hunt_ids:
-        we_did_parts.append(f"{len(hunt_ids)} fleet hunt(s) executed ({', '.join(sorted(hunt_ids))})")
     isolated = sorted({
         f.get("system_identifier") for f in findings
-        if "isolation" in (f.get("notes") or "").lower()
+        if "isolation" in (f.get("notes") or "").lower() and f.get("system_identifier")
     })
-    isolated = [s for s in isolated if s]
-    if isolated:
-        we_did_parts.append(f"isolation requested for {', '.join(isolated)}")
-    if briefings:
-        we_did_parts.append(f"{len(briefings)} briefing(s) posted")
-    what_we_did = "; ".join(we_did_parts) or "Investigation in progress; no completed response actions yet."
 
-    # WHAT NEEDS TO BE DONE — non-safe ASR rows' planned actions + open ITQ
-    remains_parts = []
+    # WHAT REMAINS
     pending_actions = []
     for f in findings:
         if (f.get("system_safe") or "").lower() != "safe":
             pa = (f.get("planned_action") or "").strip()
             if pa:
-                pending_actions.append(f"{f.get('system_identifier')}: {pa}")
-    if pending_actions:
-        # Truncate to first 3 to keep the summary readable
-        shown = pending_actions[:3]
-        suffix = f" (+{len(pending_actions) - 3} more)" if len(pending_actions) > 3 else ""
-        remains_parts.append("Pending actions — " + " | ".join(shown) + suffix)
+                pending_actions.append((f.get("system_identifier"), pa))
     itq_open = max(0, (itq.get("total") or 0) - (itq.get("answered") or 0))
-    if itq_open > 0:
-        remains_parts.append(f"{itq_open} triage question(s) unanswered")
-    what_remains = "; ".join(remains_parts) or "No open items."
 
-    return {
-        "who_affected": who_affected,
-        "who_attacker": who_attacker,
-        "what": what,
-        "when": when,
-        "where": where,
-        "why": why,
-        "what_we_did": what_we_did,
-        "what_remains": what_remains,
-    }
+    # --- prose composition ---
+
+    impact_lvl = (header.get("impact_level") or "moderate").lower()
+    case_name = (header.get("name") or "an incident").strip()
+
+    p1_sentences: list[str] = []
+
+    # Sentence 1 — detection, impact, affected systems
+    sys_phrase = (
+        f"{worst_label} severity on {', '.join(worst_systems)}"
+        + (f" (of {n_total} systems involved)" if n_total > len(worst_systems) else "")
+    )
+    if detected:
+        p1_sentences.append(
+            f"On {detected}, {case_name} was opened as a {impact_lvl}-impact incident, "
+            f"with {sys_phrase}"
+        )
+    else:
+        p1_sentences.append(
+            f"{case_name} is under investigation as a {impact_lvl}-impact incident, "
+            f"with {sys_phrase}"
+        )
+
+    # Sentence 2 — narrative (what happened)
+    if narrative:
+        # Cap the narrative so the paragraph stays readable
+        if len(narrative) > 320:
+            narrative = narrative[:320].rsplit(" ", 1)[0] + "…"
+        p1_sentences.append(narrative)
+
+    # Sentence 3 — attacker infra + compromise window
+    when_phrase = ""
+    if compromise_dates:
+        if len(compromise_dates) == 1:
+            when_phrase = f"observed on {compromise_dates[0]}"
+        else:
+            when_phrase = f"spanning {compromise_dates[0]} through {compromise_dates[-1]}"
+    if external_ips:
+        ips = ", ".join(sorted(external_ips))
+        if when_phrase:
+            p1_sentences.append(f"Attacker infrastructure observed: {ips}, with activity {when_phrase}")
+        else:
+            p1_sentences.append(f"Attacker infrastructure observed: {ips}")
+    elif when_phrase:
+        p1_sentences.append(f"Compromise activity was {when_phrase}")
+
+    # Sentence 4 — location context (if it adds anything not already in sys_phrase)
+    extra_locations = [loc for loc in locations
+                       if not any(s in loc for s in worst_systems)]
+    if extra_locations:
+        p1_sentences.append(f"Affected location(s): {'; '.join(extra_locations)}")
+
+    # Sentence 5 — motivation / why
+    if motivation:
+        p1_sentences.append(f"Working hypothesis on motive: {motivation.rstrip('.')}")
+    else:
+        p1_sentences.append(
+            "Attacker motive remains under analysis; the Incident Commander has not yet "
+            "characterised it in the case header"
+        )
+
+    paragraph_1 = ". ".join(s.rstrip(".").strip() for s in p1_sentences if s.strip()) + "."
+
+    # --- Paragraph 2 — what we did and what's left ---
+
+    p2_sentences: list[str] = []
+
+    actions = []
+    if hunt_ids:
+        actions.append(f"executed {len(hunt_ids)} fleet hunt{'s' if len(hunt_ids) != 1 else ''} "
+                       f"({', '.join(sorted(hunt_ids))})")
+    if isolated:
+        actions.append(f"requested isolation for {', '.join(isolated)}")
+    if briefings:
+        actions.append(f"posted {len(briefings)} briefing{'s' if len(briefings) != 1 else ''} "
+                       "to the Common Operating Picture (COP)")
+    if actions:
+        # Conjoin naturally: "a; b; and c."
+        if len(actions) == 1:
+            joined = actions[0]
+        elif len(actions) == 2:
+            joined = f"{actions[0]} and {actions[1]}"
+        else:
+            joined = "; ".join(actions[:-1]) + f"; and {actions[-1]}"
+        p2_sentences.append(f"In response, the investigation team has {joined}")
+    else:
+        p2_sentences.append(
+            "No completed response actions have been recorded yet; "
+            "the investigation is in its initial scoping phase"
+        )
+
+    # Remaining work
+    remaining = []
+    if pending_actions:
+        # Up to 2 system: action pairs, then count overflow
+        shown = pending_actions[:2]
+        rendered = "; ".join(
+            f"{sid} ({pa.split('.')[0].strip()})" for sid, pa in shown
+        )
+        if len(pending_actions) > 2:
+            remaining.append(f"pending actions on {rendered} and {len(pending_actions) - 2} other system(s)")
+        else:
+            remaining.append(f"pending actions on {rendered}")
+    if itq_open:
+        q_word = "triage question" if itq_open == 1 else "triage questions"
+        remaining.append(f"{itq_open} unanswered {q_word}")
+    if remaining:
+        if len(remaining) == 1:
+            joined = remaining[0]
+        else:
+            joined = " and ".join(remaining)
+        p2_sentences.append(f"Outstanding work includes {joined}")
+
+    paragraph_2 = ". ".join(s.rstrip(".").strip() for s in p2_sentences if s.strip()) + "."
+
+    return [paragraph_1, paragraph_2]
 
 
 def _cet_summary() -> dict:
