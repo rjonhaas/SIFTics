@@ -27,6 +27,8 @@ The submission is structured in three deliberately-separated layers. A judge can
 - **Standalone (judges' default path)** — clone this repo, run `./setup.sh` on a SIFT VM, point it at any evidence bundle, watch findings stream into the hash-chained audit log. The MCP broker runs in `mock` mode and returns generic enterprise placeholders, so there is nothing external to configure.
 - **Connected (the demo video path)** — configure response targets at `/setup`, switch the MCP broker to `real` mode, point it at a Velociraptor server. The demo video uses `hunt_lab` for that environment, but any Velociraptor server speaking the same API works.
 
+`/setup` exposes two umbrella radios that drive both modes: **Anthropic authentication** (Claude.ai subscription via `claude login` vs. pasted API key) and **Response posture** (Mock — standalone vs. Live — connected). Either radio takes effect on the next agent turn — the save handler patches `os.environ` in the running Flask process, no UI restart needed — and writes a `runtime_auth_changed` / `response_posture_changed` audit event.
+
 The hackathon submission is **Layer 1**. Layers 2 and 3 exist to show that Layer 1 isn't an analysis toy — it's an agent that can authorise live response, and architecturally refuse to authorise the *wrong* response (see the OT Safety Officer hard-stop in the demo).
 
 ---
@@ -59,7 +61,7 @@ SIFTics turns the SIFT Workstation into a **machine-speed incident response agen
 1. **Closes the speed gap** between attackers operating at 7-minute breakout times and human responders. The HOT execution layer produces candidate findings in seconds, generates a Velociraptor hunt package, surfaces it to the Incident Commander for cryptographically-signed approval, and fires it across the enterprise within tens of seconds.
 2. **Operates under NIMS Incident Command System doctrine.** The Claude Code agent functions as the *Investigation Section Chief* (tactical autonomy); the human analyst is the *Incident Commander* (strategic authority). Authority Gates between them are **architecturally enforced** via HMAC-signed approval objects, not by prompt instructions.
 3. **Maintains a tamper-evident audit chain.** Every tool execution, every IC decision, and every action result is logged as a hash-chained JSONL row; the chain is verifiable end-to-end with `audit_verify.sh`.
-4. **Self-corrects under doctrine.** Phase-18 anomaly detection scans for cross-artifact contradictions and re-runs upstream phases up to three iterations until the contradiction count decreases.
+4. **Self-corrects under doctrine.** Phase-18 anomaly detection scans for cross-artifact contradictions and re-runs upstream phases up to three iterations until the contradiction count decreases. A pre-close *completeness critic* (`case_completeness_check()` MCP tool, backed by `siftics/completeness_rules.py`) runs seven typed rules against the case state — anti-forensics scope coverage, registry-vs-service persistence parity, browser-history-when-remote-entry-vector, timezone read, external-IP CTI lookup, credential-dump-on-DC-compromise — and returns ordered HIGH→LOW gaps the agent must address before any final briefing or motivation lock-in (skill: `skills/case-completeness-review.md`).
 5. **Drives Velociraptor as an active hunt controller** (not just a parser). Findings become typed `HuntPackage` objects; approved packages execute as enterprise-wide hunts; results feed back into the Common Operating Picture (COP).
 6. **Grounds AI enrichment in retrieved evidence, not model memory.** Every MITRE technique alignment, LOLBAS context note, and Sigma rule explanation is backed by a record retrieved from the embedded `mcp_rag` forensic index — not generated from training-time knowledge alone. Deterministic lookups (baseline hash checks, IOC exact-match) are typed separately from LLM enrichment in `forensic_audit.jsonl`, so analysts know exactly what to verify. See [`docs/accuracy_report.md §3`](docs/accuracy_report.md) for the full hallucination accounting.
 
@@ -72,7 +74,7 @@ SIFTics turns the SIFT Workstation into a **machine-speed incident response agen
 | 3. Breadth and Depth | 20 phase scripts across Windows / Linux / memory / network / email / cross-machine attack-path — see [`phases/`](phases/) |
 | 4. Constraint Implementation | [`docs/constraint_implementation.md`](docs/constraint_implementation.md) — architectural (red) vs prompt-based (yellow) guardrails; T1–T8 bypass test results in [`tests/test_constraints.py`](tests/test_constraints.py) |
 | 5. Audit Trail Quality | `siftics/audit.py` — hash-chained `forensic_audit.jsonl` + `audit_verify.sh` |
-| 6. Usability and Documentation | This README + `docs/QUICKSTART.md` + the SIFTics web UI at `localhost:8080` — dashboard improvements: transcript persists across page reloads (sessionStorage), block-level markdown rendering (tables/lists/headings), separate message bubbles per agent turn; dedicated `/findings`, `/intel`, `/cases`, and `/report` pages |
+| 6. Usability and Documentation | This README + `docs/QUICKSTART.md` + the SIFTics web UI at `localhost:8080` — dashboard improvements: transcript persists across page reloads (sessionStorage), block-level markdown rendering (tables/lists/headings), separate message bubbles per agent turn; dedicated `/findings`, `/intel`, `/cases`, and `/report` pages. `/report` now leads with an auto-derived two-paragraph **Executive Summary** card (header + ASR + briefings + ITQ progress) that sharpens as the investigation progresses; the same prose is prepended to the Markdown export at `/report/download`. |
 
 ---
 
@@ -89,7 +91,7 @@ cd SIFTics
 # Then open http://127.0.0.1:8080 in a browser
 ```
 
-`setup.sh` is idempotent and narrates each step. Common variants:
+`setup.sh` is idempotent and narrates each step. Case IDs are auto-generated as `YYYY-MM-DD-NN` (zero-padded daily sequence) under `~/Desktop/cases/` by default; custom names still work, and `SIFTICS_CASE_BASE=…` overrides the base dir. The same `YYYY-MM-DD-NN` scheme is used by `/new-case` in the UI. Common variants:
 
 ```bash
 ./setup.sh                              # venv + deps + seed baseline only
@@ -201,6 +203,8 @@ pipx install --editable .
 │   ├── audit.py                     hash-chained JSONL log + verification
 │   ├── case_state.py                COP / ASR / CET / ITQ data layer
 │   ├── ic_approval.py               HMAC-SHA256 IC Authority Gate primitives
+│   ├── completeness_rules.py        7-rule pre-close critic (anti-forensics
+│   │                                  scope, persistence parity, etc.)
 │   └── cli.py                       sift-case-init, sift-approve
 ├── siftics_ui/                      Flask + vanilla JS web UI (localhost:8080)
 │   ├── app.py
@@ -210,7 +214,9 @@ pipx install --editable .
 │                                     findings, intel, cases, report)
 ├── mcp_broker/                      Velociraptor MCP — 10 typed functions
 ├── mcp_case/                        Case-state MCP server (asr_append, itq_answer,
-│                                     finding_record, etc.) — writes findings.jsonl
+│                                     finding_record, case_set_motivation,
+│                                     case_completeness_check, etc.) — 21 typed
+│                                     functions; writes findings.jsonl
 ├── mcp_rag/                         Embedded forensic RAG (sqlite-vec, 6,337 records)
 ├── mcp_cti/                         IOC enrichment — abuse.ch (always on) + Shodan/VirusTotal/OSM (keyring-gated)
 ├── mcp_baseline/                    Rathbun known-good baseline lookup
@@ -225,7 +231,7 @@ pipx install --editable .
 │   ├── run_anomaly_check.sh         Phase 18
 │   ├── run_self_correct.sh
 │   └── …
-├── skills/                          NIMS ICS skill files (agent guidance) — 11 files
+├── skills/                          NIMS ICS skill files (agent guidance)
 │   ├── investigation-section-chief.md
 │   ├── triage-methodology.md
 │   ├── hypothesis-engine.md
@@ -234,6 +240,7 @@ pipx install --editable .
 │   ├── malware-triage.md
 │   ├── timeline-reconstruction.md
 │   ├── anti-forensics-detection.md
+│   ├── case-completeness-review.md  pre-close completeness critic skill
 │   ├── reporting-conventions.md
 │   ├── macos-artifacts.md           mac_apt plugin map, Unified Log, APFS, persistence triage
 │   ├── iot-ot-artifacts.md          firmware (binwalk), industrial protocol PCAPs, SCADA DBs

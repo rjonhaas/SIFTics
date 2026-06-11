@@ -29,7 +29,11 @@ Devpost submission item #9 — *Accuracy Report*.
 | p95 cost per case | *TBD* | same |
 
 *(Numbers marked TBD will be filled in during final benchmarking; the three
-completed cases are documented in §2 below.)*
+completed cases are documented in §2 below. A first grading-run datapoint
+against DFIR Madness "Stolen Szechuan Sauce" — 22 TP / 1 FP / 13 FN / 0
+hallucinations across 36 graded claims — is recorded in
+[`datasets.md` §6.1](datasets.md); the FN class is what motivated the
+completeness critic landed this cycle, see §3.4.)*
 
 ---
 
@@ -52,13 +56,28 @@ against the published ground-truth answers by `tools/score_benchmark.py`.
 
 ### 1.2a Domain knowledge skills
 
-9 domain knowledge skill files now guide the agent during analysis (up from 3
-at initial submission): `windows-artifacts`, `linux-server-artifacts`,
+Domain knowledge skill files now guide the agent during analysis (up from 3 at
+initial submission): `windows-artifacts`, `linux-server-artifacts`,
 `malware-triage`, `timeline-reconstruction`, `anti-forensics-detection`,
 `reporting-conventions` (added to ISC skill set), plus the original
 `investigation-section-chief`, `triage-methodology`, and `hypothesis-engine`.
 These skills constrain how the agent reasons over evidence and formats findings,
 reducing hallucination surface area on unfamiliar artifact types.
+
+Two recent additions specifically target the FP and FN classes surfaced by the
+first grading-run datapoint (see [`datasets.md` §6.1](datasets.md)):
+
+- **`anti-forensics-detection.md` timestomping scope expansion** (commit
+  `adc94a1`) — the Timestomping section now names three scopes the agent must
+  check (implant binaries, user-data files in attacker-accessed directories,
+  log files), and a closer rule that "no timestomping observed" without scope
+  coverage reads as incomplete. Closes the Beth_Secret.txt timestomp
+  false-positive class.
+- **`case-completeness-review.md`** — pre-close completeness critic skill. The
+  ISC persona's operating loop now has a step 9: call `case_completeness_check()`
+  before any final briefing, motivation set, or ASR row marked as safe
+  transition; address every HIGH gap, document every MEDIUM gap. Backed by the
+  `siftics/completeness_rules.py` rule engine (see §3.4 below).
 
 ### 1.2 Scoring rubric
 
@@ -196,6 +215,40 @@ unsupported by tool output. Example archetypes:
   The `source_type` field in each `forensic_audit.jsonl` event distinguishes
   `deterministic` (hash/IP exact-match) from `ai_enrichment` (LLM reasoning
   over retrieved context) so downstream verification can be targeted.
+
+### 3.4 Pre-close completeness critic — the architectural answer to the FN class
+
+False negatives (ground-truth checks the agent never surfaced) are the dominant
+error class in the first grading-run datapoint (13 FN out of 36 graded claims;
+see [`datasets.md` §6.1](datasets.md)). The architectural mitigation shipped
+this cycle:
+
+- **`siftics/completeness_rules.py`** — pure-Python rule engine, seven rules
+  each a typed function over a `CaseState` dataclass (suit.jsonl + findings.jsonl
+  + grid.jsonl + briefings/). Initial v1 ruleset:
+  - `antiforensics_scope_data_files` (HIGH) — covers the Beth_Secret.txt
+    timestomp false-positive class
+  - `antiforensics_scope_log_files` (MEDIUM)
+  - `registry_persistence_when_service_persistence` (HIGH)
+  - `browser_history_when_remote_entry_vector` (MEDIUM)
+  - `timezone_registry_read_for_windows` (MEDIUM)
+  - `cti_lookup_for_external_ips` (MEDIUM)
+  - `credential_dump_on_dc_compromise` (HIGH)
+- **`mcp_case.case_completeness_check()`** — typed MCP tool the agent calls
+  before any final briefing or motivation lock-in. Returns gaps ordered
+  HIGH → MEDIUM → LOW. Writes a `case_completeness_check_run` audit event.
+- **`mcp_case.case_set_motivation(text)`** — typed lock-in for the
+  attacker-motive narrative. Rejects placeholder strings (<25 chars, "TBD",
+  "Unknown", etc.) and writes a `case_motivation_set` audit event.
+- **`skills/case-completeness-review.md`** — the prompt-side obligation that
+  forces the agent to call the check before closing. Every HIGH gap must be
+  addressed; every MEDIUM gap must be documented.
+
+The rule engine itself is structural (pure Python, deterministic over typed
+state); the agent's *obligation to call it* is prompt-based (P14 in
+[`constraint_implementation.md`](constraint_implementation.md)). Together they
+turn "did the agent forget to look at X?" from a tacit reviewer concern into a
+typed, auditable check.
 
 ---
 

@@ -29,6 +29,7 @@ The script:
 - Detects missing `python3.X-venv` and prints the exact `apt install` to run
 - Skips steps that already completed (re-running after a partial install is safe)
 - Times itself and reports total elapsed time
+- Auto-generates the case ID as `YYYY-MM-DD-NN` (zero-padded daily sequence — first case today → `2026-06-11-01`, tenth → `2026-06-11-10`) under `~/Desktop/cases/`. The UI's `/new-case` page uses the same scheme. Override the base with `SIFTICS_CASE_BASE=/some/other/path`; supply a custom name to skip the auto-ID
 
 ## Manual path — the same 30 seconds, but explicit
 
@@ -71,7 +72,14 @@ You now have:
 
 ## Pick your agent runtime
 
-Open `http://127.0.0.1:8080/setup` and choose one:
+Open `http://127.0.0.1:8080/setup`. Two umbrella radios drive the first-run choices:
+
+- **Anthropic authentication** — *Claude.ai subscription (Pro / Max / Team)* uses the OAuth credentials produced by `claude login`; *Anthropic API key* takes a pasted key. The page detects existing OAuth credentials and existing env keys, so re-opening `/setup` mid-investigation shows you what's active right now.
+- **Response posture** — *Mock — standalone* keeps `mcp_broker` returning generic enterprise placeholders (no infrastructure needed, judges' default); *Live — connected* talks to a real Velociraptor server via mTLS.
+
+Switching either radio takes effect on the **next agent turn** — the save handler patches `os.environ` in the running Flask process, so no UI restart is needed — and writes a `runtime_auth_changed` / `response_posture_changed` event into the audit chain.
+
+Additional runtime options (further down the page):
 
 | Option | Best for | Cost |
 |---|---|---|
@@ -82,6 +90,8 @@ Open `http://127.0.0.1:8080/setup` and choose one:
 | Codex CLI | Stub in v1 | covered by subscription |
 
 If you choose Anthropic API, paste your key in the wizard's password field. It's stored in the OS keychain (or a chmod-600 file as fallback) — never logged.
+
+**One small UX note**: the ISC persona spells out NIMS-doctrine acronyms (Investigation Section Chief, Common Operating Picture, Affected Systems Register, Containment & Eradication Tracker, Initial Triage Questionnaire, Public Information Officer) on first use per response. This is deliberate — the cyber world has collided meanings for several of these (ISC → Internet Storm Center, ASR → Automatic Speech Recognition, CET → Central European Time, PIO → Programmed I/O), and the spell-out keeps briefings unambiguous when an analyst reads them out of context.
 
 ## Optional — external CTI integrations
 
@@ -287,12 +297,13 @@ SIFTICS/
 │   ├── build_baseline_db.sh
 │   ├── download_rag_index.sh
 │   └── sync_to_sift.sh
-└── (Python packages: siftics, siftics_ui, mcp_case, mcp_ic_approval,
-   mcp_baseline, mcp_cti, mcp_rag, mcp_broker, mcp_intel, phases, templates,
-   skills [11 files: investigation-section-chief, triage-methodology,
-   hypothesis-engine, windows-artifacts, linux-server-artifacts,
-   malware-triage, timeline-reconstruction, anti-forensics-detection,
-   reporting-conventions, macos-artifacts, iot-ot-artifacts, daedalus])
+└── (Python packages: siftics [incl. completeness_rules.py], siftics_ui,
+   mcp_case, mcp_ic_approval, mcp_baseline, mcp_cti, mcp_rag, mcp_broker,
+   mcp_intel, phases, templates, skills [investigation-section-chief,
+   triage-methodology, hypothesis-engine, windows-artifacts,
+   linux-server-artifacts, malware-triage, timeline-reconstruction,
+   anti-forensics-detection, case-completeness-review, reporting-conventions,
+   macos-artifacts, iot-ot-artifacts, daedalus])
 ```
 
 Submission deadline: **2026-06-15 23:45 EDT**. Submit ≥ 24h early; verify the YouTube link in incognito before hitting submit.

@@ -37,7 +37,7 @@ SIFTics's rules cannot be ignored because the offending function calls **never r
 | G9 | Budget circuit breaker | `cost_tracker.check_budget_or_raise()` raises before LLM call | T7 | ✅ |
 | G10 | Custom artifact namespace guard | `mcp_broker` rejects non-`SIFTICS_*` / non-`Custom.*` | T2 | ✅ |
 | G11 | Read-only evidence mounts | `verify_readonly_mounts.sh` pre-flight | T1 | ✅ (policy) |
-| G12 | No `execute_shell()` / `eval()` MCP function | Surface review — only typed functions exposed | mcp_case enumerates 14 typed fns | ✅ (review) |
+| G12 | No `execute_shell()` / `eval()` MCP function | Surface review — only typed functions exposed | mcp_case enumerates 21 typed fns (incl. `case_set_motivation`, `case_completeness_check`) | ✅ (review) |
 | G13 | Prompt-injection sanitiser | Regex scrub at MCP boundary before output reaches agent | T3 | ✅ |
 | G14 | IOC publishing requires signed `ICApproval` | `publish_intel()` requires typed approval parameter — same structural rule as G1 (execute_hunt) and the containment_action gate | (not yet in test suite) | stub |
 | G15 | Toolchain SBOM hash-chained at case-init | `siftics/sbom.py:compute_sbom` snapshot written into audit row 1 by `case_state.init_case`; `<case>/sbom.json` is the persisted copy; drift detectable by re-computing and comparing to the chained hash | manual via `compute_sbom` + `verify_chain`; Authority-Gate refusal on drift staged for v1.1 | ✅ (write); manual (verify) |
@@ -81,8 +81,10 @@ These are *guidance*, not guards. A misaligned model can disregard them; that's 
 | P11 | macOS artifact triage (mac_apt, Unified Log, APFS, persistence) | `skills/macos-artifacts.md` |
 | P12 | IoT/OT artifact guidance (firmware blobs, industrial PCAPs, SCADA DBs) | `skills/iot-ot-artifacts.md` |
 | P13 | Daedalus tool-finder/implementer workflow (6-step; IC approval required before running unfamiliar tools) | `skills/daedalus.md` |
+| P14 | Pre-close completeness critic — agent must call `case_completeness_check()` before any final briefing, motivation set, or ASR row marked as safe-transition, and must address every HIGH gap returned | `skills/case-completeness-review.md` (rule engine in `siftics/completeness_rules.py` is structural — the *obligation to call it* is prompt-based) |
+| P15 | Investigation Section Chief voice-and-style rule — spell out NIMS-doctrine acronyms (ISC, COP, ASR, CET, ITQ, PIO) on first use per response to avoid cyber-meaning collisions (ISC → Internet Storm Center, ASR → Automatic Speech Recognition, CET → Central European Time, PIO → Programmed I/O) | `skills/investigation-section-chief.md` |
 
-P1–P4 are core procedural guidance. P5–P13 are domain-knowledge skill files that guide methodology for specific artifact types and the Daedalus unknown-artifact workflow. None of these enforce security boundaries — they are clearly separated from the architectural guardrails above. The distinction is more credible when every guideline is not dressed up as a guardrail.
+P1–P4 are core procedural guidance. P5–P13 are domain-knowledge skill files that guide methodology for specific artifact types and the Daedalus unknown-artifact workflow. P14–P15 are quality / clarity rules layered on the ISC persona. None of these enforce security boundaries — they are clearly separated from the architectural guardrails above. The distinction is more credible when every guideline is not dressed up as a guardrail.
 
 ---
 

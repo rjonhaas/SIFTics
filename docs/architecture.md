@@ -62,7 +62,9 @@ specific environment is on the right.
                   ║   mcp_intel      publish_iocs        ║
                   ║                                      ║
                   ║   Each carries _MODE = mock | real   ║
-                  ║   flipped from /setup; the agent     ║
+                  ║   flipped from /setup's Response-     ║
+                  ║   posture radio (Mock — standalone   ║
+                  ║   vs. Live — connected); the agent   ║
                   ║   doesn't know which side it's on.   ║
                   ╚══════════════════════════════════════╝
 ```
@@ -84,6 +86,15 @@ call out to whatever Velociraptor/EDR/TIP is configured. The same
 agent, the same audit chain, the same Authority Gates — now with
 hunts actually firing across an enterprise. This is the path that
 demonstrates "fighting back at AI-speed."
+
+The mode is selected from `/setup`'s **Response posture** radio
+(*Mock — standalone* vs. *Live — connected*). Switching takes
+effect on the next agent turn (the save handler patches
+`os.environ` in the running Flask process) and writes a
+`response_posture_changed` audit event. Anthropic authentication
+(Claude.ai subscription vs. pasted API key) is the sibling radio
+on the same page and uses the same env-patch + audit pattern
+(`runtime_auth_changed`).
 
 ---
 
@@ -128,7 +139,7 @@ flowchart TB
         end
 
         subgraph MCP["Custom MCP Servers"]
-            McpCase["mcp_case<br/>(case state — finding_record, etc.)"]
+            McpCase["mcp_case<br/>(case state + completeness critic —<br/>finding_record, case_set_motivation,<br/>case_completeness_check, etc.)"]
             McpIC["mcp_ic_approval<br/>(Authority Gates)"]
             McpVR["mcp_broker<br/>(Velociraptor — 10 typed fns)"]
             McpRAG["mcp_rag"]
@@ -638,7 +649,17 @@ typically has 1-2 architectural and the rest prompt-based.
 8.  Hunt results return; new ASR rows appended for any hit hosts
        └─> Self-correction loop (Phase 18) runs cross-artifact anomaly scan
 
-9.  Briefing posted; case header updated
+9.  Pre-close completeness critic
+       └─> Agent calls mcp_case.case_completeness_check()
+       └─> siftics/completeness_rules.py runs 7 typed rules against
+           the case state; returns gaps ordered HIGH → MEDIUM → LOW
+       └─> Agent addresses every HIGH gap before motivation lock-in,
+           then calls case_set_motivation(text) to lock the
+           attacker-motive narrative into the case header
+
+10. /report renders Executive Summary card + Affected Systems Register
+       └─> Two-paragraph narrative derived from header + ASR + briefings + ITQ
+       └─> Same prose prepended to Markdown export at /report/download
        └─> Dashboard auto-refreshes via SSE
        └─> audit_verify.sh confirms chain integrity end-to-end
 ```
@@ -674,7 +695,8 @@ Documented honestly here so judges and operators know what to wear:
 - Bypass test source: [`tests/test_constraints.py`](../tests/test_constraints.py)
 - IC approval implementation: [`siftics/ic_approval.py`](../siftics/ic_approval.py)
 - Audit chain: [`siftics/audit.py`](../siftics/audit.py)
-- mcp_case server: [`mcp_case/server.py`](../mcp_case/server.py) — writes `findings.jsonl` via `finding_record()`
+- mcp_case server: [`mcp_case/server.py`](../mcp_case/server.py) — writes `findings.jsonl` via `finding_record()`; exposes `case_set_motivation()` + `case_completeness_check()`
+- Completeness critic rules: [`siftics/completeness_rules.py`](../siftics/completeness_rules.py) — 7 pure-Python rules over a `CaseState` dataclass, called by `case_completeness_check()`
 - mcp_intel server: [`mcp_intel/server.py`](../mcp_intel/server.py) — generates STIX 2.1 / YARA / Sigma from typed IOCs; writes `intel.jsonl`
 - mcp_ic_approval server: [`mcp_ic_approval/server.py`](../mcp_ic_approval/server.py)
 - Agent runtime backends: [`siftics/agent_runtime.py`](../siftics/agent_runtime.py)
