@@ -138,6 +138,36 @@ def _findings_mention(findings: list[dict], substrings: Iterable[str]) -> bool:
     return False
 
 
+def _tool_invocations(findings: list[dict]) -> set[str]:
+    """Set of lowercase tool names + commands that actually ran in finding records.
+
+    The fuzzy ``_findings_mention`` matches any keyword anywhere in a finding —
+    including recommendations and "this could have been done" prose. ``_tool_invocations``
+    looks only at the ``tool`` and ``command`` fields, which are populated when a
+    tool was actually executed and its output excerpt recorded. This is the v2
+    correlation that closes the "mentioned vs ran" blind spot in the v1 rules.
+    """
+    seen: set[str] = set()
+    for f in findings:
+        for key in ("tool", "command"):
+            v = (f.get(key) or "").strip().lower()
+            if v:
+                seen.add(v)
+    return seen
+
+
+def _ran_tool(findings: list[dict], patterns: Iterable[str]) -> bool:
+    """True if any ``tool`` or ``command`` field in finding records contains any
+    of ``patterns`` (case-insensitive). Tighter than ``_findings_mention``:
+    requires actual execution, not just discussion."""
+    needles = [p.lower() for p in patterns]
+    invocations = _tool_invocations(findings)
+    for inv in invocations:
+        if any(n in inv for n in needles):
+            return True
+    return False
+
+
 def _asr_serials(rows: list[dict]) -> list[str]:
     return [r.get("serial_no") or r.get("system_identifier") or "?" for r in rows]
 
@@ -356,7 +386,9 @@ def rule_cti_lookup_for_external_ips(state: CaseState) -> Gap | None:
 
 def rule_credential_dump_on_dc_compromise(state: CaseState) -> Gap | None:
     """Domain controller in ASR with critical impact → credential-dump check
-    must have run (NTDS.dit / SAM / LSASS)."""
+    must have actually *run* (not just been mentioned). Uses tool-invocation
+    correlation rather than fuzzy text match so a recommendation like
+    "secretsdump could be run here" doesn't satisfy the rule."""
     dc_rows = [
         r for r in state.asr
         if (r.get("impact_rating") or "").lower() == "critical"
@@ -365,13 +397,12 @@ def rule_credential_dump_on_dc_compromise(state: CaseState) -> Gap | None:
     ]
     if not dc_rows:
         return None
-    has_creddump_check = _findings_mention(
+    actually_ran = _ran_tool(
         state.findings,
-        ["ntds.dit", "lsass dump", "hashdump", "secretsdump",
-         "mimikatz", "windows.hashdump", "lsadump", "credential dump",
-         "krbtgt hash"],
+        ["windows.hashdump", "windows.lsadump", "secretsdump", "mimikatz",
+         "ntdsutil", "ntds.dit", "vol.py windows.hash", "impacket"],
     )
-    if has_creddump_check:
+    if actually_ran:
         return None
     return Gap(
         rule="credential_dump_on_dc_compromise",
@@ -384,6 +415,131 @@ def rule_credential_dump_on_dc_compromise(state: CaseState) -> Gap | None:
             "If SIFTics policy is 'do not crack offline,' record the policy "
             "decision explicitly in a briefing rather than leaving the gap "
             "silent — judges and forensic peers will read silence as miss."
+        ),
+    )
+
+
+def rule_archive_carving_for_exfil_with_encrypted_c2(state: CaseState) -> Gap | None:
+    """ASR notes mention exfiltration + encrypted C2 → file-carving in
+    attacker-context directories must have been attempted. Encrypted C2 makes
+    wire content opaque; the staged-archive filenames (e.g. ``loot.zip``,
+    ``secret.zip``) and contents are typically recoverable from $LogFile,
+    unallocated space, or USN journal entries in the attacker's working dirs."""
+    triggered = []
+    for r in state.asr:
+        notes = (r.get("notes") or "").lower() + " " + (r.get("how_determined") or "").lower()
+        has_exfil = any(kw in notes for kw in ("exfil", "exfiltrat", "staged", "crown-jewel", "crown jewel", "loot"))
+        has_encrypted_c2 = any(kw in notes for kw in
+                               ("encrypted c2", "tls", "https c2", "443", "encrypted channel", "meterpreter"))
+        if has_exfil and has_encrypted_c2:
+            triggered.append(r)
+    if not triggered:
+        return None
+    has_carving = _ran_tool(
+        state.findings,
+        ["photorec", "scalpel", "tsk_recover", "fls -d", "icat",
+         "$logfile", "usnjrnl", "usn journal", "unallocated", "free space carving",
+         "bulk_extractor"],
+    ) or _findings_mention(
+        state.findings,
+        ["$logfile carved", "usnjrnl parsed", "unallocated carved",
+         "recovered archive", "archive recovered from free space"],
+    )
+    if has_carving:
+        return None
+    return Gap(
+        rule="archive_carving_for_exfil_with_encrypted_c2",
+        severity="medium",
+        triggered_by=_asr_serials(triggered),
+        suggestion=(
+            "Wire content is encrypted but the *staged archive* often isn't — "
+            "and filenames + content are recoverable from $LogFile, USN journal, "
+            "or unallocated space in the attacker's working directories. Run "
+            "photorec / tsk_recover / bulk_extractor over the working dirs, and "
+            "parse $LogFile + USN journal for the attacker's session window. "
+            "This is how Stolen Szechuan Sauce's ``loot.zip`` and ``secret.zip`` "
+            "are normally surfaced."
+        ),
+    )
+
+
+def rule_mft_recyclebin_for_filename_recovery(state: CaseState) -> Gap | None:
+    """ASR notes mention deleted / replaced / original-filename concerns →
+    $MFT inactive entry recovery + Recycle Bin parsing must have run.
+
+    Common shape: the attacker rewrote a sensitive file with new content and
+    the same name (or a near-name), or deleted the original. The original
+    name lives in $MFT inactive entries or in $I files in the Recycle Bin.
+    """
+    triggered = []
+    for r in state.asr + state.findings:
+        text = " ".join(str(r.get(k) or "") for k in
+                        ("notes", "how_determined", "claim", "output_excerpt")).lower()
+        if any(kw in text for kw in
+               ("deleted file", "deleted_file", "replaced", "original filename",
+                "rename workflow", "file rename", "secure delete", "shred", "recycle bin",
+                "$recycle.bin", "removed file")):
+            triggered.append(r)
+    if not triggered:
+        return None
+    has_recovery = _ran_tool(
+        state.findings,
+        ["analyzemft", "mft inactive", "tsk_recover", "fls -d",
+         "$recycle.bin", "rifiuti2", "$i", "mft carve", "recyclebin"],
+    ) or _findings_mention(
+        state.findings,
+        ["inactive mft entry", "recycle bin entry", "$i file",
+         "recovered original filename", "mft carve recovered"],
+    )
+    if has_recovery:
+        return None
+    return Gap(
+        rule="mft_recyclebin_for_filename_recovery",
+        severity="medium",
+        triggered_by=["(file deletion / replacement noted in case state)"],
+        suggestion=(
+            "Run MFT inactive-entry recovery and Recycle Bin parsing. "
+            "AnalyzeMFT with --include-inactive surfaces deleted file metadata; "
+            "rifiuti2 against $Recycle.Bin\\<SID>\\ pairs $I files with their "
+            "$R contents and shows the original delete time. This is how a "
+            "renamed/replaced sensitive file's original name is recovered."
+        ),
+    )
+
+
+def rule_bruteforce_tool_fingerprint(state: CaseState) -> Gap | None:
+    """RDP/SSH brute-force entry vector → User-Agent / PCAP-string analysis
+    should have run to identify the tool (Hydra, Crowbar, Patator, ncrack).
+    Most operational brute-force tools have distinguishing fingerprints in
+    the connection cadence, TLS handshake, or User-Agent strings."""
+    has_brute = (
+        _findings_mention(
+            state.findings,
+            ["brute-force", "brute force", "bruteforce", "password guessing",
+             "credential stuffing"],
+        )
+        or "brute" in state.briefings_text
+    )
+    if not has_brute:
+        return None
+    has_tool_id = _findings_mention(
+        state.findings,
+        ["hydra", "crowbar", "patator", "ncrack", "medusa", "thc-hydra",
+         "rdpguard", "user-agent.*brute", "tool fingerprint",
+         "tls handshake", "brute-force tool identified"],
+    )
+    if has_tool_id:
+        return None
+    return Gap(
+        rule="bruteforce_tool_fingerprint",
+        severity="low",
+        triggered_by=["(brute-force entry vector confirmed)"],
+        suggestion=(
+            "Identify the brute-force tool from PCAP / TLS handshake / "
+            "connection cadence. Common candidates: Hydra (distinctive "
+            "thread cadence + ALPN), Crowbar (RDP-specific), Patator, "
+            "ncrack, Medusa. Knowing the tool tightens the attribution "
+            "story even when the IP is throwaway infrastructure."
         ),
     )
 
@@ -401,6 +557,9 @@ RULES: list[Callable[[CaseState], Gap | None]] = [
     rule_timezone_registry_read_for_windows,
     rule_cti_lookup_for_external_ips,
     rule_credential_dump_on_dc_compromise,
+    rule_archive_carving_for_exfil_with_encrypted_c2,
+    rule_mft_recyclebin_for_filename_recovery,
+    rule_bruteforce_tool_fingerprint,
 ]
 
 

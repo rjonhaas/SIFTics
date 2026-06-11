@@ -70,7 +70,10 @@ the chain sees the moment of pre-close review and what gaps were surfaced.
 | `browser_history_when_remote_entry_vector` | Entry vector is RDP / SSH / interactive remote session | Browser history parsed (WebCacheV01, Chrome History, Firefox places) | medium |
 | `timezone_registry_read_for_windows` | Any Windows host in ASR | SYSTEM hive timezone key read | medium |
 | `cti_lookup_for_external_ips` | Any non-RFC1918 IP in ASR / findings | At least one explicit CTI feed query per IP (AbuseIPDB / Greynoise / ThreatFox / etc.) | medium |
-| `credential_dump_on_dc_compromise` | Critical-impact ASR row tagged as domain controller | NTDS.dit / SAM / LSASS dump check run | **high** |
+| `credential_dump_on_dc_compromise` | Critical-impact ASR row tagged as domain controller | NTDS.dit / SAM / LSASS dump check actually run (tool-invocation correlation in v1.1) | **high** |
+| `archive_carving_for_exfil_with_encrypted_c2` | ASR notes mention exfil + encrypted C2 (TLS / 443 / Meterpreter) | $LogFile / USN journal / unallocated carving attempted in attacker-context dirs (photorec, tsk_recover, bulk_extractor) | medium |
+| `mft_recyclebin_for_filename_recovery` | ASR notes mention file deletion / replacement / "original filename" / Recycle Bin | MFT inactive-entry recovery + $Recycle.Bin parsing (analyzeMFT --include-inactive, rifiuti2) | medium |
+| `bruteforce_tool_fingerprint` | Brute-force entry vector confirmed | PCAP / TLS handshake / connection-cadence analysis to identify the tool (Hydra / Crowbar / Patator / ncrack / Medusa) | low |
 
 Add a rule by writing `rule_<name>(state)` in `siftics/completeness_rules.py`
 and appending it to the `RULES` list. Each rule is a pure function over
@@ -92,12 +95,14 @@ new findings land, **rerun the critic** before the next major checkpoint.
 A gap that was a `medium` an hour ago can promote to `high` when a critical
 ASR row appears.
 
-## Limitations of the v1 rule set
+## Limitations of the current rule set
 
-- **Fuzzy text matching, not exact tool-invocation tracking.** A rule fires
-  when expected substrings appear in `finding_record` claims and output
-  excerpts. A v2 improvement would correlate exact tool invocations from
-  the audit log; for now the rules trade some false negatives for clarity.
+- **Tool-invocation correlation is partial.** v1 rules used fuzzy text matching
+  against finding_record claims and output excerpts; v1.1 added a `_ran_tool`
+  helper that reads the `tool` and `command` fields directly, and the
+  `credential_dump_on_dc_compromise` rule is now correlation-based. Other rules
+  still mix the two — fuzzy match where it makes sense (scope-of-analysis
+  claims aren't a tool), tool-invocation where execution is what matters.
 - **No rule for hypothesis-engine convergence quality.** The critic doesn't
   check whether you opened enough null-alternative hypotheses or whether
   the winning hypothesis has at least N supporting finding records. That's
