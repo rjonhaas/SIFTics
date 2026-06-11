@@ -1,4 +1,4 @@
-"""Console-script entry points: sift-case-init, sift-approve."""
+"""Console-script entry points: sift-case-init, sift-approve, sift-counsel-acknowledge."""
 from __future__ import annotations
 
 import argparse
@@ -100,4 +100,74 @@ def approve_main(argv: list[str] | None = None) -> int:
         return 4
     print(f"[approve] signed: {decision}")
     print(f"[approve] signature: {approval['signature'][:16]}…")
+    return 0
+
+
+def counsel_acknowledge_main(argv: list[str] | None = None) -> int:
+    """Record an IC acknowledgement that outside counsel has been engaged.
+
+    Required before any Authority Gate with a Legal Officer verdict of
+    ``outside_counsel_required`` can be signed (G17 enforcement in
+    `siftics/ic_approval.py`).
+
+    The CLI appends a ``counsel_acknowledged`` audit event with the IC's
+    name, an optional matter ID, and a free-text reason. The audit event
+    is what `request_approval` checks for before lifting the
+    LegalCounselRequired refusal.
+    """
+    p = argparse.ArgumentParser(
+        description="Record IC acknowledgement that outside counsel has been engaged "
+                    "(required to clear a Legal Officer outside_counsel_required verdict).",
+    )
+    p.add_argument("--case-dir", required=False, type=Path,
+                   help="Override $SIFTICS_CASE_DIR.")
+    p.add_argument("--matter-id", default=None,
+                   help="Specific legal matter ID this acknowledgement covers. Omit "
+                        "for single-matter cases (any counsel_acknowledged event will "
+                        "satisfy any matter).")
+    p.add_argument("--reason", required=True,
+                   help="One-sentence reason / context for the acknowledgement. "
+                        "Goes into the audit chain — write it as something a "
+                        "reviewer or regulator could read months from now.")
+    p.add_argument("--ic-name", default=None,
+                   help="IC name for the audit row. Defaults to the case header's "
+                        "incident_commander.name, then $USER.")
+    p.add_argument("--firm", default=None,
+                   help="Outside counsel firm or contact (optional, informational).")
+    args = p.parse_args(argv)
+
+    if args.case_dir:
+        os.environ["SIFTICS_CASE_DIR"] = str(args.case_dir.expanduser().resolve())
+
+    try:
+        header = case_state.case_get_header()
+    except Exception:
+        header = {}
+    ic_name = (args.ic_name
+               or ((header.get("incident_commander") or {}).get("name"))
+               or os.environ.get("USER")
+               or "ic")
+
+    reason = args.reason.strip()
+    if len(reason) < 15:
+        print("[counsel-acknowledge] error: --reason must be at least 15 characters "
+              "(write a substantive note for the audit chain).", file=sys.stderr)
+        return 2
+
+    payload = {
+        "ic_name": ic_name,
+        "reason": reason,
+    }
+    if args.matter_id:
+        payload["matter_id"] = args.matter_id.strip()
+    if args.firm:
+        payload["firm"] = args.firm.strip()
+
+    case_state.append_event("counsel_acknowledged", payload, actor="ic")
+
+    print(f"[counsel-acknowledge] recorded for {ic_name}"
+          + (f" (matter {payload.get('matter_id')})" if payload.get("matter_id") else "")
+          + ".")
+    print("[counsel-acknowledge] Authority Gates blocked by "
+          "LegalCounselRequired can now be signed.")
     return 0
