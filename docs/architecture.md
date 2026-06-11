@@ -427,7 +427,7 @@ domains.
 - G9 architectural guardrail: `check_budget_or_raise()` refuses LLM
   calls once the per-case spend hits the configured ceiling.
 
-### What a Finance Officer persona would add (sketch, not built)
+### What the Finance Officer persona adds (now built — `skills/finance-officer.md` + `consult_finance_officer` MCP tool)
 
 A `skills/finance-officer.md` mirroring Safety/Legal, with five
 dimensions:

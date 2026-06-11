@@ -562,6 +562,69 @@ def consult_legal_officer(assessment: dict) -> dict:
     }
 
 
+_FINANCE_DIMENSIONS = frozenset({
+    "current_spend", "projection_window", "vendor_engagement",
+    "recovery_cost_class", "breach_insurance_scope",
+})
+_FINANCE_VERDICTS = frozenset({"clear", "advisory", "budget_warning"})
+
+
+@mcp.tool()
+def consult_finance_officer(assessment: dict) -> dict:
+    """Record a Finance Officer assessment for the case or for a specific
+    proposed action.
+
+    The agent loads the ``/finance-officer`` skill, reviews the cost
+    tracker state + the remaining ITQ / open hypotheses / planned hunts,
+    and produces the structured assessment per the skill's output schema.
+    This tool validates the schema and writes a ``finance_assessment``
+    audit event.
+
+    **Doctrine note:** Finance Officer is *informational*. The
+    architectural budget hard-stop is the G9 circuit breaker in
+    ``siftics/cost_tracker.py`` (``check_budget_or_raise``), which fires
+    when the per-case spend hits the configured ceiling regardless of
+    what Finance recommends. Finance surfaces the cost trajectory so
+    the IC can see the wall before the breaker trips — it doesn't add
+    a new architectural constraint.
+
+    The five dimensions are: ``current_spend``, ``projection_window``,
+    ``vendor_engagement``, ``recovery_cost_class``, ``breach_insurance_scope``.
+    Verdicts: ``clear``, ``advisory``, ``budget_warning``.
+
+    Validation rule: when ``current_spend`` is ``critical`` OR
+    ``projection_window`` is ``critical``, the verdict must be
+    ``budget_warning`` — the schema layer rejects any other verdict so
+    a malformed score-vs-verdict combination cannot smuggle through.
+
+    Returns ``{"audit_row_seq": int, "verdict": str,
+               "advisory_to_ic": bool}``.
+
+    Raises ``ValueError`` on schema violations.
+    """
+    _validate_assessment(assessment, _FINANCE_DIMENSIONS,
+                          _FINANCE_VERDICTS, role="finance")
+    # Structural rule: critical-budget scores must produce budget_warning.
+    # Same shape as the Safety Officer personnel_safety hard-stop guard —
+    # ensures a score that the persona can compute cannot be paired with
+    # a verdict that masks the implication.
+    dims = assessment["dimensions"]
+    if any(dims[d]["score"] == "critical"
+           for d in ("current_spend", "projection_window")):
+        if assessment["verdict"] != "budget_warning":
+            raise ValueError(
+                "finance assessment must be 'budget_warning' when "
+                "current_spend or projection_window is critical; got "
+                f"verdict={assessment['verdict']!r}")
+    row = audit.append_event(
+        "finance_assessment", assessment, actor="finance-officer")
+    return {
+        "audit_row_seq": row["seq"],
+        "verdict": assessment["verdict"],
+        "advisory_to_ic": assessment["verdict"] != "clear",
+    }
+
+
 _PIO_DRAFT_TYPES = frozenset({
     "holding_statement", "customer_notification", "press_release",
     "executive_briefing", "customer_faq",
