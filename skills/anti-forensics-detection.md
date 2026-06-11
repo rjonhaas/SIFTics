@@ -65,17 +65,63 @@ last log entry within it is consistent with truncation or replacement.
 
 ## Timestomping (T1070.006)
 
-Covered in detail in `timeline-reconstruction.md`. Key indicators:
+Covered in detail in `timeline-reconstruction.md`.
 
-- SI timestamps predate FN timestamps for the same file
-- SI timestamps set to exactly midnight or another round time
-- SI timestamps earlier than OS install date
+### Scope — three classes of files to check (all three, not just one)
+
+The most common real-world miss is scoping timestomping detection to the
+implant binary only. CTF and training examples timestomp the malware; real
+attackers timestomp **the data they stole** to hide *when* it was staged.
+Always check all three of these:
+
+1. **Implant binaries** — the canonical case. For each malware binary already
+   on the Affected Systems Register, compare `$SI` to:
+   - EVTX 7045 service-install time, if the binary registered a service
+   - EVTX 4688 first-execution time
+   - WMI `Win32_Process` creation time (memory)
+   - Volatility `windows.timeliner` for the loaded module
+
+2. **User-data files in attacker-accessed directories.** For every ASR row
+   whose `notes` field mentions the attacker accessed a directory
+   (`\FileShare\Secret\`, `\Administrator\Documents\`, exfil staging dirs,
+   crown-jewel paths), run `analyzeMFT --fnmismatch` or equivalent across
+   **every file in that directory**. A timestomped data file means the
+   attacker is hiding *when* they staged the exfil archive — extremely
+   high-value finding for both the timeline and the intent narrative.
+
+   Trigger: any `finding_record()` whose `claim` contains
+   "accessed", "exfiltrated", "staged", "exfil", or "crown-jewel".
+
+3. **Log files themselves.** Windows event logs (`Security.evtx`,
+   `System.evtx`, `Application.evtx`) and Linux `wtmp`/`btmp`/`auth.log` can
+   be timestomped to hide gaps. Run `$SI` vs `$FN` on the log files, and
+   compare each log's "last record timestamp" to its filesystem `mtime`.
+
+If any of these three was not in scope of your anti-forensics phase, the
+phase is incomplete — record an explicit "scope: implant-binaries only"
+note in the briefing so a reviewer knows what was and wasn't covered.
+
+### Key indicators
+
+- `$SI` timestamps predate `$FN` timestamps for the same file
+- `$SI` timestamps set to exactly midnight or another round time
+- `$SI` timestamps earlier than OS install date
 - PE compile time is later than MFT Created timestamp
+- A file's `$FN` create time is later than the FS-level `mtime` of its
+  containing directory's `$INDEX_ALLOCATION` entry (only possible if
+  the file was created earlier and stomped, or if the directory's index
+  was also tampered)
 
 **Document as evidence of intent:** Timestomping requires deliberate tool use
 (Metasploit's `timestomp` command, PowerShell, or custom tools). It is not an
 accidental artifact. Finding timestomped files demonstrates the attacker took
 active steps to conceal their activity.
+
+**Anchor the negative case too:** If you ran the three-scope check and found
+no timestomping, write the negative finding explicitly — naming every
+directory and file class you checked — so a downstream reviewer can confirm
+the scope. "No timestomping observed" without scope is a sin of omission
+that reads as "didn't check the right things."
 
 ---
 
