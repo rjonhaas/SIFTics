@@ -47,6 +47,61 @@ def case_update_header(fields: dict[str, Any]) -> dict:
 
 
 @mcp.tool()
+def case_set_motivation(text: str) -> dict:
+    """Set the attacker-motivation field on the case header.
+
+    Call this **once hypothesis convergence is established** — i.e. when
+    one attacker-intent hypothesis has substantively more supporting
+    evidence than the alternatives in the Hypothesis Engine, and you can
+    write a one- or two-sentence characterisation grounded in specific
+    finding IDs or ASR rows.
+
+    The text goes verbatim into the "Why" sentence of the report's
+    Executive Summary, so write it as a complete sentence (subject + verb)
+    that a CISO could read aloud. Cite evidence inline.
+
+    Examples (good):
+      - "Financially-motivated ransomware deployment — coreupdater service
+         + vssadmin shadow-delete on F-009/F-011 align with RansomHub TTPs."
+      - "Espionage-aligned credential theft for downstream access — DCSync
+         on CITADEL-DC01 (F-008) followed by KRBTGT hash export, no
+         destructive payload observed."
+
+    Examples (insufficient):
+      - "Unknown."
+      - "Probably ransomware."
+      - "TBD"
+
+    Writes a `case_motivation_set` audit event so a reviewer replaying
+    the chain sees the moment the IC narrative locked in.
+
+    Args:
+        text: the motivation sentence. Must be at least 25 characters
+              and contain a verb-shaped statement, not a placeholder.
+    """
+    cleaned = (text or "").strip()
+    if len(cleaned) < 25:
+        raise ValueError(
+            "case_set_motivation requires a substantive characterisation "
+            "(>= 25 chars). Wait for hypothesis convergence before calling."
+        )
+    if cleaned.lower() in {"unknown", "tbd", "pending", "n/a", "none"}:
+        raise ValueError(
+            "case_set_motivation rejects placeholder values. Either skip "
+            "the call (the Executive Summary handles the empty case) or "
+            "wait for evidence before naming a motive."
+        )
+    header = case_state.case_update_header({"motivation": cleaned},
+                                           actor="investigation-section-chief")
+    # Separate audit event so the moment of characterisation is greppable
+    case_state.append_event("case_motivation_set",
+                            {"length": len(cleaned),
+                             "first_120_chars": cleaned[:120]},
+                            actor="investigation-section-chief")
+    return header
+
+
+@mcp.tool()
 def case_add_external_ticket(system: str, ticket_id: str, url: str) -> dict:
     """Link an external ticket (Jira, ServiceNow, etc.) into the case."""
     header = case_state.case_get_header()

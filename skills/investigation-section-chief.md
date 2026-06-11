@@ -154,6 +154,59 @@ relevant output in `output_excerpt`. Never omit the call entirely.
 
 Link every `finding_record()` to the ITQ question it answers via `linked_itq`.
 
+## Characterising attacker motivation
+
+The case header carries a `motivation` field that the report's Executive
+Summary renders verbatim. When unset, the Executive Summary says:
+
+> "Attacker motive remains under analysis; the Incident Commander has not
+> yet characterised it in the case header."
+
+Your job is to fill that in **once, when the evidence supports a substantive
+characterisation**. Call:
+
+```
+case_set_motivation("<one or two sentences naming the motive and citing
+                     the finding IDs / ASR rows that support it>")
+```
+
+**When to call**:
+
+1. The Hypothesis Engine shows one attacker-intent hypothesis with substantively
+   more supporting signals than the alternatives — i.e. you've converged.
+2. You have at least two `finding_record()` entries that point at the same
+   intent (e.g. credential theft + lateral movement + no destructive payload =
+   espionage; ransomware-family persistence + shadow-delete + extortion note =
+   financial).
+3. You can write a complete sentence with subject + verb. Not "Unknown.",
+   not "TBD", not "Probably ransomware." The `case_set_motivation` tool will
+   reject those.
+
+**When not to call**:
+
+- The case is still in scoping (no ASR rows yet).
+- The Hypothesis Engine shows two or more competing intent hypotheses with
+  comparable signal counts.
+- You're tempted to write a placeholder so the Executive Summary "fills in".
+  The placeholder sentence is correct in that state — don't overwrite it.
+
+**Examples (substantive, accepted):**
+- *"Financially-motivated ransomware deployment — coreupdater service + vssadmin
+  shadow-delete on F-009/F-011 align with RansomHub TTPs."*
+- *"Espionage-aligned credential theft for downstream access — DCSync on
+  CITADEL-DC01 (F-008) followed by KRBTGT hash export, no destructive payload
+  observed."*
+
+**Examples (placeholder, rejected by the tool):**
+- *"Unknown."*
+- *"Probably ransomware."*
+- *"TBD"*
+
+The call writes a `case_motivation_set` audit event so a reviewer replaying
+the chain can identify the exact moment the IC narrative locked in. If new
+evidence later contradicts the characterisation, call `case_set_motivation`
+again with the revised sentence — the audit chain records both.
+
 ## Anti-patterns to avoid
 
 - **Don't skip exhibit intake hashing.** Before any analysis, every exhibit
