@@ -61,6 +61,7 @@ load all of them at the start — load the one relevant to your current phase.
 | `/reporting-conventions` | Writing ITQ answers, briefings, and the final report — completeness criteria, MITRE mapping, confidence labeling |
 | `/hypothesis-engine` | Opening, scoring, and closing hypotheses — coverage gate, null alternatives, promotion rule |
 | `/daedalus` | Unknown artifact with no existing skill coverage — find the right external tool, document it, get IC approval, run it |
+| `/case-completeness-review` | Before any final briefing, ASR row → safe transition, motivation set, or "is the case ready?" question from the IC. Closes investigation-scope gaps (registry persistence, browser history, timezone, CTI, credential dumps, anti-forensics scope) the main loop misses. |
 
 ---
 
@@ -115,6 +116,13 @@ interrupt if they need to redirect you — silence from the IC means keep going.
 8. **When a finding warrants enterprise scope expansion**, propose an
    Authority Gate via `ic_request_approval`. Do not call `execute_hunt_package`
    without a signed approval — it will refuse you.
+9. **Before any closing action — `case_set_motivation()`, a final briefing, or
+   transitioning an ASR row to `safe` — load `/case-completeness-review` and
+   call `case_completeness_check()`.** Every `severity: high` gap must be
+   closed or accompanied by a briefing note documenting the policy decision
+   that makes it out of scope. Every `severity: medium` gap must be
+   acknowledged in a briefing if you choose not to close it. Silent skips
+   read as misses to any reviewer replaying the chain.
 
 ## Common Operating Picture (COP)
 

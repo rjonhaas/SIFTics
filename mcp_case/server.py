@@ -102,6 +102,62 @@ def case_set_motivation(text: str) -> dict:
 
 
 @mcp.tool()
+def case_completeness_check() -> list[dict]:
+    """Run the completeness critic against the current case state.
+
+    Scans suit.jsonl / findings.jsonl / grid.jsonl / briefings for *trigger*
+    patterns (things you already discovered) and checks whether the *expected*
+    follow-on evidence is also present. Catches investigation gaps the main
+    loop misses — anti-forensics scope creep, registry persistence when only
+    service persistence was found, browser history when the entry vector is
+    a remote session, timezone hive reads on Windows hosts, CTI lookups
+    against external IPs, credential-dump check on compromised DCs, and
+    log-file anti-forensics scope.
+
+    **Call this before**:
+      - Producing the final report (final briefing_post)
+      - Transitioning any ASR row from pending_verification → safe
+      - Closing the case
+      - Whenever the Incident Commander asks "is the case ready?"
+
+    Each gap dict carries:
+      - rule: stable identifier (you can grep audit log for the rule name)
+      - severity: high | medium | low
+      - triggered_by: which ASR serials / finding IDs fired the rule
+      - suggestion: one-sentence next action
+
+    Required actions per severity:
+      - high   → close the gap OR write a briefing note documenting the
+                  policy decision that makes it out of scope
+      - medium → recommend close. If skipping, write a brief acknowledgement.
+      - low    → surface in the report's "limitations" section.
+
+    Writes a `case_completeness_check_run` audit event recording how many
+    gaps surfaced at each severity, so a reviewer replaying the chain sees
+    the moment of pre-close review.
+
+    Returns:
+        list of gap dicts (ordered high → medium → low). Empty list means
+        the current rule set found nothing missing — not a proof of
+        completeness, but a useful signal.
+    """
+    from siftics import completeness_rules
+    case_dir = case_state.case_dir()
+    gaps = completeness_rules.check_completeness(case_dir)
+
+    by_sev = {"high": 0, "medium": 0, "low": 0}
+    for g in gaps:
+        by_sev[g.get("severity", "low")] = by_sev.get(g.get("severity", "low"), 0) + 1
+    case_state.append_event(
+        "case_completeness_check_run",
+        {"total_gaps": len(gaps), "by_severity": by_sev,
+         "rules_triggered": [g["rule"] for g in gaps]},
+        actor="investigation-section-chief",
+    )
+    return gaps
+
+
+@mcp.tool()
 def case_add_external_ticket(system: str, ticket_id: str, url: str) -> dict:
     """Link an external ticket (Jira, ServiceNow, etc.) into the case."""
     header = case_state.case_get_header()
