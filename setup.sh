@@ -671,5 +671,7 @@ if [[ "$START_UI" == "yes" ]]; then
     UI_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
     UI_IP="${UI_IP:-127.0.0.1}"
     echo
-    echo "http://${UI_IP}:8080"
+    green "SIFTics is ready. Open this URL in your browser:"
+    cyan  "    http://${UI_IP}:8080"
+    echo
 fi
