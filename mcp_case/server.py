@@ -562,6 +562,105 @@ def consult_legal_officer(assessment: dict) -> dict:
     }
 
 
+_PIO_DRAFT_TYPES = frozenset({
+    "holding_statement", "customer_notification", "press_release",
+    "executive_briefing", "customer_faq",
+})
+
+# Draft types that MUST cite at least one evidence_ref for every factual
+# claim — these go to external audiences and can't carry unverified facts.
+_PIO_DRAFTS_REQUIRING_EVIDENCE = frozenset({
+    "customer_notification", "press_release",
+})
+
+
+@mcp.tool()
+def pio_draft_statement(draft: dict) -> dict:
+    """Record a Public Information Officer (PIO) draft statement.
+
+    The agent loads the ``/public-information-officer`` skill, reviews the
+    facts confirmed in the audit chain, and produces a draft of one of the
+    five PIO deliverables. This tool validates the structure and writes a
+    ``pio_draft_recorded`` audit event.
+
+    **Critical workflow detail (NIMS doctrine):** PIO drafts go through a
+    three-step approval — PIO drafts → Legal reviews for compliance and
+    privilege → IC signs off before publication. This tool only records
+    the *draft*; it does NOT publish. The signed-publication flow goes
+    through the existing Authority Gate mechanism.
+
+    Expected ``draft`` shape::
+
+        {
+          "draft_type": "holding_statement"
+                       | "customer_notification"
+                       | "press_release"
+                       | "executive_briefing"
+                       | "customer_faq",
+          "audience": "<who reads this — 'customers', 'press', 'board', etc.>",
+          "content": "<draft text, >= 50 chars>",
+          "evidence_refs": ["F-009", "ASR-1", ...],  # finding/ASR IDs
+                                                       # backing every factual claim
+          "unconfirmed_claims": [                      # explicitly-labelled
+              "Attacker may still be active.",         #   "as of now, unconfirmed"
+              ...
+          ],
+          "requires_legal_review": true,   # always true; workflow gate
+          "requires_ic_signoff":   true    # always true; workflow gate
+        }
+
+    Validation rules:
+      - draft_type must be one of the five
+      - content >= 50 chars
+      - requires_legal_review and requires_ic_signoff must both be True
+      - press_release and customer_notification must have at least one
+        evidence_ref (external audiences can't carry unverified facts)
+      - unconfirmed_claims, when present, must be a list (an empty list
+        is OK — that affirmatively states "no unconfirmed claims")
+
+    Returns ``{"audit_row_seq": int, "draft_type": str, "evidence_count": int,
+               "unconfirmed_count": int}``.
+
+    Raises ``ValueError`` on schema violations.
+    """
+    if not isinstance(draft, dict):
+        raise ValueError("pio draft must be a dict")
+    dt = draft.get("draft_type")
+    if dt not in _PIO_DRAFT_TYPES:
+        raise ValueError(
+            f"pio draft_type must be one of {sorted(_PIO_DRAFT_TYPES)}; got {dt!r}")
+    content = (draft.get("content") or "").strip()
+    if len(content) < 50:
+        raise ValueError("pio draft content must be at least 50 chars")
+    if draft.get("requires_legal_review") is not True:
+        raise ValueError(
+            "pio drafts must carry requires_legal_review=True — Legal review "
+            "is the second step of the PIO → Legal → IC workflow and is "
+            "not optional")
+    if draft.get("requires_ic_signoff") is not True:
+        raise ValueError(
+            "pio drafts must carry requires_ic_signoff=True — IC sign-off is "
+            "the third step of the PIO → Legal → IC workflow and is not optional")
+    refs = draft.get("evidence_refs", [])
+    if not isinstance(refs, list):
+        raise ValueError("pio draft evidence_refs must be a list (may be empty)")
+    if dt in _PIO_DRAFTS_REQUIRING_EVIDENCE and not refs:
+        raise ValueError(
+            f"pio draft_type={dt!r} must cite at least one evidence_ref "
+            "(external audience — no unbacked claims)")
+    unconfirmed = draft.get("unconfirmed_claims", [])
+    if not isinstance(unconfirmed, list):
+        raise ValueError("pio draft unconfirmed_claims must be a list (may be empty)")
+
+    row = audit.append_event("pio_draft_recorded", draft, actor="public-information-officer")
+    return {
+        "audit_row_seq": row["seq"],
+        "draft_type": dt,
+        "evidence_count": len(refs),
+        "unconfirmed_count": len(unconfirmed),
+    }
+
+
 # ---------------------------------------------------------------------------
 # CLI entry
 # ---------------------------------------------------------------------------

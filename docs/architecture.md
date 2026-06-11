@@ -467,9 +467,9 @@ reviews them for compliance and privilege**; **IC signs off** before
 publication. This is a three-step Authority Gate, not a single
 person's decision.
 
-### What a PIO persona would produce (sketch)
+### What the PIO persona produces (now built — `skills/public-information-officer.md` + `pio_draft_statement` MCP tool)
 
-A `skills/public-information-officer.md` would own these
+`skills/public-information-officer.md` owns these
 deliverables — *drafts only*, none auto-published:
 
 | Deliverable | When | Goes to |
