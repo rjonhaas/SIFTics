@@ -471,6 +471,44 @@ function streamAgent(url, formData) {
         if (btn && d.has_session) btn.textContent = 'Resume Investigation';
       });
   }
+
+  // ── Auto-dispatch after IC gate sign ───────────────────────────────
+  // When /gates approves a request, gates.html redirects here with
+  // siftics_after_sign in sessionStorage. We immediately fire a chat
+  // message instructing the agent to execute the approved action —
+  // closing the "approved at zero, fired at three seconds" loop the
+  // demo is built around. No operator click required.
+  (function autoDispatchAfterSign() {
+    var raw = sessionStorage.getItem('siftics_after_sign');
+    if (!raw) return;
+    sessionStorage.removeItem('siftics_after_sign');
+    var info;
+    try { info = JSON.parse(raw); } catch (e) { return; }
+    if (!info || !info.request_id || !info.gate) return;
+
+    var msg = 'The Incident Commander just signed Authority Gate '
+            + info.request_id + ' (gate=' + info.gate
+            + (info.summary ? ', summary: ' + info.summary : '')
+            + '). Execute the approved action immediately via the '
+            + 'appropriate MCP execute_* function for this gate type '
+            + '(execute_containment_action for containment_action; '
+            + 'execute_hunt_package for execute_hunt_package; '
+            + 'publish_intel for publish_intel), citing the signed '
+            + 'approval. Post a one-paragraph briefing summarising what '
+            + 'fired and any immediate results.';
+
+    // Wait one tick for the chat form + transcript renderer to mount,
+    // then fill the input and submit it just like a normal operator
+    // message. The existing sendMessage() handler streams the agent
+    // response, snapshots the transcript, and updates the activity feed.
+    setTimeout(function () {
+      var inp = document.getElementById('chat-input');
+      var form = document.getElementById('chat-form');
+      if (!inp || !form) return;
+      inp.value = msg;
+      form.dispatchEvent(new Event('submit', {bubbles: true, cancelable: true}));
+    }, 200);
+  })();
 </script>
 
 {% endif %}

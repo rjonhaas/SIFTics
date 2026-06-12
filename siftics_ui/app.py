@@ -1353,6 +1353,7 @@ def _list_signed_gates(limit: int = 10) -> list[dict]:
 
 
 def _sign_request(decision: str) -> Response:
+    import html as _html
     request_id = request.form.get("request_id")
     passphrase = request.form.get("passphrase", "")
     if not request_id or not passphrase:
@@ -1366,9 +1367,22 @@ def _sign_request(decision: str) -> Response:
     # Best-effort: scrub passphrase reference from the form dict
     request.form = None  # type: ignore[assignment]
     if request.headers.get("HX-Request"):
+        # Include gate metadata as data-* attributes so the gates.html JS
+        # can pick them up and auto-dispatch a follow-up agent message
+        # ("execute the approved action") — this is the "fight back at AI
+        # speed" loop closure. Only fires for approvals; denials do not
+        # auto-dispatch.
+        gate = _html.escape(str(approval.get("gate") or ""), quote=True)
+        summary = _html.escape(str(approval.get("summary") or "")[:200],
+                                quote=True)
+        req_id_esc = _html.escape(str(request_id), quote=True)
         return Response(
-            f"<div class='text-emerald-400 p-2'>"
-            f"Signed {decision} for <code>{request_id}</code>"
+            f"<div class='text-emerald-400 p-2' "
+            f"data-signed='{decision}' "
+            f"data-request-id='{req_id_esc}' "
+            f"data-gate='{gate}' "
+            f"data-summary='{summary}'>"
+            f"Signed {decision} for <code>{req_id_esc}</code>"
             f"</div>",
             mimetype="text/html",
         )

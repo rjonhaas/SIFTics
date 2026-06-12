@@ -183,6 +183,25 @@
         .then(function (r) { return r.text().then(function (html) { return { html: html, ok: r.ok }; }); })
         .then(function (result) {
           if (result.ok) {
+            // Parse the success HTML to detect an approval — only approvals
+            // auto-dispatch a follow-up agent message ("execute the
+            // approved action"). Denials replace the form inline and stop.
+            var tmp = document.createElement('div');
+            tmp.innerHTML = result.html;
+            var signed = tmp.querySelector('[data-signed="approved"]');
+            if (signed && signed.dataset.gate) {
+              // Stash gate metadata in sessionStorage; the dashboard reads
+              // it on load and immediately fires the chat form so the
+              // agent executes the approved action without operator
+              // intervention. Cleared once consumed.
+              sessionStorage.setItem('siftics_after_sign', JSON.stringify({
+                request_id: signed.dataset.requestId,
+                gate:       signed.dataset.gate,
+                summary:    signed.dataset.summary,
+              }));
+              window.location.href = "{{ url_for('dashboard') }}";
+              return;
+            }
             article.outerHTML = result.html;
           } else {
             errEl.textContent = result.html.replace(/<[^>]+>/g, '');
