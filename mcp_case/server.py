@@ -562,6 +562,127 @@ def consult_legal_officer(assessment: dict) -> dict:
     }
 
 
+@mcp.tool()
+def anti_forensics_review(review: dict) -> dict:
+    """Record the agent's anti-forensics review of the case.
+
+    Anti-forensics is open-ended adversarial — no fixed checklist captures
+    its surface for an arbitrary case. The agent loads the
+    ``/anti-forensics-review`` skill, reads the case, enumerates every
+    distinct attacker action recorded, reasons about plausible evasion
+    techniques for each, and checks coverage. This tool validates the
+    structured output and writes an ``anti_forensics_review_completed``
+    audit event.
+
+    Distinct from ``case_completeness_check`` (which catches bounded
+    yes/no tool-invocation gaps) — both run at the same pre-close
+    checkpoint and complement each other.
+
+    Expected ``review`` shape::
+
+        {
+          "action_hash": "<sha256 of case state at time of review>",
+          "attacker_actions_enumerated": [
+            {"action": "...", "source_finding_ids": ["F-012", "F-014"]},
+            ...
+          ],
+          "coverage_assessment": [
+            {
+              "action_idx": <int — index into attacker_actions_enumerated>,
+              "plausible_evasions": ["...", "..."],
+              "what_was_checked": ["..."],
+              "gap": "<gap description, or null>",
+              "gap_severity": "high" | "medium" | "low" | "none"
+            },
+            ...
+          ],
+          "summary": "<short summary, >= 30 chars>",
+          "reviewer_certainty": "high" | "medium" | "low"
+        }
+
+    Validation rules:
+      - attacker_actions_enumerated must be non-empty (an empty case is
+        not a reviewable case; load the skill again and read more findings)
+      - every coverage_assessment.action_idx must reference a valid index
+      - gap_severity must be high|medium|low|none; if "none", gap must be
+        null or empty; if not "none", gap must be a non-empty string
+      - summary >= 30 chars
+      - reviewer_certainty must be one of {high, medium, low}
+
+    Returns ``{"audit_row_seq": int, "actions_reviewed": int,
+               "gaps_high": int, "gaps_medium": int, "gaps_low": int,
+               "reviewer_certainty": str}``.
+
+    Raises ``ValueError`` on schema violations.
+    """
+    if not isinstance(review, dict):
+        raise ValueError("anti-forensics review must be a dict")
+
+    actions = review.get("attacker_actions_enumerated") or []
+    if not isinstance(actions, list) or not actions:
+        raise ValueError(
+            "anti_forensics_review requires non-empty "
+            "attacker_actions_enumerated — an empty case is not a "
+            "reviewable case; read more findings before calling this tool")
+
+    coverage = review.get("coverage_assessment") or []
+    if not isinstance(coverage, list):
+        raise ValueError("coverage_assessment must be a list")
+
+    allowed_sev = {"high", "medium", "low", "none"}
+    counts = {"high": 0, "medium": 0, "low": 0, "none": 0}
+    for i, c in enumerate(coverage):
+        if not isinstance(c, dict):
+            raise ValueError(f"coverage_assessment[{i}] must be a dict")
+        idx = c.get("action_idx")
+        if not isinstance(idx, int) or not (0 <= idx < len(actions)):
+            raise ValueError(
+                f"coverage_assessment[{i}].action_idx must reference a valid "
+                f"index into attacker_actions_enumerated (0..{len(actions) - 1})")
+        sev = c.get("gap_severity")
+        if sev not in allowed_sev:
+            raise ValueError(
+                f"coverage_assessment[{i}].gap_severity must be one of "
+                f"{sorted(allowed_sev)}; got {sev!r}")
+        gap_text = c.get("gap")
+        if sev == "none":
+            if gap_text:
+                raise ValueError(
+                    f"coverage_assessment[{i}] has gap_severity=none "
+                    f"but a non-empty gap description; either set a "
+                    f"non-none severity or clear the gap field")
+        else:
+            if not isinstance(gap_text, str) or not gap_text.strip():
+                raise ValueError(
+                    f"coverage_assessment[{i}] has gap_severity={sev!r} "
+                    f"but no gap description — describe the gap or set "
+                    f"gap_severity to none")
+        counts[sev] += 1
+
+    summary = (review.get("summary") or "").strip()
+    if len(summary) < 30:
+        raise ValueError(
+            "anti-forensics review summary must be at least 30 chars "
+            "(write a substantive one-line conclusion)")
+
+    cert = review.get("reviewer_certainty")
+    if cert not in {"high", "medium", "low"}:
+        raise ValueError(
+            f"reviewer_certainty must be one of high|medium|low; got {cert!r}")
+
+    row = audit.append_event(
+        "anti_forensics_review_completed", review,
+        actor="anti-forensics-reviewer")
+    return {
+        "audit_row_seq": row["seq"],
+        "actions_reviewed": len(actions),
+        "gaps_high": counts["high"],
+        "gaps_medium": counts["medium"],
+        "gaps_low": counts["low"],
+        "reviewer_certainty": cert,
+    }
+
+
 _FINANCE_DIMENSIONS = frozenset({
     "current_spend", "projection_window", "vendor_engagement",
     "recovery_cost_class", "breach_insurance_scope",

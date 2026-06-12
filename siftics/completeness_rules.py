@@ -177,62 +177,21 @@ def _asr_serials(rows: list[dict]) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-def rule_antiforensics_scope_data_files(state: CaseState) -> Gap | None:
-    """If ASR notes mention attacker file access, anti-forensics scope must
-    cover user-data files in those directories (not just the implant binary)."""
-    triggered = _any_field_contains(state.asr, "notes", _DATA_ACCESS_KEYWORDS)
-    if not triggered:
-        triggered = _any_field_contains(state.asr, "how_determined", _DATA_ACCESS_KEYWORDS)
-    if not triggered:
-        return None
-    has_scope = _findings_mention(
-        state.findings,
-        ["mft", "analyzemft", "$si vs $fn", "$fn vs $si", "user-data", "user data",
-         "data file timestomp", "directory scan", "filesystem timeline"],
-    )
-    if has_scope:
-        return None
-    return Gap(
-        rule="antiforensics_scope_data_files",
-        severity="high",
-        triggered_by=_asr_serials(triggered),
-        suggestion=(
-            "Re-run /anti-forensics-detection with scope expanded to user-data "
-            "files in the attacker-accessed directories. See the skill's 'Scope "
-            "— three classes of files' section: implant binaries (you covered "
-            "this), user-data files (likely missing), log files."
-        ),
-    )
-
-
-def rule_antiforensics_scope_log_files(state: CaseState) -> Gap | None:
-    """Anti-forensics scope must cover the log files themselves — Windows
-    EVTX, Linux wtmp/btmp/auth.log — not just the malware binary."""
-    # Only fires if any anti-forensics finding exists (i.e. agent ran the
-    # phase) but no log-file scope coverage is recorded.
-    ran_check = _findings_mention(
-        state.findings, ["anti-forensic", "antiforensic", "timestomp"],
-    )
-    if not ran_check:
-        return None
-    has_log_scope = _findings_mention(
-        state.findings,
-        ["evtx mtime", "evtx $si", "evtx $fn", "log file timestomp",
-         "wtmp timestomp", "auth.log mtime", "log file scope",
-         "security.evtx $", "system.evtx $"],
-    )
-    if has_log_scope:
-        return None
-    return Gap(
-        rule="antiforensics_scope_log_files",
-        severity="medium",
-        triggered_by=["(anti-forensics phase ran)"],
-        suggestion=(
-            "Add log files to the anti-forensics scope. Compare $SI vs $FN on "
-            "Security.evtx / System.evtx (Windows) or wtmp/btmp/auth.log (Linux), "
-            "and check each log's last-record timestamp against its filesystem mtime."
-        ),
-    )
+# Anti-forensics scope rules removed deliberately. The earlier
+# rule_antiforensics_scope_data_files and rule_antiforensics_scope_log_files
+# tried to express "the agent should have checked anti-forensics on user-data
+# files / log files" as a keyword-matched rule. They had the same CTF-shaped
+# bias as the agent they were supposed to catch — pattern-matching cannot
+# answer the open-ended question "given what this attacker did, what
+# anti-forensics evasions are plausible and have we checked them?" That
+# question requires reading the case and reasoning about coverage, not
+# matching strings.
+#
+# Anti-forensics review is now persona-driven. See:
+#   skills/anti-forensics-review.md  — the reviewer persona
+#   mcp_case.anti_forensics_review()  — the MCP entry point
+# The ISC operating loop calls anti_forensics_review() at the same
+# completion checkpoint where it calls case_completeness_check().
 
 
 def rule_registry_persistence_when_service_persistence(state: CaseState) -> Gap | None:
@@ -550,8 +509,7 @@ def rule_bruteforce_tool_fingerprint(state: CaseState) -> Gap | None:
 
 
 RULES: list[Callable[[CaseState], Gap | None]] = [
-    rule_antiforensics_scope_data_files,
-    rule_antiforensics_scope_log_files,
+    # Anti-forensics removed — see persona-driven anti_forensics_review() instead.
     rule_registry_persistence_when_service_persistence,
     rule_browser_history_when_remote_entry_vector,
     rule_timezone_registry_read_for_windows,

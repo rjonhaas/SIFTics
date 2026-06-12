@@ -62,10 +62,19 @@ the chain sees the moment of pre-close review and what gaps were surfaced.
 
 ## Rules in v1
 
+> **Anti-forensics removed from this rule set.** Earlier versions of this
+> skill carried two anti-forensics rules; both were keyword-pattern
+> matchers that satisfied the moment the agent ran the textbook check on
+> the implant binary, with the same CTF-bias as the agent they were
+> supposed to catch. Anti-forensics is open-ended adversarial work and
+> cannot be enumerated as bounded yes/no checks. Use
+> **`/anti-forensics-review`** (and its `anti_forensics_review()` MCP
+> tool) at the same pre-close checkpoint — that skill does generative
+> reasoning over the attacker actions actually recorded in the case,
+> not keyword matching.
+
 | Rule name | Triggers when… | Expects… | Severity if missing |
 |---|---|---|---|
-| `antiforensics_scope_data_files` | ASR notes mention attacker accessed / exfiltrated / staged files | finding records covering MFT $SI vs $FN on user-data files in those directories | **high** |
-| `antiforensics_scope_log_files` | Any anti-forensics phase ran | finding records covering EVTX / wtmp / btmp / auth.log scope | medium |
 | `registry_persistence_when_service_persistence` | Service-based persistence found (7045 / SERVICE_AUTO_START / T1543.003) | Registry Run / RunOnce / IFEO checked | **high** |
 | `browser_history_when_remote_entry_vector` | Entry vector is RDP / SSH / interactive remote session | Browser history parsed (WebCacheV01, Chrome History, Firefox places) | medium |
 | `timezone_registry_read_for_windows` | Any Windows host in ASR | SYSTEM hive timezone key read | medium |
