@@ -126,22 +126,31 @@ Each record includes: timestamp, process, subsystem, category, message.
 The `log` command is macOS-native and NOT available on Linux/SIFT. Do not attempt
 to use it against an acquired image. Use mac_apt + Mandiant parser instead.
 
-### Key Unified Log queries (after parsing to JSONL)
+### Slicing the Unified Log
+
+After parsing to JSONL, slice by subsystem/process to bring related events
+together — then read each slice in context. The greps below are a starting
+filter, not a verdict; the analysis is reading the records each one returns.
 
 ```bash
-# Authentication events
+# Authentication subsystem events — read each in sequence with the surrounding
+# process activity, then evaluate against the user's normal pattern.
 grep -i "authd\|sudo\|login\|authenticate" /output/unified_log.jsonl
 
-# Network connections
+# Networking events — assess against the user's expected destinations, the
+# host's role, and any flows already in evidence.
 grep -i "nw_connection\|networkd\|socketfilter" /output/unified_log.jsonl
 
-# Process launches
+# Process launches (excluding Apple-signed) — read the parent/child chain,
+# the binary path, and the user context.
 grep -i "execve\|spawn\|launchd\|xpc" /output/unified_log.jsonl | grep -v "com.apple"
 
-# Suspicious: commands run in Terminal
+# Interactive shell activity — read the surrounding events to reconstruct
+# what session each shell came from.
 grep '"process":"bash"\|"process":"zsh"\|"process":"sh"' /output/unified_log.jsonl
 
-# USB device connections
+# USB / removable storage — evaluate each connection against the user's
+# expected devices and the case's exfiltration timeline.
 grep -i "IOUSBDevice\|IOUSBHost\|DiskArbitration" /output/unified_log.jsonl
 ```
 
@@ -162,9 +171,13 @@ persistence locations than Windows.
 /System/Library/LaunchDaemons/          ← Apple-owned (baseline)
 ```
 
-mac_apt `AUTOSTART` covers all of these. For each plist: check `ProgramArguments`,
-`Program`, and `RunAtLoad`. Any path outside `/System/Library/` or `/usr/libexec/`
-that wasn't installed by a known vendor is a candidate.
+mac_apt `AUTOSTART` covers all of these. Run it, then read every plist it
+surfaces. For each entry, evaluate the binary path, signing authority, and
+load trigger against what the host's vendor install history (see
+`INSTALLHISTORY`) suggests should be present. Anything outside the
+Apple-owned trees that doesn't trace to a vendor install is a candidate
+worth opening up — open the plist, follow the binary, and reason about
+what it does.
 
 ### Login items
 
