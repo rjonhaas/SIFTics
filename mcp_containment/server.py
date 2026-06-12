@@ -125,16 +125,20 @@ def propose_host_isolation(host_id: str, severity: str = "high",
     ]
 
     action_id = f"act_{uuid.uuid4().hex[:8]}"
-    result = {
-        "action_id": action_id,
+
+    # Canonical action dict — deterministic shape so the agent's prior
+    # consult_safety_officer / consult_legal_officer calls (which had to
+    # cite the same action_hash) match the gate request below. The
+    # action_id is intentionally excluded from this dict so the hash is
+    # stable across the consult/request boundary; it's recorded
+    # separately on the gate metadata.
+    canonical_action = {
         "action_class": "host_isolation",
         "target_entity": host_id,
         "severity": severity,
         "rationale": rationale,
-        "checklist": checklist,
-        "automation_available": velo_ready,
-        "_v1_note": "Authority Gate containment_action must approve before execution.",
     }
+
     audit.append_event("containment_proposed", {
         "action_id": action_id,
         "action_class": "host_isolation",
@@ -143,7 +147,40 @@ def propose_host_isolation(host_id: str, severity: str = "high",
         "automation_available": velo_ready,
         "checklist_steps": len(checklist),
     }, actor="investigation-section-chief")
-    return result
+
+    # Authority Gate: surface this proposal to the IC by opening a pending
+    # approval request. Will raise SafetyConsultRequired /
+    # LegalConsultRequired / SafetyHardStop / LegalCounselRequired if the
+    # Command Staff consults for this canonical_action haven't been
+    # recorded yet — the agent must call consult_safety_officer +
+    # consult_legal_officer FIRST with the same canonical action shape.
+    summary = (f"Isolate {host_id} ({severity}) — "
+               f"{rationale or 'compromised host'}")
+    approval_request = ic_approval.request_approval(
+        gate="containment_action",
+        summary=summary,
+        action=canonical_action,
+        proposed_by="investigation-section-chief",
+    )
+
+    return {
+        "action_id": action_id,
+        "request_id": approval_request["request_id"],
+        "action_class": "host_isolation",
+        "target_entity": host_id,
+        "severity": severity,
+        "rationale": rationale,
+        "checklist": checklist,
+        "automation_available": velo_ready,
+        "pending_approval_at": (
+            f"approvals/pending/{approval_request['request_id']}.json"
+        ),
+        "_workflow_note": (
+            "Pending Authority Gate request created — visible on the "
+            "dashboard and at /gates. The IC must sign before any "
+            "containment_action execution will fire."
+        ),
+    }
 
 
 @mcp.tool()
@@ -211,20 +248,15 @@ def propose_user_account_response(user_principal: str, severity: str = "high",
         ))
 
     action_id = f"act_{uuid.uuid4().hex[:8]}"
-    result = {
-        "action_id": action_id,
+
+    # Canonical action dict (see propose_host_isolation for the rationale)
+    canonical_action = {
         "action_class": "user_account_response",
         "target_entity": user_principal,
         "severity": severity,
         "rationale": rationale,
-        "checklist": checklist,
-        "automation_available": entra_ready,
-        "automation_live": entra_live,
-        "_v1_note": "Authority Gate containment_action must approve before execution. "
-                    + ("Entra ID is configured in live mode — approved actions will fire Graph API calls."
-                       if entra_live else
-                       "Entra ID is in stub mode — approval logs intent only; execute checklist manually."),
     }
+
     audit.append_event("containment_proposed", {
         "action_id": action_id,
         "action_class": "user_account_response",
@@ -234,7 +266,40 @@ def propose_user_account_response(user_principal: str, severity: str = "high",
         "automation_live": entra_live,
         "checklist_steps": len(checklist),
     }, actor="investigation-section-chief")
-    return result
+
+    # Authority Gate — same pattern as propose_host_isolation
+    summary = (f"Account response for {user_principal} ({severity}) — "
+               f"{rationale or 'compromised user account'}")
+    approval_request = ic_approval.request_approval(
+        gate="containment_action",
+        summary=summary,
+        action=canonical_action,
+        proposed_by="investigation-section-chief",
+    )
+
+    return {
+        "action_id": action_id,
+        "request_id": approval_request["request_id"],
+        "action_class": "user_account_response",
+        "target_entity": user_principal,
+        "severity": severity,
+        "rationale": rationale,
+        "checklist": checklist,
+        "automation_available": entra_ready,
+        "automation_live": entra_live,
+        "pending_approval_at": (
+            f"approvals/pending/{approval_request['request_id']}.json"
+        ),
+        "_workflow_note": (
+            "Pending Authority Gate request created — visible on the "
+            "dashboard and at /gates. "
+            + ("Entra ID is configured in live mode — approved actions "
+               "will fire Graph API calls."
+               if entra_live else
+               "Entra ID is in stub mode — approval logs intent only; "
+               "execute checklist manually after IC sign-off.")
+        ),
+    }
 
 
 # ---------------------------------------------------------------------------

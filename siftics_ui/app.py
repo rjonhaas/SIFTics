@@ -610,6 +610,11 @@ def create_app() -> Flask:
         return render_template("_runtime_status.html",
                                 runtime=_runtime_status())
 
+    @app.route("/dashboard/gates-summary")
+    def dashboard_gates_summary():
+        return render_template("_gates_summary.html",
+                                pending_gate_count=len(_list_pending_gates()))
+
     # -----------------------------------------------------------------
     # Claude Code agent — subprocess integration
     # -----------------------------------------------------------------
