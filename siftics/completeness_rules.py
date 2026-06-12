@@ -177,23 +177,6 @@ def _asr_serials(rows: list[dict]) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-# Anti-forensics scope rules removed deliberately. The earlier
-# rule_antiforensics_scope_data_files and rule_antiforensics_scope_log_files
-# tried to express "the agent should have checked anti-forensics on user-data
-# files / log files" as a keyword-matched rule. They had the same CTF-shaped
-# bias as the agent they were supposed to catch — pattern-matching cannot
-# answer the open-ended question "given what this attacker did, what
-# anti-forensics evasions are plausible and have we checked them?" That
-# question requires reading the case and reasoning about coverage, not
-# matching strings.
-#
-# Anti-forensics review is now persona-driven. See:
-#   skills/anti-forensics-review.md  — the reviewer persona
-#   mcp_case.anti_forensics_review()  — the MCP entry point
-# The ISC operating loop calls anti_forensics_review() at the same
-# completion checkpoint where it calls case_completeness_check().
-
-
 def rule_registry_persistence_when_service_persistence(state: CaseState) -> Gap | None:
     """If service-based persistence was found, registry Run/RunOnce keys must
     also be checked (attackers commonly use both)."""
@@ -509,7 +492,6 @@ def rule_bruteforce_tool_fingerprint(state: CaseState) -> Gap | None:
 
 
 RULES: list[Callable[[CaseState], Gap | None]] = [
-    # Anti-forensics removed — see persona-driven anti_forensics_review() instead.
     rule_registry_persistence_when_service_persistence,
     rule_browser_history_when_remote_entry_vector,
     rule_timezone_registry_read_for_windows,
