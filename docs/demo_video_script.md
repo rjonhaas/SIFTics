@@ -54,13 +54,13 @@ Companion to [`docs/demo_video.md`](demo_video.md) (storyboard). This file is th
 
 ---
 
-## ACT 2.1 — Posture switch Mock → Live (1:55–2:10, ~14s)
+## ACT 2.1 — Posture switch Standalone → Connected (1:55–2:10, ~14s)
 
-**VISUAL:** Browser at `/setup`. Click the **Live — connected** radio under Response Posture. Click **Save**. Dashboard banner refreshes: *"Response posture: Live."*
+**VISUAL:** Browser at `/setup`. Click the **Connected** radio under Response Posture. Click **Save**. Dashboard banner refreshes: *"Response posture: Connected."*
 
 **NARRATION:**
 
-> Same agent. Same audit chain. Now we flip the response posture from Mock to Live. The MCP broker reconnects to a real Velociraptor server. No code change, no restart — schema-layer flag, takes effect on the next message.
+> Same agent. Same audit chain. Now we flip the response posture from Standalone to Connected. The agent's response tools start talking to a real Velociraptor server. No code change, no restart — schema-layer flag, takes effect on the next message.
 
 ---
 
