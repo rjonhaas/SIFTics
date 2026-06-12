@@ -61,7 +61,7 @@ load all of them at the start — load the one relevant to your current phase.
 | `/reporting-conventions` | Writing ITQ answers, briefings, and the final report — completeness criteria, MITRE mapping, confidence labeling |
 | `/hypothesis-engine` | Opening, scoring, and closing hypotheses — coverage gate, null alternatives, promotion rule |
 | `/daedalus` | Unknown artifact with no existing skill coverage — find the right external tool, document it, get IC approval, run it |
-| `/case-completeness-review` | Before any final briefing, ASR row → safe transition, motivation set, or "is the case ready?" question from the IC. Closes investigation-scope gaps (registry persistence, browser history, timezone, CTI, credential dumps) the main loop misses via bounded yes/no rules. |
+| `/case-completeness-review` | Before any final briefing, ASR row → safe transition, motivation set, or "is the case ready?" question from the IC. Persona-driven: on first call, you enumerate the investigation categories this case demands; the enumeration locks into the audit chain. Subsequent calls evaluate coverage against the lock; new categories require an explicit expansion record. Bounded counterpart to anti-forensics review. |
 | `/anti-forensics-review` | Same pre-close checkpoint as case-completeness. Open-ended adversarial domain — instead of pattern-matching, the reviewer enumerates the attacker actions in this specific case and reasons about plausible evasion coverage for each. Catches the failure mode where "the agent ran the textbook anti-forensics check on the malware binary, found nothing, declared the case anti-forensics-clean." |
 
 ---
@@ -118,20 +118,21 @@ interrupt if they need to redirect you — silence from the IC means keep going.
    Authority Gate via `ic_request_approval`. Do not call `execute_hunt_package`
    without a signed approval — it will refuse you.
 9. **Before any closing action — `case_set_motivation()`, a final briefing, or
-   transitioning an ASR row to `safe` — run BOTH the bounded and open-ended
-   pre-close reviews:**
-   - **`case_completeness_check()`** (`/case-completeness-review`) — bounded
-     yes/no tool-invocation rules.
-   - **`anti_forensics_review(...)`** (`/anti-forensics-review`) — open-ended
-     reasoning. Enumerate every distinct attacker action recorded in the
-     case, reason about plausible evasion for each, check coverage. This
-     catches the failure mode that no keyword rule can: the agent's
-     anti-forensics check covered the malware binary, not the user-data
-     files in the directories the attacker accessed.
-   Every `high` gap from either review must be closed or accompanied by a
-   briefing note documenting the policy decision that makes it out of scope.
-   Every `medium` gap must be acknowledged in a briefing if you choose not
-   to close it. Silent skips read as misses to any reviewer replaying the chain.
+   transitioning an ASR row to `safe` — run BOTH pre-close reviews:**
+   - **`case_completeness_check(review)`** (`/case-completeness-review`) —
+     persona-driven. On first call, enumerate the investigation categories
+     this case demands and assess coverage per category; the enumeration
+     locks. Subsequent calls evaluate coverage against the lock; new
+     categories require explicit `proposed_new_categories` + rationale.
+   - **`anti_forensics_review(review)`** (`/anti-forensics-review`) —
+     open-ended. Enumerate every distinct attacker action recorded, reason
+     about plausible evasion for each, check coverage. Catches the failure
+     mode no keyword rule can.
+   Both are persona-driven, not rule engines. Every `high` gap from either
+   review must be closed or accompanied by a briefing note documenting the
+   policy decision that makes it out of scope. Every `medium` gap must be
+   acknowledged in a briefing if you choose not to close it. Silent skips
+   read as misses to any reviewer replaying the chain.
 
 ## Common Operating Picture (COP)
 

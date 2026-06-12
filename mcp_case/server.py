@@ -101,60 +101,273 @@ def case_set_motivation(text: str) -> dict:
     return header
 
 
-@mcp.tool()
-def case_completeness_check() -> list[dict]:
-    """Run the completeness critic against the current case state.
+def _read_locked_completeness_categories() -> list[dict] | None:
+    """Return the locked checklist of investigation categories for this case,
+    or None if no checklist has been locked yet.
 
-    Scans suit.jsonl / findings.jsonl / grid.jsonl / briefings for *trigger*
-    patterns (things you already discovered) and checks whether the *expected*
-    follow-on evidence is also present. Catches investigation gaps the main
-    loop misses — anti-forensics scope creep, registry persistence when only
-    service persistence was found, browser history when the entry vector is
-    a remote session, timezone hive reads on Windows hosts, CTI lookups
-    against external IPs, credential-dump check on compromised DCs, and
-    log-file anti-forensics scope.
-
-    **Call this before**:
-      - Producing the final report (final briefing_post)
-      - Transitioning any ASR row from pending_verification → safe
-      - Closing the case
-      - Whenever the Incident Commander asks "is the case ready?"
-
-    Each gap dict carries:
-      - rule: stable identifier (you can grep audit log for the rule name)
-      - severity: high | medium | low
-      - triggered_by: which ASR serials / finding IDs fired the rule
-      - suggestion: one-sentence next action
-
-    Required actions per severity:
-      - high   → close the gap OR write a briefing note documenting the
-                  policy decision that makes it out of scope
-      - medium → recommend close. If skipping, write a brief acknowledgement.
-      - low    → surface in the report's "limitations" section.
-
-    Writes a `case_completeness_check_run` audit event recording how many
-    gaps surfaced at each severity, so a reviewer replaying the chain sees
-    the moment of pre-close review.
-
-    Returns:
-        list of gap dicts (ordered high → medium → low). Empty list means
-        the current rule set found nothing missing — not a proof of
-        completeness, but a useful signal.
+    The lock is the first `case_completeness_checklist_locked` audit event.
+    Subsequent calls to `case_completeness_check` must evaluate coverage
+    against this list (with explicit expansion events recorded separately).
     """
-    from siftics import completeness_rules
-    case_dir = case_state.case_dir()
-    gaps = completeness_rules.check_completeness(case_dir)
+    for ev in case_state.iter_events():
+        if ev.get("type") == "case_completeness_checklist_locked":
+            return (ev.get("payload") or {}).get("categories") or []
+    return None
 
-    by_sev = {"high": 0, "medium": 0, "low": 0}
-    for g in gaps:
-        by_sev[g.get("severity", "low")] = by_sev.get(g.get("severity", "low"), 0) + 1
-    case_state.append_event(
-        "case_completeness_check_run",
-        {"total_gaps": len(gaps), "by_severity": by_sev,
-         "rules_triggered": [g["rule"] for g in gaps]},
-        actor="investigation-section-chief",
-    )
-    return gaps
+
+@mcp.tool()
+def case_completeness_check(review: dict) -> dict:
+    """Record the persona-driven completeness review of the case.
+
+    Companion to `anti_forensics_review` — both run at the same pre-close
+    checkpoint and complement each other. While `anti_forensics_review`
+    handles the open-ended adversarial domain, this tool handles the
+    bounded "did we exercise the investigation categories this case
+    demands" question.
+
+    **Creative-mitigation determinism pattern** (first-run-locks-the-questions):
+
+      - First call to this tool (no prior `case_completeness_checklist_locked`
+        event in the audit chain): the persona enumerates the investigation
+        categories this specific case demands, given attacker actions,
+        host platform, evidence types. The enumeration is written to the
+        audit chain as `case_completeness_checklist_locked` — that list is
+        now the canonical checklist for the case.
+      - Subsequent calls: the persona reads the locked checklist and
+        produces a coverage assessment indexed by category_id. The schema
+        rejects any coverage_assessment entry whose category_id is not in
+        the lock — proposing new categories requires explicit
+        `proposed_new_categories` + `expansion_rationale` and writes a
+        separate `case_completeness_checklist_expansion_proposed` event
+        that the IC can review.
+
+    The result: rerunning the critic on the same case state produces
+    matching gaps (deterministic against the locked checklist), but the
+    *first* enumeration is full persona judgement (where it matters).
+
+    Expected ``review`` shape::
+
+        {
+          "action_hash": "<sha256 of case state at review time>",
+          "investigation_categories": [   # required on first call;
+                                          # informational on subsequent calls
+                                          # (must match locked set)
+            {
+              "category_id": "timezone_registry_read",
+              "rationale": "Windows hosts in ASR — timestamps anchor every
+                            finding; offset undetectable without TZ hive",
+              "what_should_have_run": "RegRipper -p timezone or regipy on
+                                       the SYSTEM hive of each Windows host"
+            },
+            ...
+          ],
+          "coverage_assessment": [
+            {
+              "category_id": "timezone_registry_read",
+              "what_was_actually_done": "Agent computed a 62-min offset
+                                         empirically from PCAP↔EVTX
+                                         correlation (F-009) but did not
+                                         read the registry key",
+              "gap": "Empirical offset is not a substitute for the registry
+                      value — record the TZ key for chain integrity",
+              "gap_severity": "medium"
+            },
+            ...
+          ],
+          # Optional — only on subsequent calls
+          "proposed_new_categories": [   # if persona judges the case has
+                                          # evolved (new ASR rows, new
+                                          # attacker actions) and additional
+                                          # categories now apply
+            {"category_id": "...", "rationale": "...",
+             "what_should_have_run": "..."}
+          ],
+          "expansion_rationale": "<why these are new — required if
+                                  proposed_new_categories non-empty>",
+          "summary": "<>=30 chars substantive conclusion>",
+          "reviewer_certainty": "high" | "medium" | "low"
+        }
+
+    Validation:
+      - On first call: investigation_categories required, non-empty;
+        each carries category_id, rationale (≥30 chars), what_should_have_run
+      - On subsequent calls: investigation_categories must equal the lock
+        (set comparison on category_id); any divergence rejected unless
+        flagged via proposed_new_categories with expansion_rationale
+      - coverage_assessment: every category_id must be in the active set
+        (lock ∪ proposed_new); gap_severity ∈ {high, medium, low, none};
+        severity=none requires empty gap; severity≠none requires substantive gap
+      - summary ≥ 30 chars
+      - reviewer_certainty ∈ {high, medium, low}
+
+    Audit events:
+      - First call → `case_completeness_checklist_locked` (the lock)
+        + `case_completeness_check_run` (the assessment)
+      - Subsequent call → `case_completeness_check_run`
+      - Subsequent call with proposed_new_categories →
+        `case_completeness_checklist_expansion_proposed`
+        + `case_completeness_check_run`
+
+    Returns ``{"audit_row_seq": int, "is_first_run": bool,
+               "categories_assessed": int, "gaps_high": int,
+               "gaps_medium": int, "gaps_low": int,
+               "expansion_proposed": bool, "reviewer_certainty": str}``.
+
+    Raises ``ValueError`` on schema violations.
+    """
+    if not isinstance(review, dict):
+        raise ValueError("completeness review must be a dict")
+
+    locked = _read_locked_completeness_categories()
+    is_first_run = locked is None
+
+    provided = review.get("investigation_categories") or []
+    proposed_new = review.get("proposed_new_categories") or []
+    expansion_rationale = (review.get("expansion_rationale") or "").strip()
+
+    if not isinstance(provided, list):
+        raise ValueError("investigation_categories must be a list")
+    if not isinstance(proposed_new, list):
+        raise ValueError("proposed_new_categories must be a list")
+
+    def _validate_category_shape(cats: list, label: str) -> None:
+        for i, c in enumerate(cats):
+            if not isinstance(c, dict):
+                raise ValueError(f"{label}[{i}] must be a dict")
+            cid = (c.get("category_id") or "").strip()
+            if not cid or " " in cid:
+                raise ValueError(
+                    f"{label}[{i}].category_id must be a non-empty, "
+                    f"space-free identifier; got {cid!r}")
+            rationale = (c.get("rationale") or "").strip()
+            if len(rationale) < 30:
+                raise ValueError(
+                    f"{label}[{i}].rationale must be at least 30 chars "
+                    f"(substantive — why this category applies to THIS case)")
+            if not (c.get("what_should_have_run") or "").strip():
+                raise ValueError(
+                    f"{label}[{i}].what_should_have_run must be non-empty "
+                    f"(name the specific tool / command / artefact source)")
+
+    if is_first_run:
+        if not provided:
+            raise ValueError(
+                "first call to case_completeness_check requires non-empty "
+                "investigation_categories — the persona enumerates the "
+                "checklist this case demands; that enumeration is locked "
+                "into the audit chain for subsequent runs")
+        if proposed_new:
+            raise ValueError(
+                "proposed_new_categories not allowed on first call — the "
+                "initial enumeration IS the lock; expansion only makes "
+                "sense once a lock exists")
+        _validate_category_shape(provided, "investigation_categories")
+        active_categories = provided
+    else:
+        # Lock exists. Provided categories MUST equal the locked set.
+        locked_ids = {c["category_id"] for c in locked}
+        provided_ids = {c.get("category_id") for c in provided}
+        if provided_ids != locked_ids:
+            raise ValueError(
+                f"investigation_categories must equal the locked checklist "
+                f"(locked: {sorted(locked_ids)}; provided: "
+                f"{sorted(x for x in provided_ids if x)}); "
+                f"to add categories, set proposed_new_categories instead")
+        if proposed_new:
+            _validate_category_shape(proposed_new, "proposed_new_categories")
+            if len(expansion_rationale) < 30:
+                raise ValueError(
+                    "proposed_new_categories requires expansion_rationale "
+                    "≥ 30 chars explaining why the case has evolved to "
+                    "demand additional categories")
+        active_categories = list(locked) + list(proposed_new)
+
+    active_ids = {c["category_id"] for c in active_categories}
+    coverage = review.get("coverage_assessment") or []
+    if not isinstance(coverage, list):
+        raise ValueError("coverage_assessment must be a list")
+
+    allowed_sev = {"high", "medium", "low", "none"}
+    counts = {"high": 0, "medium": 0, "low": 0, "none": 0}
+    seen_in_coverage: set[str] = set()
+    for i, c in enumerate(coverage):
+        if not isinstance(c, dict):
+            raise ValueError(f"coverage_assessment[{i}] must be a dict")
+        cid = c.get("category_id")
+        if cid not in active_ids:
+            raise ValueError(
+                f"coverage_assessment[{i}].category_id={cid!r} is not in the "
+                f"active category set; either add it via "
+                f"proposed_new_categories or fix the typo")
+        if cid in seen_in_coverage:
+            raise ValueError(
+                f"coverage_assessment[{i}].category_id={cid!r} duplicated")
+        seen_in_coverage.add(cid)
+        sev = c.get("gap_severity")
+        if sev not in allowed_sev:
+            raise ValueError(
+                f"coverage_assessment[{i}].gap_severity must be one of "
+                f"{sorted(allowed_sev)}; got {sev!r}")
+        gap_text = c.get("gap")
+        if sev == "none":
+            if gap_text:
+                raise ValueError(
+                    f"coverage_assessment[{i}] has gap_severity=none "
+                    f"but a non-empty gap description")
+        else:
+            if not isinstance(gap_text, str) or not gap_text.strip():
+                raise ValueError(
+                    f"coverage_assessment[{i}] has gap_severity={sev!r} "
+                    f"but no gap description")
+        counts[sev] += 1
+
+    # Every active category must appear in coverage_assessment
+    missing_from_coverage = active_ids - seen_in_coverage
+    if missing_from_coverage:
+        raise ValueError(
+            f"coverage_assessment is missing entries for: "
+            f"{sorted(missing_from_coverage)}")
+
+    summary = (review.get("summary") or "").strip()
+    if len(summary) < 30:
+        raise ValueError(
+            "completeness review summary must be at least 30 chars")
+    cert = review.get("reviewer_certainty")
+    if cert not in {"high", "medium", "low"}:
+        raise ValueError(
+            f"reviewer_certainty must be one of high|medium|low; got {cert!r}")
+
+    # Write the lock on first run
+    if is_first_run:
+        case_state.append_event(
+            "case_completeness_checklist_locked",
+            {"categories": provided},
+            actor="completeness-reviewer",
+        )
+
+    # Record expansion proposal separately so the IC can review
+    if proposed_new:
+        case_state.append_event(
+            "case_completeness_checklist_expansion_proposed",
+            {"new_categories": proposed_new,
+             "expansion_rationale": expansion_rationale},
+            actor="completeness-reviewer",
+        )
+
+    row = case_state.append_event(
+        "case_completeness_check_run", review,
+        actor="completeness-reviewer")
+
+    return {
+        "audit_row_seq": row["seq"],
+        "is_first_run": is_first_run,
+        "categories_assessed": len(active_categories),
+        "gaps_high": counts["high"],
+        "gaps_medium": counts["medium"],
+        "gaps_low": counts["low"],
+        "expansion_proposed": bool(proposed_new),
+        "reviewer_certainty": cert,
+    }
 
 
 @mcp.tool()

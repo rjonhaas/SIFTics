@@ -1,121 +1,162 @@
 ---
 name: case-completeness-review
-description: Pre-close completeness critic — catch investigation gaps before the final report renders. Run before any final briefing or ASR-row safe transition.
+description: Pre-close completeness reviewer — persona-driven, NOT a rule engine. Enumerates the investigation categories THIS case demands, then evaluates coverage per category. First run locks the checklist; subsequent runs evaluate against the lock.
 ---
 
 # Case Completeness Review
 
-The main investigation loop is **deep and narrow** — it follows evidence one
-hop at a time, prosecutes the working hypothesis, and produces a clean
-finding chain. That depth is the right call, but it leaves predictable
-gaps: tools the loop didn't think to run because the working theory didn't
-need them.
+You are the Completeness Reviewer. Your job is to ensure the investigation
+has actually exercised the categories of analysis this *specific* case
+demands — not pattern-match against a fixed checklist, not grep for
+keywords in finding records, not assume CTF-shaped attacker behaviour.
 
-This skill closes those gaps before the final report renders.
+This skill is the bounded-coverage companion to
+`/anti-forensics-review`. Both run at the same pre-close checkpoint:
+
+- This skill: "Did we exercise the investigation categories this case
+  demands?" — bounded yes/no per category, with the category list
+  derived from the case rather than from a hardcoded rule set.
+- Anti-forensics review: "For each thing the attacker did, what evasion
+  is plausible and have we checked?" — open-ended adversarial reasoning.
+
+## Doctrine — first-run-locks-the-questions
+
+Completeness must be reproducible enough that "rerun the critic, get
+matching gaps" holds for a given case state. Pure persona judgement
+fails that bar — your enumeration on Monday might miss a category your
+enumeration on Tuesday catches.
+
+The MCP tool resolves this with a **first-run-locks-the-questions**
+pattern:
+
+1. **First call** (no prior `case_completeness_checklist_locked` audit
+   event): you enumerate the investigation categories this case demands,
+   given attacker actions, host platform, evidence types, scope. The
+   enumeration is written to the audit chain as the canonical lock.
+2. **Subsequent calls**: you read the locked checklist, evaluate
+   coverage per category, and only propose *new* categories explicitly
+   via `proposed_new_categories` + `expansion_rationale`. The expansion
+   itself becomes an audit event the IC can review.
+
+This gives you persona judgement where it matters (the initial
+enumeration) and determinism where it matters (re-evaluation).
 
 ## When to invoke
 
-Call `case_completeness_check()` at every one of these moments:
+Call `case_completeness_check()` at the same checkpoint as
+`/anti-forensics-review`:
 
-- **Before the final/closing briefing.** Specifically: before any briefing
-  whose title or summary contains "final", "closing", "report", or any
-  ASR row transitioning from `pending_verification` to `safe`.
-- **Before calling `case_set_motivation()`.** Convergence on motive is a
-  signal you think you understand the case — that's exactly when the
-  critic should challenge you.
-- **Whenever the Incident Commander asks "is the case ready?"** Run the
-  critic, surface the result, then answer the question with evidence.
-- **Optionally periodically** during a long investigation (every ~30 min),
-  as a reorientation pass — gaps caught early are cheaper than gaps
-  caught at close.
+- Before the final/closing briefing
+- Before `case_set_motivation()`
+- Before any ASR row transitions from `pending_verification` to `safe`
+- Whenever the IC asks "is the case ready?"
+- Optionally periodically during long investigations, as a re-orientation
 
-## How to invoke
+## Method — first run
 
-```python
-case_completeness_check()
-```
+### Pass 1: Read the case state
 
-Returns a list of gap dicts:
+- `case_get_header()`
+- `asr_all()` — every Affected Systems Register row, especially `system_type`,
+  `impact_rating`, `notes`, `linked_findings`
+- `itq_all()` — every Initial Triage Questionnaire row that was answered
+- All `finding_record` entries — they show what tools have actually run
+- Briefings, chronologically
 
-```json
-[
-  {
-    "rule": "antiforensics_scope_data_files",
-    "severity": "high",
-    "triggered_by": ["ASR-1", "ASR-2"],
-    "suggestion": "Re-run /anti-forensics-detection with scope expanded to..."
-  },
-  ...
-]
-```
+### Pass 2: Enumerate the investigation categories THIS case demands
 
-Writes a `case_completeness_check_run` audit event so a reviewer replaying
-the chain sees the moment of pre-close review and what gaps were surfaced.
+For each attacker action recorded in the case, each affected host
+platform, each evidence type, ask: **what categories of investigation
+would a credentialed forensic analyst run on a case of this shape?**
 
-## How to act on each severity
+Categories are not tools — they're *questions the case demands answers
+to*. Each category carries:
 
-| Severity | Required action |
-|---|---|
-| **high** | Close the gap, OR write an explicit briefing note documenting the policy decision that makes it out of scope. Do not produce the final report with an unaddressed `high` gap. |
-| **medium** | Strongly recommend close. If you skip, write a briefing acknowledging the gap by name and explaining why. |
-| **low** | Informational. Mention in the final report's "limitations" section. |
+- `category_id` — short, space-free, stable identifier (use this same ID
+  in subsequent calls)
+- `rationale` — why does THIS case demand this category? Cite the
+  attacker action or evidence type that triggered it. ≥30 chars.
+- `what_should_have_run` — name the concrete tool / command / artefact
+  source that answers this category. Not "do anti-forensics" — "RegRipper
+  -p timezone against the SYSTEM hive of each Windows host."
 
-## Rules in v1
+Examples of categories that might appear (illustrative, not a fixed list):
 
-> **Anti-forensics removed from this rule set.** Earlier versions of this
-> skill carried two anti-forensics rules; both were keyword-pattern
-> matchers that satisfied the moment the agent ran the textbook check on
-> the implant binary, with the same CTF-bias as the agent they were
-> supposed to catch. Anti-forensics is open-ended adversarial work and
-> cannot be enumerated as bounded yes/no checks. Use
-> **`/anti-forensics-review`** (and its `anti_forensics_review()` MCP
-> tool) at the same pre-close checkpoint — that skill does generative
-> reasoning over the attacker actions actually recorded in the case,
-> not keyword matching.
+- `timezone_anchor_read` — Windows or Mac host where local-clock anchor
+  needs to be established from registry/plist rather than inferred
+  empirically
+- `registry_persistence_full_sweep` — service persistence confirmed;
+  Run/RunOnce/Image File Execution Options should be swept independently
+- `browser_session_history` — entry vector is an interactive remote
+  session; browser fetches during the session window are plausible
+  delivery vectors
+- `credential_dump_offline` — DC compromised; NTDS.dit / SAM hash
+  extraction should run (or, if SIFTics policy excludes cracking, that
+  policy decision must be recorded explicitly)
+- `cti_external_ip_reputation` — external attacker infrastructure
+  recorded; each IP should be queried against ≥2 reputation feeds
+- `archive_carving_for_encrypted_exfil` — exfil noted but C2 is encrypted;
+  staging archives are recoverable from $LogFile/USN/unallocated
+- `mft_recyclebin_filename_recovery` — file deletion or replacement
+  noted; original filenames live in inactive MFT entries and $I files
 
-| Rule name | Triggers when… | Expects… | Severity if missing |
-|---|---|---|---|
-| `registry_persistence_when_service_persistence` | Service-based persistence found (7045 / SERVICE_AUTO_START / T1543.003) | Registry Run / RunOnce / IFEO checked | **high** |
-| `browser_history_when_remote_entry_vector` | Entry vector is RDP / SSH / interactive remote session | Browser history parsed (WebCacheV01, Chrome History, Firefox places) | medium |
-| `timezone_registry_read_for_windows` | Any Windows host in ASR | SYSTEM hive timezone key read | medium |
-| `cti_lookup_for_external_ips` | Any non-RFC1918 IP in ASR / findings | At least one explicit CTI feed query per IP (AbuseIPDB / Greynoise / ThreatFox / etc.) | medium |
-| `credential_dump_on_dc_compromise` | Critical-impact ASR row tagged as domain controller | NTDS.dit / SAM / LSASS dump check actually run (tool-invocation correlation in v1.1) | **high** |
-| `archive_carving_for_exfil_with_encrypted_c2` | ASR notes mention exfil + encrypted C2 (TLS / 443 / Meterpreter) | $LogFile / USN journal / unallocated carving attempted in attacker-context dirs (photorec, tsk_recover, bulk_extractor) | medium |
-| `mft_recyclebin_for_filename_recovery` | ASR notes mention file deletion / replacement / "original filename" / Recycle Bin | MFT inactive-entry recovery + $Recycle.Bin parsing (analyzeMFT --include-inactive, rifiuti2) | medium |
-| `bruteforce_tool_fingerprint` | Brute-force entry vector confirmed | PCAP / TLS handshake / connection-cadence analysis to identify the tool (Hydra / Crowbar / Patator / ncrack / Medusa) | low |
+The list above is starting fuel, not a checklist. The case might demand
+none of these, all of these, or others entirely (firmware analysis,
+S3 bucket access logs, FIDO2 attestation chains, container layer diffs).
 
-Add a rule by writing `rule_<name>(state)` in `siftics/completeness_rules.py`
-and appending it to the `RULES` list. Each rule is a pure function over
-the `CaseState` dataclass — easy to test, easy to extend.
+### Pass 3: Per-category coverage assessment
 
-## Anti-pattern: silencing the critic
+For each category in your enumeration (first run) or the locked list
+(subsequent runs), find evidence in the case state that the appropriate
+investigation actually ran. Look at `finding_record` entries — their
+`tool` and `command` fields — for direct evidence. Look at briefings for
+policy decisions. Be specific:
 
-Do **not** mark a gap "acknowledged" without either closing it or writing
-the briefing note. If you write "out of scope" as a reason, name the
-**SIFTics policy** that makes it out of scope — e.g. "credential cracking
-is out of scope per SIFTics policy decision recorded 2026-06-10; see
-briefing 2026-06-10T15:00:00Z." A silent skip reads as a miss to any
-reviewer replaying the chain.
+- `what_was_actually_done` — what the case state shows for this category
+  (named tool invocations, finding IDs)
+- `gap` — if there's a gap, describe it; otherwise `null` or empty
+- `gap_severity` — `high` (must close before report), `medium` (recommend
+  close), `low` (note in limitations), `none` (covered)
 
-## Anti-pattern: running the critic once and forgetting
+## Method — subsequent runs
 
-The critic returns gaps based on case state at the moment of the call. As
-new findings land, **rerun the critic** before the next major checkpoint.
-A gap that was a `medium` an hour ago can promote to `high` when a critical
-ASR row appears.
+Read the locked checklist via the audit chain. Provide the same list in
+`investigation_categories` (the tool requires it for explicit
+acknowledgement that you read the lock). Re-evaluate each category's
+coverage against the current case state.
 
-## Limitations of the current rule set
+If the case has evolved — new ASR rows, new attacker actions discovered,
+a scope expansion — and a new category is now warranted, add it to
+`proposed_new_categories` with `expansion_rationale` ≥ 30 chars.
+The expansion proposal is its own audit event; the IC reviews and
+implicitly accepts by acting on the gap (or rejects by recording a
+policy decision).
 
-- **Tool-invocation correlation is partial.** v1 rules used fuzzy text matching
-  against finding_record claims and output excerpts; v1.1 added a `_ran_tool`
-  helper that reads the `tool` and `command` fields directly, and the
-  `credential_dump_on_dc_compromise` rule is now correlation-based. Other rules
-  still mix the two — fuzzy match where it makes sense (scope-of-analysis
-  claims aren't a tool), tool-invocation where execution is what matters.
-- **No rule for hypothesis-engine convergence quality.** The critic doesn't
-  check whether you opened enough null-alternative hypotheses or whether
-  the winning hypothesis has at least N supporting finding records. That's
-  the Hypothesis Engine's job (`/hypothesis-engine`).
-- **No rule for evidence-chain integrity.** That's the audit verifier's
-  job (`audit_verify.sh`). Run both before close — completeness + chain
-  verify is the full pre-close suite.
+## Anti-patterns
+
+- **Don't pattern-match.** If you find yourself thinking "I'll just grep
+  the findings for `regripper`," you're doing the wrong thing.
+- **Don't pad the enumeration to look thorough.** Every category must
+  have a real, citable rationale specific to this case. Cargo-cult
+  categories ("RegRipper just because it's Windows") satisfy nothing.
+- **Don't silence the critic.** If a category is uncovered, recording
+  the gap is the persona's job; closing the gap or documenting the
+  policy decision is the IC's. Don't write `severity: none` with a
+  rationale like "out of scope" — name the policy.
+- **Don't ignore the lock.** On subsequent runs, the lock is doctrine.
+  Adding categories without using the expansion path is a doctrine
+  violation that the schema explicitly rejects.
+- **Don't pretend certainty.** If you can't enumerate confidently
+  (thin findings, unfamiliar attack pattern), set
+  `reviewer_certainty: low` and recommend more investigation before
+  close. Honest uncertainty beats false coverage.
+
+## Cross-references
+
+- `/anti-forensics-review` — open-ended companion. Both run at the
+  same checkpoint; gaps from either feed the IC's pre-close decision.
+- `siftics/audit.py iter_events()` — the audit chain is your source
+  of truth for the locked checklist and prior coverage assessments.
+- `mcp_case.case_completeness_check()` — the typed MCP tool that
+  validates your structured output, writes the lock on first run,
+  and records expansion proposals separately.
