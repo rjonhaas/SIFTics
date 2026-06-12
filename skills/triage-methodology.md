@@ -265,18 +265,15 @@ awk '{print $12}' access.log | sort | uniq -c | sort -rn | head -30
 # If $12 is quoted multi-word UA: use awk -F'"' '{print $6}' access.log
 ```
 
-Read the histogram top-to-bottom and reason about each UA against the
-application's expected client population. A UA that clearly identifies
-automated tooling, that doesn't match any user-agent shape the application
-should be seeing, or that is inconsistent with the host's deployment
-context is a candidate to investigate. Don't filter on a fixed keyword
-list — read the field.
+Record every anomalous UA as a finding_record() before any further analysis.
+Anomalous = automated tool name (sqlmap, nikto, nmap, curl, python, wget),
+known exploit framework UA, or UA inconsistent with the platform (e.g. Linux UA
+on a Windows-only internal app).
 
-For each candidate UA, pull the full request stream associated with it
-(group by IP, by session, by time) and read those requests in order. The
-request sequence is the attacker's timeline; reconstruct what they tried,
-what worked, and what they exfiltrated or wrote to disk. Map the activity
-to ATT&CK after you understand the flow, not before.
+**sqlmap identification:** `sqlmap/1.*` in UA means automated SQL injection.
+Map to T1190. The requests associated with that UA are your attack timeline —
+read them in order to reconstruct injection payloads, extracted data, and
+file-write operations (`SELECT INTO OUTFILE`).
 
 ### Step W-2 — IP + UA joint frequency table
 
@@ -293,11 +290,7 @@ browser-driven traffic (one IP, mixed UAs).
 awk '{print $9}' access.log | sort | uniq -c | sort -rn
 ```
 
-Read the distribution against the application's normal error rate. A
-concentration of server-error responses from one source is consistent
-with injection or fuzzing; a flood of not-found responses is consistent
-with scanning or path enumeration — but neither is conclusive on its own.
-Pull the actual requests behind any unusual concentration and read them.
+High 500-count from a single IP = injection/exploitation. High 404-count = scanning.
 
 ### Step W-4 — POST requests with body size > 0
 
@@ -305,34 +298,17 @@ Pull the actual requests behind any unusual concentration and read them.
 grep '"POST ' access.log | awk '$10 > 100 {print}' | sort -k10 -rn | head -20
 ```
 
-For each large POST, look at the destination URL, the application that owns
-it, and whether that endpoint is supposed to accept uploads. Read the body
-(via PCAP carve, application log, or recovered file) if available. A large
-POST to an endpoint designed to accept user content is usually legitimate;
-a POST that lands a file into a directory the application would never write
-to is usually not.
+Large POST bodies to unexpected paths = file upload. POST to a `.php` file
+in an upload directory = webshell activation.
 
-### Web-case ATT&CK mapping
+### Web-case MITRE mapping
 
-Map observations to ATT&CK after you've understood what happened on the
-server, not from URI patterns alone. The common techniques to consider in
-a web compromise — and the evidence that supports each:
-
-- **T1190 Exploit Public-Facing Application** — needs evidence of an
-  exploitable input being reached, a payload delivered, and a response that
-  indicates execution or data return.
-- **T1505.003 Web Shell** — needs a server-side script (recovered from
-  disk, MFT, `$LogFile`, or memory) that accepts attacker input and reaches
-  a command-execution sink, plus access-log evidence of requests against it.
-- **T1505.001 SQL Stored Procedures / DB file write** — needs both the URI
-  evidence and database-side evidence (error log, binlog, on-disk artifact)
-  that the write executed.
-- **T1059.x Command and Scripting Interpreter** — supported by command
-  history (shell history, EVTX 4688, Sysmon, in-memory `cmdscan`), not by
-  the request body alone.
-
-In every case, the request log is one source; corroborate with at least one
-other (filesystem, EVTX, memory, DB log) before recording the technique.
+| Observation | MITRE technique |
+|---|---|
+| sqlmap UA + SQLi payloads in URI | T1190 — Exploit Public-Facing Application |
+| `SELECT INTO OUTFILE` in URI | T1505.001 — SQL Stored Procedures (file write via DB) |
+| PHP webshell POST execution | T1505.003 — Web Shell |
+| Python-urllib or curl POST to .php | T1059.006/T1059.004 — command execution via webshell |
 
 ---
 
@@ -433,17 +409,9 @@ instead of pivoting to "what did the attacker do with that access?"
 
 **1. cmdscan / consoles against csrss.exe** (if memory is available):
 ```bash
-vol -f image.mem windows.cmdscan    # recovered command history from csrss.exe
+vol -f image.mem windows.cmdscan    # look for: net user, net localgroup
 vol -f image.mem windows.consoles   # same — conhost.exe view
 ```
-
-Read the recovered command history end to end. Account-creation and
-group-modification commands are one thing to look for, but the value is in
-the full session: what shell ran the commands, what other commands ran
-before and after, and which user the session was attributed to. Map any
-account or group changes you find against the on-disk SAM hive and EVTX
-account-management records to confirm whether the changes actually took
-effect.
 
 **2. SAM hive — on-disk local account list**:
 ```bash
@@ -463,53 +431,33 @@ time, group membership.
 
 **3. Security.evtx — account events**:
 ```bash
-# Parse the full Security log; account-management events (4720, 4732, 4738,
-# 4726, 4756) are starting points but read the surrounding sequence to see
-# who triggered the action and what session they were in.
+# EID 4720 = account created, EID 4732 = user added to security group
 python3 -m evtx /mnt/img/Windows/System32/winevt/Logs/Security.evtx \
-  | less
+  | grep -E "EventID.4720|EventID.4732" -A 20
 ```
-
-For each account or group-membership change, evaluate:
-- The actor (SubjectUserName / SubjectLogonId) — is this a normal admin
-  identity, an attacker-created account, or a known service identity?
-- The target account and its eventual privileges.
-- Correlation with `cmdscan`/`consoles` output, EVTX 4624 logons, and SAM
-  records — convergent evidence across sources is what supports the
-  finding.
 
 ### Firewall / RDP pivot
 
-Recover and read the relevant configuration changes from every source where
-they might appear.
-
-**1. Memory — recovered command history**:
-```bash
-vol -f image.mem windows.cmdscan
-vol -f image.mem windows.consoles
+**1. cmdscan / consoles** (look for `netsh` and `net localgroup`):
 ```
-Read the history for firewall and RDP-related commands in context. The
-useful information is not "did `netsh` appear" but what the full command
-did, what session it ran in, and whether it succeeded — corroborate with
-the registry (next step) and EVTX firewall events.
+netsh firewall set service type=remotedesktop mode=enable scope=subnet
+netsh advfirewall firewall add rule name="RDP" dir=in action=allow protocol=TCP localport=3389
+net localgroup "Remote Desktop Users" <username> /add
+```
 
-**2. Registry — Windows Firewall rules** (on-disk or in-memory via `printkey`):
+**2. Registry — Windows Firewall rules** (on-disk or in-memory via printkey):
 ```bash
 vol -f image.mem windows.printkey \
   --key "SYSTEM\CurrentControlSet\services\SharedAccess\Parameters\FirewallPolicy\FirewallRules"
 ```
-List every rule and compare against a known-good baseline for the host.
-Rules added during the attack window that open inbound access to RDP, SMB,
-WinRM, or other admin services warrant a finding.
 
-**3. ATT&CK mapping:**
+**3. Map to MITRE:**
 
-After you have the evidence, map it to ATT&CK rather than guessing from a
-single string. Account creation maps to T1136.001 when supported by SAM,
-EVTX 4720, and the in-memory command history together; lateral-access
-enablement via group membership and firewall changes maps to T1021.001
-plus T1562.004 — but only when the configuration actually changed and
-the change persisted, not from the presence of a command alone.
+| Evidence | MITRE |
+|---|---|
+| `net user <name> <pass> /add` | T1136.001 — Create Local Account |
+| `net localgroup "Remote Desktop Users" <user> /add` | T1021.001 — Remote Desktop Protocol |
+| `netsh firewall set service remotedesktop` | T1021.001 + T1562.004 — Impair Defenses: Disable Firewall |
 
 ### NTFS $LogFile for deleted-file recovery
 
@@ -523,29 +471,28 @@ icat -o <offset> image.dd <$LogFile inode> > LogFile.bin
 
 # Parse with LogFileParser (SIFT has this)
 python3 LogFileParser.py -i LogFile.bin -o logfile_output.csv
+grep -i "tmp\|webshell\|\.php" logfile_output.csv
 ```
 
-Read `logfile_output.csv` against the access-log evidence and the MFT. For
-every file the access log references that no longer exists on disk, walk
-the `$LogFile` records for that path or directory and reconstruct the
-creation, modification, and deletion sequence. The journal is circular and
-overwrites more slowly than the MFT, so it often retains evidence of
-dropped-and-deleted payloads that are otherwise gone — but only retains
-them for a window, so prioritise this step early.
+The $LogFile retains records for files that have been deleted and MFT-overwritten,
+because the journal is circular and overwrites more slowly than the MFT. This is
+the last resort for recovering evidence of dropped-and-deleted payloads.
+
+**Do not skip this step** when you find temporary files in the access log that
+are absent from the disk. Dropped-and-deleted payloads that are gone from
+MFT are often still recoverable here because the journal is circular and
+overwrites more slowly.
 
 ### Setup.evtx for installed-software evidence
 
-When the case involves malware installation or questions about what was
-present at compromise time, parse `Setup.evtx` in full and read the
-installer-activity timeline:
+When the case involves malware installation or questions about what was present
+at compromise time:
 
 ```bash
-python3 -m evtx /mnt/img/Windows/System32/winevt/Logs/Setup.evtx | less
+# Parse Setup.evtx for installer activity
+python3 -m evtx /mnt/img/Windows/System32/winevt/Logs/Setup.evtx \
+  | grep -i "install\|setup\|package" | head -40
 ```
-
-For each installation event, evaluate the package, the installer process,
-and the timing against what the host should have been installing during
-that window. Cross-corroborate with Amcache and `Uninstall` registry keys.
 
 ### NTUser.dat for user activity artifacts
 

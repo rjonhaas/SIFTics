@@ -139,13 +139,17 @@ mactime -b bodyfile.txt -d '2015-09-01' -z UTC > mft_timeline.csv
 Timestomping is the modification of file timestamps to disguise when a file
 was created or modified. It is a T1070.006 technique.
 
-### Approach
+### Indicators
 
-Parse the MFT with `MFTECmd` so both `$SI` and `$FN` timestamps are visible
-side by side, then read every file in scope against several reference
-points at once. Any single divergence is a signal; the finding is the
-combination.
+**SI/FN divergence:**
+- SI Created timestamp is earlier than FN Created timestamp → the file existed on
+  the volume before it was moved/renamed to its current location, OR SI was rolled back
+- SI timestamps that cluster at an exact round time (midnight, top of hour) →
+  manual modification
+- SI timestamps earlier than the OS install date → impossible, indicates manipulation
 
+**Tool:** `MFTECmd` output includes both SI and FN timestamps. Export to CSV and
+compare columns `SI Created` vs `FN Created`:
 ```bash
 MFTECmd.exe -f '$MFT' --csv /output/ --csvf mft.csv
 python3 -c "
@@ -159,29 +163,13 @@ with open('mft.csv') as f:
 "
 ```
 
-For each candidate the script surfaces, reason about it:
+**Zero timestamps:** Some tools set SI timestamps to all zeros or 1970-01-01.
+This is an immediate timestomping indicator.
 
-- Does the SI/FN divergence correspond to a normal operation (move within
-  volume, copy, archive extraction that preserves timestamps) or to
-  deliberate manipulation? Use the file's directory history, the
-  `$UsnJrnl` record of its creation, and the surrounding files as
-  evidence.
-- Do the SI timestamps look like they came from a real event, or do they
-  cluster at suspicious values (epoch-zero, exact midnight, year 1601,
-  exactly matching another file)? Manual stomping tools often leave
-  these tells, but legitimate archive tools can also produce them —
-  reason about which is more plausible here.
-- For PE executables, compare the PE header's `TimeDateStamp` to the MFT
-  `$FN` Created and to the file's reported delivery time in EVTX or
-  network logs. Disagreement points to either timestomping, header
-  forgery, or a reused binary; the surrounding evidence tells you which.
-- Cross-corroborate with `$LogFile` and `$UsnJrnl`, which record file
-  operations the attacker is less likely to have tampered with.
-
-Record what you concluded and why, including the alternative explanations
-you considered and rejected. A "timestomping confirmed" finding without
-that context is harder to defend than a "consistent with timestomping;
-ruled out X and Y" finding.
+**Compile time vs. disk timestamp:** For PE executables, the compile timestamp in
+the PE header should predate the MFT Created timestamp. If the MFT Created is
+earlier than the PE compile time, either the MFT timestamp was backdated or the PE
+header compile time was forged.
 
 ---
 

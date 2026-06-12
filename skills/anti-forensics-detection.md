@@ -18,62 +18,48 @@ activity is recoverable.
 
 ### Windows Event Log clearing
 
-Run `EvtxECmd` (or `evtx_dump`) over `Security.evtx` and `System.evtx`, then read
-the output for evidence of clearing. The events below are starting points for
-that reading — not pattern-match endpoints.
+**Primary indicator: EID 1102 and EID 104**
 
 | EID | Log | Meaning |
 |---|---|---|
 | 1102 | Security | Security audit log cleared — includes SubjectUserName (who cleared it) |
 | 104 | System | System log cleared |
 
-A 1102/104 event is one strong signal, but absence of those events does not mean
-no clearing happened. After parsing the EVTX, evaluate the log holistically:
-- Does the RecordID sequence have unexplained jumps or a reset to 1?
-- Is there an EID 4608 (audit system starting) immediately after a gap, consistent
-  with a service restart following a clear?
-- Is the first event timestamp later than expected given the system's install date
-  and uptime history?
-- Does the log's filesystem `mtime` agree with its last-record timestamp?
+If EID 1102 is absent but the Security log appears to have been cleared, check for:
+- RecordID reset to 1 (log was cleared and the clearing event itself was deleted)
+- EID 4608 (audit system starting) immediately after a gap — indicates service restart after clear
+- Large sequential gaps in RecordID values
+- First event timestamp that is later than expected given system age
 
-Read each of those signals against what you know about the host from baseline.
-Sophisticated clearing tools that also remove the 1102 event leave only the
-secondary signs — that pattern (clearing-with-no-1102) is itself a finding
-about attacker capability and intent, but draw that conclusion from the
-combined evidence rather than from any single field value.
+**EID 4616 — System time changed:**
+If Security.evtx shows EID 4616 with a timestamp rollback, the attacker changed
+the system clock to confuse the log timeline. Document the before/after times and
+the account that made the change. All log timestamps after this event are unreliable
+until another 4616 shows the time being set forward again.
 
-**System time changes (EID 4616):**
-If parsing turns up time-change events, evaluate each one in context. Who made
-the change? Was it a routine NTP sync, a known maintenance action, or a rollback
-during the suspected attack window? A backwards jump correlated with the incident
-window is consistent with timeline tampering; assess the account, magnitude, and
-timing before concluding. After any unexplained rollback, treat downstream
-timestamps as suspect until a forward correction restores trust.
+**Log cleared but no 1102 present:**
+This indicates the clearing was done in a way that also deleted the clearing event
+(wevtutil cl Security; wevtutil cl System). This is more sophisticated and is itself
+a finding. The absence of EID 1102 in a log that shows other signs of clearing
+(RecordID reset, gap) is evidence of deliberate evidence destruction.
 
 ### Linux log clearing
 
-Walk the standard log directories and read each log against what you know about
-the host's normal activity rhythm. The commands below collect the data; the
-analysis is reading that data with judgement.
-
 ```bash
-# Inventory the relevant logs and their sizes
+# Check for truncated logs (file exists but empty)
 ls -la /var/log/auth.log /var/log/syslog /var/log/apache2/access.log
 
-# Sample first/last entries to see the time range each log actually covers
+# Check for gaps in log timestamps
 awk '{print $1,$2,$3}' /var/log/auth.log | head -5
 awk '{print $1,$2,$3}' /var/log/auth.log | tail -5
 
-# Inode metadata — ctime, mtime, size
+# Check inode change time vs last log entry time — if ctime is much newer than
+# last log entry, the file may have been truncated and rewritten
 stat /var/log/auth.log
 ```
 
-For each log, compare its filesystem metadata against its content. A file with
-recent `ctime` but stale internal timestamps is consistent with truncation or
-replacement; a file whose first entry is much later than the system's uptime
-or the surrounding logs' coverage is consistent with deletion-and-recreation.
-Neither pattern is conclusive on its own — combine with rotation policy,
-the host's logging configuration, and any related authentication evidence.
+A log file whose `ctime` (inode change time) is significantly newer than the
+last log entry within it is consistent with truncation or replacement.
 
 ---
 
@@ -154,23 +140,18 @@ Detecting their use is important even if the underlying files cannot be recovere
 | `cipher /w` (Windows built-in) | None | None | No artifact — deduce from command history |
 | DBAN / Darik's Boot and Nuke | N/A (wipes entire drive) | N/A | Used to wipe machines before disposal |
 
-**Where to look — sources to pull and read:**
-1. Prefetch parsed by `PECmd`; review every entry, not just those whose
-   names match a known tool — attackers rename payloads.
-2. Registry hives parsed by `RECmd`; many secure-deletion tools leave keys
-   that persist past uninstall, and those keys carry execution history.
-3. The user's Downloads, Temp, and AppData paths; installer packages and
-   tool-specific support files (e.g. Eraser's task list at
-   `%AppData%\Eraser 6\Task List.ersx`) survive even if the binary doesn't.
-4. The MFT and `$UsnJrnl`; install-then-uninstall sequences leave a
-   distinctive creation/deletion pattern that is recoverable even when
-   the tool is gone.
+**What to look for:**
+1. Prefetch entries for any of the above tools
+2. Registry keys (may survive even after uninstall)
+3. Installation packages (`.exe` installers in Downloads or Temp)
+4. Eraser's task log: `%AppData%\Eraser 6\Task List.ersx`
+5. CCleaner's uninstall entry removing itself: `MFT Created` timestamp for CCleaner
+   followed quickly by `MFT Deleted` timestamp
 
-**Impact assessment:** Even if the target files were successfully wiped, the
-fact that secure deletion was run during the incident window is
-independently significant. For each confirmed execution, record the tool,
-the execution time, the account, and the correlation with the wider
-attacker timeline — that correlation is what supports the intent finding.
+**Impact assessment:** Even if the target files were successfully wiped, the fact
+that secure deletion was run during the incident window is independently significant.
+Document: tool name, execution time (from Prefetch last run time), account used
+(from Prefetch + EVTX), and whether the execution correlates with the attack timeline.
 
 ### Linux secure deletion
 
@@ -184,65 +165,46 @@ find / -name "shred" -o -name "wipe" -o -name "srm" 2>/dev/null  # tool presence
 
 ## WEVTUTIL and log manipulation
 
-`wevtutil.exe cl <logname>` is the built-in Windows command to clear event logs,
-which makes it a natural focus when investigating log tampering. To assess
-whether it was used:
+`wevtutil.exe cl <logname>` is the built-in Windows command to clear event logs.
 
-- Run `PECmd` over the Prefetch directory and read every entry; for any wevtutil
-  prefetch, evaluate the last-run timestamp, run count, and resolved file paths
-  against the incident timeline and what the host's administrators would have
-  legitimate reason to do.
-- Run Volatility's `windows.cmdscan` / `windows.consoles` over any available
-  memory image and read the recovered command history — interpret each command
-  against its session, parent process, and user.
-- Re-examine the cleared logs themselves: parse the EVTX and read the RecordID
-  sequence, any 4608 audit-start events, and the timing relative to the
-  suspected attacker activity.
+**Detection:**
+- Prefetch: `WEVTUTIL.EXE-*.pf` with last run time correlating to incident window
+- Command history: `cmdscan`/`consoles` Volatility plugins
+- The cleared log itself: RecordID gap + EID 4608 immediately after
 
-When multiple Prefetch entries exist for the same tool with different path hashes,
-that is consistent with execution from different working directories (for
-example, a webshell-spawned process versus an interactive shell). Read the
-resolved paths and timestamps and reason about what session each represents
-rather than concluding from the entry count alone.
+**Multiple wevtutil.exe Prefetch entries** (e.g. `WEVTUTIL.EXE-AABBCCDD.pf` and
+`WEVTUTIL.EXE-11223344.pf`) indicate the tool was run from two different paths —
+this is consistent with running from a webshell (different working directory) and
+also from an interactive session.
 
 ---
 
 ## Anti-forensics tool detection checklist
 
-When investigating any case with confirmed attacker persistence or interactive
-access, run each of these passes and read the output with judgement — the
-checklist names the data sources, not the answers.
+When investigating any case with confirmed attacker persistence or interactive access,
+work through this checklist:
 
 **Execution evidence:**
-- [ ] Parse Prefetch with `PECmd`; review every entry for unfamiliar tools,
-      tools running from unexpected paths, and execution times that align with
-      the incident window.
-- [ ] Parse Amcache with `AmcacheParser`; cross-check SHA1s against the
-      baseline and against threat-intel sources.
-- [ ] Parse UserAssist and MuiCache; evaluate each GUI execution entry against
-      the user's normal activity profile.
-- [ ] Run `windows.cmdscan` / `windows.consoles` over memory; read the
-      reconstructed command history and reason about what each command was
-      doing in its session.
+- [ ] Prefetch: search for known anti-forensics tool names
+- [ ] Amcache: SHA1 hash lookup for known tools
+- [ ] UserAssist / MuiCache: GUI anti-forensics tools
+- [ ] cmdscan / consoles (memory): `wevtutil`, `cipher`, `del /f`, `rm -rf`
 
 **Registry evidence:**
-- [ ] Run `RECmd` (Zimmermann batch) over the relevant hives; review the
-      output for evidence of secure-deletion tools, log-clearing utilities,
-      or other anti-forensics software — both currently installed and
-      previously-installed-then-removed.
+- [ ] CCleaner registry keys
+- [ ] Eraser registry keys
+- [ ] SDelete EULA acceptance key
 
 **Log integrity:**
-- [ ] Parse EVTX with `EvtxECmd`; assess RecordID continuity, the presence
-      or absence of clearing events, time-change events, and the relationship
-      between file `mtime` and last-record timestamp.
+- [ ] EVTX RecordID continuity check (no gaps)
+- [ ] Presence/absence of EID 1102 / 104
+- [ ] EVTX file timestamps vs last event timestamps
+- [ ] System time change events (EID 4616)
 
 **File system evidence:**
-- [ ] Parse the MFT with `MFTECmd`; look for deleted entries consistent with
-      anti-forensics tools and read each candidate's surrounding context
-      (directory, parent process if known, timing).
-- [ ] Parse `$UsnJrnl`; review rename/delete events around the incident window.
-- [ ] Inspect Downloads, Temp, and other staging directories for installer
-      packages or tool binaries that the attacker may have used.
+- [ ] MFT: deleted entries for known anti-forensics tools
+- [ ] $UsnJrnl: rename/delete events for tool files
+- [ ] Installer packages for Eraser/CCleaner in Downloads or Temp
 
 ---
 

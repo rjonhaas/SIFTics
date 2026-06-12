@@ -137,12 +137,8 @@ The Master File Table records every file on an NTFS volume. Each entry has:
 - `$STANDARD_INFORMATION` (SI) — timestamps that users/programs can modify
 - `$FILE_NAME` (FN) — timestamps maintained by the kernel; harder to tamper
 
-Run `MFTECmd` to parse the raw `$MFT`, then read the SI/FN timestamp pairs for
-files in scope. SI predating FN by a non-trivial margin is one signal of
-timestomping; assess it alongside the file's role (implant, exfil archive,
-log file), the directory's history, and the surrounding `$LogFile` /
-`$UsnJrnl` records before concluding. See `timeline-reconstruction.md` for
-the full timestomping interpretation method.
+**Timestomping indicator:** SI timestamps earlier than FN timestamps by more than
+a few seconds indicate manual timestamp manipulation.
 
 **Tool:** `MFTECmd` — parses the raw $MFT:
 ```bash

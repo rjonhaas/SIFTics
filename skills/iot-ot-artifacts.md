@@ -69,31 +69,23 @@ mount -t jffs2 /dev/mtdblock0 /mnt/jffs2/
 
 ### Step 3 — Analyze extracted filesystem
 
-Once extracted, treat as a minimal Linux filesystem. The commands below pull
-relevant material together; the analysis is reading each file and reasoning
-about what role it plays in the device.
+Once extracted, treat as a minimal Linux filesystem:
 
 ```bash
-# Startup paths — read each, follow what they exec, and map the boot sequence
+# Persistence / startup scripts
 cat /etc/init.d/*
 cat /etc/rc.local
 cat /etc/inittab
 
-# Configuration files likely to carry secrets — read the candidates
+# Hardcoded credentials (common in IoT firmware)
 grep -r "password\|passwd\|admin\|root\|default" /output/ --include="*.conf" --include="*.xml" --include="*.json" -i
 
-# Executables — review with strings, then disassemble the interesting ones
-find /output/ -type f -executable | xargs strings -n 8 2>/dev/null | head -200
+# Binaries with interesting strings
+find /output/ -type f -executable | xargs strings -n 8 2>/dev/null | grep -iE "http|ftp|telnet|ssh|admin|password|192\.168\.|10\."
 
-# Web interface source — open each entry point and evaluate authentication,
-# input handling, and any command-execution sinks
+# Web interface source (common attack surface)
 find /output/ -name "*.html" -o -name "*.php" -o -name "*.cgi" | head -20
 ```
-
-Reading hardcoded credentials, embedded URLs, or hardcoded IP ranges is
-common in IoT firmware; the value of each finding depends on whether the
-credential is reachable on a production device, whether the URL points to
-a still-live C2 or vendor service, and how the device uses each value.
 
 ### Entropy analysis (detecting encryption/packing)
 
@@ -145,28 +137,16 @@ tshark -r capture.pcap -Y "bacnet" -T fields \
     -e bacnet.prop.object_identifier 2>/dev/null
 ```
 
-### Reading OT traffic
+### What to look for in OT traffic
 
-After extracting flows and per-protocol records with tshark, evaluate each
-pattern against the plant's documented control philosophy and the
-engineering team's baseline of expected traffic. There is no universal
-"bad function code" — a write to a coil is the entire point of the protocol
-when it comes from the right HMI. The questions to ask of each observation:
-
-- Which device originated the write? Is its IP in the engineering inventory?
-  Was it authorised to program this PLC at this time, under change control?
-- What did the write change? Does the new value lie inside the safe operating
-  range the process owner defined?
-- How does the timing compare to normal operator pacing? Burst writes at
-  millisecond cadence are consistent with automation, not a human at an HMI.
-- Are discovery or enumeration packets present that have no business in a
-  production segment (broadcast `ListIdentity`, ARP sweeps, port scans)?
-- Does the traffic correlate in time with IT-side incident artifacts
-  (Windows EVTX, VPN logs, jump-server access)?
-
-Bring each candidate finding to a control engineer for validation before
-calling it malicious — OT environments routinely include test traffic,
-diagnostics, and vendor maintenance that look anomalous without context.
+| Pattern | Significance |
+|---|---|
+| Write commands to output coils/registers | Attacker sending control commands |
+| Function code 90 (Write Multiple Registers) to unusual addresses | Data staging / coil manipulation |
+| High-frequency polling from an IP not in the network baseline | Reconnaissance scan |
+| Unexpected engineering workstation IP connecting to PLC | Lateral movement / unauthorized programming |
+| Broadcast discovery packets (e.g. EtherNet/IP ListIdentity) | Scanning for devices |
+| Unusual timing between commands | Automated attack vs. human operator |
 
 ### OT network topology reconstruction
 
