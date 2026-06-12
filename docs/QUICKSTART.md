@@ -75,7 +75,7 @@ You now have:
 Open `http://127.0.0.1:8080/setup`. Two umbrella radios drive the first-run choices:
 
 - **Anthropic authentication** — *Claude.ai subscription (Pro / Max / Team)* uses the OAuth credentials produced by `claude login`; *Anthropic API key* takes a pasted key. The page detects existing OAuth credentials and existing env keys, so re-opening `/setup` mid-investigation shows you what's active right now.
-- **Response posture** — *Mock — standalone* keeps `mcp_broker` returning generic enterprise placeholders (no infrastructure needed, judges' default); *Live — connected* talks to a real Velociraptor server via mTLS.
+- **Response posture** — *Standalone* keeps the agent's response tools working against a small sample environment (no infrastructure needed, judges' default); *Connected* talks to a real Velociraptor server via mTLS.
 
 Switching either radio takes effect on the **next agent turn** — the save handler patches `os.environ` in the running Flask process, so no UI restart is needed — and writes a `runtime_auth_changed` / `response_posture_changed` event into the audit chain.
 

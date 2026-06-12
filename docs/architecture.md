@@ -63,9 +63,9 @@ specific environment is on the right.
                   ║                                      ║
                   ║   Each carries _MODE = mock | real   ║
                   ║   flipped from /setup's Response-     ║
-                  ║   posture radio (Mock — standalone   ║
-                  ║   vs. Live — connected); the agent   ║
-                  ║   doesn't know which side it's on.   ║
+                  ║   posture radio (Standalone vs.       ║
+                  ║   Connected); the agent doesn't know  ║
+                  ║   which side it's on.                 ║
                   ╚══════════════════════════════════════╝
 ```
 
@@ -88,7 +88,7 @@ hunts actually firing across an enterprise. This is the path that
 demonstrates "fighting back at AI-speed."
 
 The mode is selected from `/setup`'s **Response posture** radio
-(*Mock — standalone* vs. *Live — connected*). Switching takes
+(*Standalone* vs. *Connected*). Switching takes
 effect on the next agent turn (the save handler patches
 `os.environ` in the running Flask process) and writes a
 `response_posture_changed` audit event. Anthropic authentication
