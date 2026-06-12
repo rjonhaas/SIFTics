@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
@@ -23,6 +24,100 @@ from mcp.server.fastmcp import FastMCP
 from siftics import audit, case_state, findings as findings_lib
 
 mcp = FastMCP("siftics-case-state")
+
+
+# ---------------------------------------------------------------------------
+# Audit-chain referential integrity (anti-fabrication guard)
+# ---------------------------------------------------------------------------
+#
+# Authority Gate actions emit IDs shaped <prefix>_<hex> — e.g. intel_5a01abc2
+# for an executed publish_intel gate, exec_* for a hunt, iso_*/cont_* for
+# containment, req_* for an approval request. The agent legitimately
+# references these IDs back in ASR notes / CET entries / case header fields
+# to anchor narrative to executed actions.
+#
+# The failure mode this guard prevents: agent writes a fabricated ID into an
+# ASR note ("ISOLATION REQUESTED (iso_ae59264c)") without firing the gate
+# workflow that would produce a real iso_ae59264c action_executed event in
+# forensic_audit.jsonl. The note looks authoritative; the ID resolves to
+# nothing.
+#
+# Rule (enforced at the schema layer of every case-state write that carries
+# free text): every action-ID-shaped token in the write payload MUST exist
+# in the audit chain's prior payloads. References to real IDs are fine;
+# invented IDs are rejected.
+
+_ACTION_ID_PREFIXES = (
+    "iso", "exec", "hunt", "gate", "req", "cont", "intel",
+    "isolation", "containment", "approval", "sig",
+)
+_ACTION_ID_PATTERN = re.compile(
+    r"\b(?:" + "|".join(_ACTION_ID_PREFIXES) + r")_[a-f0-9]{4,}\b",
+    re.IGNORECASE,
+)
+
+
+def _walk_strings(obj):
+    """Yield every string value reachable in obj (recurses into dict /
+    list / tuple). None and other scalar types are skipped."""
+    if obj is None:
+        return
+    if isinstance(obj, str):
+        yield obj
+    elif isinstance(obj, dict):
+        for v in obj.values():
+            yield from _walk_strings(v)
+    elif isinstance(obj, (list, tuple)):
+        for v in obj:
+            yield from _walk_strings(v)
+
+
+def _audit_chain_known_action_ids() -> set[str]:
+    """Collect every action-ID-shaped token that appears in any prior
+    audit event payload. These are the IDs the agent may legitimately
+    reference in a subsequent case-state write."""
+    known: set[str] = set()
+    for ev in case_state.iter_events():
+        payload = ev.get("payload")
+        if not payload:
+            continue
+        for s in _walk_strings(payload):
+            for m in _ACTION_ID_PATTERN.findall(s):
+                known.add(m.lower())
+    return known
+
+
+def _verify_audit_chain_refs(payload, write_name: str) -> None:
+    """Anti-fabrication guard. Walks every string in payload; any
+    action-ID-shaped token that does not exist in the audit chain
+    raises ValueError. Calls at the MCP tool boundary so the agent
+    cannot persist a fabricated reference.
+
+    To reference a real action ID, the agent must have fired the action
+    through the Authority Gate workflow first (request_approval → sign
+    → action_executed). That produces an audit event with the ID; only
+    then may the ID appear in ASR notes, CET entries, case header
+    fields, briefings, etc.
+    """
+    found: set[str] = set()
+    for s in _walk_strings(payload):
+        for m in _ACTION_ID_PATTERN.findall(s):
+            found.add(m.lower())
+    if not found:
+        return
+    known = _audit_chain_known_action_ids()
+    unknown = sorted(found - known)
+    if unknown:
+        raise ValueError(
+            f"audit-chain referential integrity violation in {write_name}: "
+            f"the following action-ID-shaped strings appear in the payload "
+            f"but do not exist anywhere in forensic_audit.jsonl: {unknown}. "
+            f"This is the anti-fabrication guard — every {{prefix}}_{{hex}} "
+            f"token referenced in case state must trace back to a real "
+            f"audit-chain event. To produce a real ID, fire the action "
+            f"through the gate workflow first: ic_request_approval → "
+            f"sign_approval → action_executed."
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -43,6 +138,7 @@ def case_update_header(fields: dict[str, Any]) -> dict:
     Args:
         fields: mapping of field name to new value (e.g. {"impact_level": "critical"}).
     """
+    _verify_audit_chain_refs(fields, write_name="case_update_header")
     return case_state.case_update_header(fields, actor="investigation-section-chief")
 
 
@@ -416,7 +512,7 @@ def asr_append(
         impact_rating: low | moderate | high | critical.
         system_safe: not_safe | safe | pending_verification.
     """
-    return case_state.asr_append({
+    payload = {
         "system_type": system_type, "system_identifier": system_identifier,
         "location": location, "date_of_detection": date_of_detection,
         "date_of_compromise": date_of_compromise, "how_determined": how_determined,
@@ -426,7 +522,9 @@ def asr_append(
         "complexity": complexity, "dependencies": dependencies or [],
         "notes": notes, "linked_findings": linked_findings or [],
         "linked_hunts": linked_hunts or [],
-    }, actor="investigation-section-chief")
+    }
+    _verify_audit_chain_refs(payload, write_name="asr_append")
+    return case_state.asr_append(payload, actor="investigation-section-chief")
 
 
 @mcp.tool()
@@ -437,6 +535,7 @@ def asr_update(serial_no: str, fields: dict[str, Any]) -> dict:
         serial_no: ASR-N identifier.
         fields: mapping of field to new value (e.g. {"system_safe": "safe"}).
     """
+    _verify_audit_chain_refs(fields, write_name="asr_update")
     return case_state.asr_update(serial_no, fields, actor="investigation-section-chief")
 
 
@@ -485,7 +584,7 @@ def cet_append(
         priority_order: integer ≥ 1; lower is more urgent.
         *_status fields: not_yet_checked | none_present_complete | checked_roll_scheduled | rolled_complete.
     """
-    return case_state.cet_append({
+    payload = {
         "data_source": data_source, "source_paths": source_paths,
         "timestamp_compromised": timestamp_compromised,
         "owner_informed": owner_informed, "analysis_status": analysis_status,
@@ -497,12 +596,15 @@ def cet_append(
         "full_remediation_required": full_remediation_required,
         "ip_impact": ip_impact, "third_party_products": third_party_products or [],
         "notes": notes, "point_of_contact": point_of_contact,
-    }, actor="investigation-section-chief")
+    }
+    _verify_audit_chain_refs(payload, write_name="cet_append")
+    return case_state.cet_append(payload, actor="investigation-section-chief")
 
 
 @mcp.tool()
 def cet_update(cca_no: str, fields: dict[str, Any]) -> dict:
     """Update a CET row (append new version)."""
+    _verify_audit_chain_refs(fields, write_name="cet_update")
     return case_state.cet_update(cca_no, fields, actor="investigation-section-chief")
 
 
