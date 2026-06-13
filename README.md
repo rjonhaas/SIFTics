@@ -2,7 +2,7 @@
 
 > **Find Evil. Fight Evil.**
 
-**Architectural pattern (per [hackathon rules](https://findevil.devpost.com)):** **Custom MCP Server** - Rob T. Lee's #2 approach, *"the most sound architecture in the evaluation."*
+**Architectural pattern:** Custom MCP Server. The agent reaches every tool, evidence source, and response target through a typed, schema-validated, audit-logged interface.
 
 **Platform:** SANS SIFT Workstation + Claude Code (or any other approved agentic framework that speaks MCP).
 
@@ -14,7 +14,7 @@
 
 > **The asymmetry SIFTics targets:** detection has been operating at AI-speed for years; response is still human-speed because **authority cannot be delegated to a model**. SIFTics is the bridge - it lets a human Incident Commander (IC) authorise active response at the speed an AI can propose it, with cryptographically-enforced gates so the IC never loses control of *what* gets executed.
 
-The submission is structured in three deliberately-separated layers. A judge can grade Layer 1 in isolation; Layers 2 and 3 show what the same agent looks like when wired to a real SOC.
+SIFTics is structured in three deliberately-separated layers. Layer 1 stands on its own; Layers 2 and 3 show what the same agent looks like when wired to a real SOC.
 
 | Layer | What it is | What lives here |
 |---|---|---|
@@ -22,35 +22,33 @@ The submission is structured in three deliberately-separated layers. A judge can
 | **2. Integration contract** *(the architecture)* | A typed MCP tool surface that any environment can plug into - Velociraptor, an EDR, a TIP, an Entra ID tenant. The agent doesn't know or care which vendor is on the other side; the contract is identical. | `mcp_broker/`, `mcp_containment/`, `mcp_intel/` - each with a `_MODE = mock \| real` flag |
 | **3. Reference deployment** *(the proof point)* | A live Caldera + Velociraptor + ELK + Active-Directory environment that shows the agent **fighting back at AI-speed** against real adversary emulation. **Not a dependency** of the submission - it's the demonstration of what Layer 2 enables. | sister repo: [github.com/rjonhaas/hunt_lab](https://github.com/rjonhaas/hunt_lab) |
 
-**Two ways to grade this:**
+**Two ways to run it:**
 
-- **Standalone (judges' default path)** - clone this repo, run `./setup.sh` on a SIFT VM, point it at any evidence bundle, watch findings stream into the hash-chained audit log. The MCP broker runs in `mock` mode and returns generic enterprise placeholders, so there is nothing external to configure.
-- **Connected (the demo video path)** - configure response targets at `/setup`, switch the MCP broker to `real` mode, point it at a Velociraptor server. The demo video uses `hunt_lab` for that environment, but any Velociraptor server speaking the same API works.
+- **Standalone** - clone this repo, run `./setup.sh` on a SIFT VM, point it at any evidence bundle, watch findings stream into the hash-chained audit log. The MCP broker runs in `mock` mode and returns generic enterprise placeholders, so there is nothing external to configure.
+- **Connected** - configure response targets at `/setup`, switch the MCP broker to `real` mode, point it at a Velociraptor server. The demo video uses `hunt_lab` for that environment, but any Velociraptor server speaking the same API works.
 
 `/setup` exposes two umbrella radios that drive both modes: **Anthropic authentication** (Claude.ai subscription via `claude login` vs. pasted API key) and **Response posture** (Standalone vs. Connected). Either radio takes effect on the next agent turn - the save handler patches `os.environ` in the running Flask process, no UI restart needed - and writes a `runtime_auth_changed` / `response_posture_changed` audit event.
 
-The hackathon submission is **Layer 1**. Layers 2 and 3 exist to show that Layer 1 isn't an analysis toy - it's an agent that can authorise live response, and architecturally refuse to authorise the *wrong* response (see the OT Safety Officer hard-stop in the demo).
+Layer 1 is the core: a working agent that needs no external infrastructure. Layers 2 and 3 demonstrate the same agent authorising live response, and architecturally refusing to authorise the *wrong* response (see the OT Safety Officer hard-stop in the demo).
 
 ---
 
-## Devpost compliance map - every required deliverable, with locations
+## Where things are
 
-> *Per Rob T. Lee's Slack guidance: "Do not make it hard for the judges to see where the components are. Make it SUPER EASY TO FIND THEM."*
-
-| # | Devpost requirement | Location in this repo |
+| # | Required deliverable | Location |
 |---|---|---|
 | 1 | **URL to code repository** | [https://github.com/rjonhaas/SIFTics](https://github.com/rjonhaas/SIFTics) *(public, this repo)* |
 | 2 | **Open-source license (MIT or Apache 2.0)** | [`LICENSE`](LICENSE) *(repo root, MIT)* |
 | 3 | **README with setup instructions** | This file - see [Setup](#setup-on-sift-workstation) below |
 | 4 | **Live deployment URL OR local setup instructions** | Local - [Quickstart](#quickstart-30-seconds-from-clone-to-first-finding) below |
 | 5 | **Text description (features and functionality)** | [Project Description](#project-description) below |
-| 6 | **Demo video (≤ 5 min, live terminal, audio narration)** | [`docs/demo_video.md`](docs/demo_video.md) - YouTube link + storyboard |
-| 7 | **Architecture Diagram** | [`docs/architecture.md`](docs/architecture.md) - three-layer deployment framing (§0), Mermaid + ASCII rendering of the agent/integration-contract/reference-deployment split, trust boundaries colour-coded (red = architectural, yellow = prompt-based) |
-| 8 | **Evidence Dataset Documentation** | [`docs/datasets.md`](docs/datasets.md) - DEF CON DFIR CTF + CyberDefenders Case 166 + hunt_lab generated case |
+| 6 | **Demo video (≤ 5 min, live terminal, audio narration)** | [`docs/demo_video.md`](docs/demo_video.md) |
+| 7 | **Architecture Diagram** | [`docs/architecture.md`](docs/architecture.md) - three-layer deployment framing (§0), Mermaid + ASCII rendering, trust boundaries colour-coded (red = architectural, yellow = prompt-based) |
+| 8 | **Evidence Dataset Documentation** | [`docs/datasets.md`](docs/datasets.md) |
 | 9 | **Accuracy Report** | [`docs/accuracy_report.md`](docs/accuracy_report.md) - measured FP/FN, hallucinations, integrity, T1–T8 bypass test results |
-| 10 | **Agent Execution Logs** | [`examples/run_2026-XX-XX/forensic_audit.jsonl`](examples/) - hash-chained, end-to-end trace from finding → tool execution |
+| 10 | **Agent Execution Logs** | [`examples/run_2026-XX-XX/forensic_audit.jsonl`](examples/) - hash-chained, end-to-end trace from finding to tool execution |
 
-> **Judges**: every required item above has a direct link. If anything is missing or unclear, please open a GitHub issue and we will respond within 24 hours.
+> Every entry above has a direct link. Issues at the repo for anything unclear.
 
 ---
 
@@ -176,10 +174,10 @@ Right-size to your evidence:
 - Per case: 2–50 GB depending on evidence type (raw `.pcap` < 100 MB; mounted disk image 20–50 GB)
 - Tool caches: `mcp_cti/cti_cache/` per case (< 5 MB), Plaso `~/.cache/plaso`, etc.
 
-**The hackathon judges' baseline** is the stock SIFT 2026.04 OVA (4 vCPU /
-8 GB / 100 GB). SIFTics's default demo case (`nitroba`, 56 MB PCAP) runs
-comfortably there. The larger reference cases (`cfreds` 21 GB disk image,
-`webserver` 25 GB extracted) need at least the **Recommended** tier.
+**Reference install:** stock SIFT 2026.04 OVA (4 vCPU / 8 GB / 100 GB).
+The default demo case (`nitroba`, 56 MB PCAP) runs comfortably there. The
+larger reference cases (`cfreds` 21 GB disk image, `webserver` 25 GB
+extracted) need at least the **Recommended** tier.
 
 ### Install
 
@@ -195,8 +193,8 @@ pipx install --editable .
 
 ```
 .
-├── LICENSE                          MIT - Devpost item #2
-├── README.md                        this file - Devpost items #3, #5
+├── LICENSE                          MIT
+├── README.md                        this file
 ├── pyproject.toml                   install metadata
 ├── requirements.txt
 ├── siftics/                         core library (case state, audit, IC approval)
@@ -227,7 +225,7 @@ pipx install --editable .
 │   ├── run_ntfs.sh
 │   ├── run_registry.sh
 │   ├── run_eventlogs.sh
-│   ├── run_zircolite.sh             *new* - Sigma-rule application over EVTX
+│   ├── run_zircolite.sh             Sigma-rule application over EVTX
 │   ├── run_anomaly_check.sh         Phase 18
 │   ├── run_self_correct.sh
 │   └── …
@@ -246,20 +244,19 @@ pipx install --editable .
 │   ├── iot-ot-artifacts.md          firmware (binwalk), industrial protocol PCAPs, SCADA DBs
 │   └── daedalus.md                  tool finder/implementer for unknown artifacts; 6-step workflow
 ├── tests/
-│   └── test_constraints.py          T1–T8 bypass harness - Devpost criterion #4
+│   └── test_constraints.py          T1–T8 bypass harness
 ├── templates/
 │   └── itq_questions.yaml           Initial Triage Questionnaire seed
 ├── docs/
-│   ├── architecture.md              architecture overview - Devpost item #7
-│   ├── architecture.png             diagram with red/yellow trust boundaries
+│   ├── architecture.md              three-layer deployment framing + execution model
 │   ├── constraint_implementation.md architectural vs prompt-based guardrails
-│   ├── datasets.md                  evidence sources - Devpost item #8
-│   ├── accuracy_report.md           measured accuracy - Devpost item #9
-│   ├── demo_video.md                YouTube link + storyboard - Devpost item #6
-│   ├── compared_to_valhuntir.md     honest criterion-by-criterion matrix
-│   └── QUICKSTART.md                30-second path for judges
+│   ├── datasets.md                  evidence sources
+│   ├── accuracy_report.md           measured accuracy
+│   ├── demo_video.md                storyboard
+│   ├── demo_video_script.md         word-for-word narration script
+│   └── QUICKSTART.md                30-second path from clone to first finding
 └── examples/
-    └── run_2026-XX-XX/              full case run - Devpost item #10
+    └── run_2026-XX-XX/              full case run
         ├── forensic_audit.jsonl
         ├── findings.jsonl           evidence chain traceability (finding_record)
         ├── intel.jsonl              STIX/YARA/Sigma IOC output (mcp_intel)
@@ -318,7 +315,7 @@ the same host.
 }}
 ```
 
-A reviewer can verify which credential was used without ever seeing the value.
+The audit chain records which credential was used without recording the value.
 
 Manual configuration paths (in resolution order, highest precedence first):
 
