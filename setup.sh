@@ -605,7 +605,7 @@ if [[ "$INIT_CASE" == "yes" ]]; then
             --case-id  "$CASE_ID" \
             --name     "SIFTics case ($CASE_ID)" \
             --ic-name  "${USER:-operator}" \
-            --itq-template ./templates/itq_questions.yaml \
+            --itq-template ./siftics/templates/itq_questions.yaml \
             "${KEY_ARGS[@]}" \
             > /tmp/siftics_case.log 2>&1 \
             && ok "$CASE_ID" \

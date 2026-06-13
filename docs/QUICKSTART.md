@@ -56,7 +56,7 @@ sift-case-init \
     --case-id  demo_2026_06 \
     --name     "Demo: Find Evil triage" \
     --ic-name  "$USER" \
-    --itq-template ./templates/itq_questions.yaml
+    --itq-template ./siftics/templates/itq_questions.yaml
 # (you will be prompted to set an IC passphrase - this derives the HMAC key)
 
 # Run the UI

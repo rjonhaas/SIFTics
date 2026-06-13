@@ -20,7 +20,7 @@ def case_init_main(argv: list[str] | None = None) -> int:
     p.add_argument("--ic-name", required=True, help="Incident Commander username.")
     p.add_argument("--ic-contact", default="", help="IC email or chat handle.")
     p.add_argument("--itq-template", default=None, type=Path,
-                   help="Path to templates/itq_questions.yaml.")
+                   help="Path to siftics/templates/itq_questions.yaml.")
     p.add_argument("--no-key", action="store_true",
                    help="Skip IC key initialisation (rare — only for tests).")
     args = p.parse_args(argv)

@@ -60,7 +60,7 @@ source .venv/bin/activate
 .venv/bin/python -m pytest tests/test_constraints.py -v
 
 # Kill everything, then bring back up
-./kill_all.sh && ./setup.sh
+./scripts/kill_all.sh && ./setup.sh
 # Browse: http://192.168.2.149:8080
 ```
 

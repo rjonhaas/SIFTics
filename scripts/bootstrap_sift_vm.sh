@@ -113,7 +113,7 @@ if [ ! -f $SIFT_CASE_DIR/case.json ]; then
         --name "Dry run on SIFT VM" \
         --ic-name \$USER \
         --no-key \
-        --itq-template ./templates/itq_questions.yaml
+        --itq-template ./siftics/templates/itq_questions.yaml
     echo "[VM] case dir initialised at $SIFT_CASE_DIR (no IC key — use sift-case-init later for the demo)"
 else
     echo "[VM] case dir already exists at $SIFT_CASE_DIR (left in place)"

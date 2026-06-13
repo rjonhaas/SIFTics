@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# kill_all.sh — stop all SIFTics processes for a clean restart
-# Usage: ./kill_all.sh
+# kill_all.sh - stop all SIFTics processes for a clean restart
+# Usage: ./scripts/kill_all.sh (run from repo root)
 
 set -euo pipefail
 
