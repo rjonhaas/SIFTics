@@ -1,9 +1,6 @@
 # SIFTics vs Valhuntir - Honest Criterion-by-Criterion Comparison
 
-> Per Rob T. Lee's Slack: *"@channel just as a reminder of what we are shooting for is exceeding this →
-> [github.com/AppliedIR/Valhuntir](https://github.com/AppliedIR/Valhuntir)"*
-
-This document is SIFTics's honest read of where it lands vs Valhuntir on each of the six equal-weighted Find Evil! judging criteria. **Honesty over salesmanship** - every claim below is verifiable from the repo or from Valhuntir's own README.
+[Valhuntir](https://github.com/AppliedIR/Valhuntir) is the reference bar for agentic DFIR in this hackathon. This document is SIFTics's honest read of where it lands vs Valhuntir on each of the six equal-weighted Find Evil! judging criteria. **Honesty over salesmanship** - every claim below is verifiable from the repo or from Valhuntir's own README.
 
 > Authors: rjonhaas (SIFTics maintainer). Comparison was prepared without input from the Valhuntir team. If anything here misrepresents Valhuntir, please open an issue - we'll correct it.
 

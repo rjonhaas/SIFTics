@@ -2,11 +2,9 @@
 
 Devpost submission item #7 - *Architecture Diagram*.
 
-> **Architectural pattern:** *Custom MCP Server* - Rob T. Lee's #2 approach,
-> described in the hackathon rules as *"the most sound architecture in the evaluation."*
-> Read-only mounts, typed MCP functions, cryptographically-signed Authority Gates,
-> hash-chained audit log - every guardrail enforced **structurally** rather than by
-> prompt instruction.
+> **Architectural pattern:** *Custom MCP Server*. Read-only mounts, typed MCP
+> functions, cryptographically-signed Authority Gates, hash-chained audit log -
+> every guardrail enforced **structurally** rather than by prompt instruction.
 
 This file is the canonical architecture overview. ASCII diagrams are
 embedded inline - the markdown is the source of truth. Section 0

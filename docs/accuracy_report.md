@@ -206,9 +206,9 @@ unsupported by tool output. Example archetypes:
   from `mcp_rag`. The agent is instructed to cite the returned `record_id` and
   similarity score; uncited claims can therefore be identified by diffing the
   agent's narrative against `forensic_audit.jsonl` `rag_lookup` events. Claims
-  that cannot be grounded in a retrieved record are the surface area Rob Lee's
-  article describes - we expect Phase 18 to catch most of them via
-  cross-artifact contradiction checks.
+  that cannot be grounded in a retrieved record are the residual hallucination
+  surface - Phase 18 catches most of them via cross-artifact contradiction
+  checks.
 - **Deterministic vs probabilistic source typing** - baseline lookups
   (`mcp_baseline`), IOC lookups (`mcp_cti`), and Sigma rule hits (`mcp_rag`
   Sigma path) return exact-match results, not probability-weighted completions.

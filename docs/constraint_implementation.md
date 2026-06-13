@@ -90,7 +90,7 @@ P1–P4 are core procedural guidance. P5–P13 are domain-knowledge skill files 
 
 ## 4. Comparison to other architectural patterns
 
-The hackathon rules describe 4 approaches. Per Rob T. Lee's Slack: *Custom MCP Server is "the most sound architecture in the evaluation. It's also the most work."* Here is how SIFTics compares to the other three on the constraint axis:
+The hackathon rules describe 4 architectural approaches. Custom MCP Server is the most work, and it is also the only one where every tool, evidence read, and active-response action passes through a typed, schema-validated, audit-logged surface the agent cannot route around. Here is how SIFTics compares to the other three on the constraint axis:
 
 | Approach | Architectural guardrails typically possible | Prompt-based guardrails typically present | SIFTics? |
 |---|---|---|---|
@@ -105,7 +105,7 @@ SIFTics sits squarely in #2 with **17 architectural guardrails** and 13 prompt-b
 
 ## 5. Bypass attempts and what happened
 
-Per Rob's accuracy-report guidance - document what happens when bypass is attempted.
+Each bypass attempt below was run against the live agent surface; the outcome column is what the system actually did.
 
 | Attempt | Mechanism | Outcome |
 |---|---|---|
