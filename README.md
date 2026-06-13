@@ -2,32 +2,13 @@
 
 > **Find Evil. Fight Evil.**
 
-Agentic Digital Forensics and Incident Response for the SANS SIFT Workstation. Claude Code (or any other approved agentic framework that speaks MCP) drives the analysis loop; the human Incident Commander authorises every active response with cryptographically-enforced gates.
-
 **License:** [MIT](LICENSE)
 
 ---
 
 ## What SIFTics is
 
-> **The asymmetry SIFTics targets:** detection has been operating at AI-speed for years; response is still human-speed because **authority cannot be delegated to a model**. SIFTics is the bridge - it lets a human Incident Commander (IC) authorise active response at the speed an AI can propose it, with cryptographically-enforced gates so the IC never loses control of *what* gets executed.
-
-SIFTics is structured in three deliberately-separated layers. Layer 1 stands on its own; Layers 2 and 3 show what the same agent looks like when wired to a real SOC.
-
-| Layer | What it is | What lives here |
-|---|---|---|
-| **1. SIFTics agent** | The standalone agentic DFIR analyst. National Incident Management System (NIMS) Incident Command framework, HMAC-signed Authority Gates, hash-chained audit, Safety / Legal Officer architectural guardrails. Runs against any evidence bundle on the SIFT Workstation; **no external infrastructure required**. | this repo - `siftics/`, `mcp_*/`, `siftics_ui/`, `phases/`, `skills/` |
-| **2. Integration contract** | A typed MCP tool surface that any environment can plug into - Velociraptor, an EDR, a TIP, an Entra ID tenant. The agent doesn't know or care which vendor is on the other side; the contract is identical. | `mcp_broker/`, `mcp_containment/`, `mcp_intel/` - each with a `_MODE = mock \| real` flag |
-| **3. Reference deployment** | A live Caldera + Velociraptor + ELK + Active-Directory environment that shows the agent **fighting back at AI-speed** against real adversary emulation. **Not a dependency** of Layer 1; it demonstrates what Layer 2 enables. | sister repo: [github.com/rjonhaas/hunt_lab](https://github.com/rjonhaas/hunt_lab) |
-
-**Two ways to run it:**
-
-- **Standalone** - clone, run `./setup.sh` on a SIFT VM, point it at any evidence bundle. The MCP broker returns generic enterprise placeholders so there is nothing external to configure.
-- **Connected** - configure response targets at `/setup`, switch the MCP broker to `real` mode, point it at a Velociraptor server. Any Velociraptor server speaking the same API works.
-
-Layer 1 is the core: a working agent that needs no external infrastructure. Layers 2 and 3 demonstrate the same agent authorising live response, and architecturally refusing to authorise the *wrong* response (see the OT Safety Officer hard-stop in the demo).
-
-**Architectural pattern:** Custom MCP Server. The agent reaches every tool, evidence source, and response target through a typed, schema-validated, audit-logged interface.
+SIFTics turns the SIFT Workstation into an agentic DFIR analyst. Claude Code drives the analysis loop as the Investigation Section Chief; you sit as Incident Commander, and every active response (fleet hunt, host isolation, account disable) requires your HMAC-signed approval before it fires. The guardrails are **architectural**, not prompted: typed MCP functions, schema-layer Safety Officer hard-stops, hash-chained audit. It runs standalone against any evidence bundle on a SIFT VM - no external infrastructure required - and the same agent wires up to Velociraptor and an EDR / TIP for live response when you point it at one.
 
 ---
 
