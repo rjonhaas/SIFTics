@@ -1,6 +1,6 @@
 # SIFTics — SANS *Find Evil!* Hackathon Submission
 
-> **Tagline:** Valhuntir answers *"what happened here?"* — SIFTics answers *"what happened here, where else is it, and is it still happening?"*
+> **Tagline:** Find Evil. Fight Evil.
 
 **Architectural pattern (per [hackathon rules](https://findevil.devpost.com)):** **Custom MCP Server** — Rob T. Lee's #2 approach, *"the most sound architecture in the evaluation."*
 
