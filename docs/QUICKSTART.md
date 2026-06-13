@@ -1,6 +1,6 @@
 # SIFTics Quickstart
 
-Tested on a fresh **SANS SIFT 2026.04 OVA**, on **WSL-Ubuntu-22.04 + SIFT-server-mode**, and on **Linux Mint 22 hosts**. Per Rob T. Lee (Slack 2026-05-13) both SIFT-VM and WSL-SIFT are acceptable hackathon submission targets.
+Tested on a fresh **SANS SIFT 2026.04 OVA**, on **WSL-Ubuntu-22.04 + SIFT-server-mode**, and on **Linux Mint 22 hosts**.
 
 ## Express path - one command
 
