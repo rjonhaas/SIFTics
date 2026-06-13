@@ -19,6 +19,13 @@ def case_init_main(argv: list[str] | None = None) -> int:
     p.add_argument("--name", required=True, help="Human-readable incident name.")
     p.add_argument("--ic-name", required=True, help="Incident Commander username.")
     p.add_argument("--ic-contact", default="", help="IC email or chat handle.")
+    p.add_argument("--context", default="",
+                   help="Free-form initial briefing the IC wants the agent to "
+                        "read on day one. The kind of one-paragraph sendoff a "
+                        "real IC would give: what was reported, what evidence "
+                        "got pulled and from where, what looks suspicious. "
+                        "The agent reads it for orientation but verifies "
+                        "against evidence - it's not ground truth.")
     p.add_argument("--itq-template", default=None, type=Path,
                    help="Path to siftics/templates/itq_questions.yaml.")
     p.add_argument("--no-key", action="store_true",
@@ -32,6 +39,7 @@ def case_init_main(argv: list[str] | None = None) -> int:
         name=args.name,
         ic_name=args.ic_name,
         ic_contact=args.ic_contact,
+        context=args.context,
         itq_template=args.itq_template,
     )
     print(f"[case-init] case header written to {Path(os.environ['SIFTICS_CASE_DIR']) / 'case.json'}")

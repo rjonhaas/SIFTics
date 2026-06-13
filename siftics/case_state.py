@@ -69,6 +69,13 @@ class CaseHeader:
     name: str
     opened_at: str
     incident_commander: dict[str, Any]
+    # Free-form briefing the IC writes at case-init. This is the IC's
+    # initial *hypothesis* of what happened and what evidence was pulled -
+    # the kind of one-paragraph sendoff a real IC would give an analyst
+    # walking onto a case. The agent reads it on first turn for
+    # orientation but treats it as the IC's read, not ground truth - the
+    # investigation still has to verify against evidence.
+    context: str = ""
     deputy_ic: dict[str, Any] = field(default_factory=dict)
     ops_exec: list[dict[str, Any]] = field(default_factory=list)
     ir_lead: dict[str, Any] = field(default_factory=dict)
@@ -480,7 +487,8 @@ def briefing_history(limit: int = 20) -> list[dict[str, Any]]:
 
 
 def init_case(case_id: str, name: str, ic_name: str, ic_contact: str = "",
-              itq_template: Path | str | None = None) -> dict[str, Any]:
+              itq_template: Path | str | None = None,
+              context: str = "") -> dict[str, Any]:
     """Create a fresh case directory layout. Idempotent only on cold start.
 
     The very first hash-chained audit event written for a case is a
@@ -521,6 +529,7 @@ def init_case(case_id: str, name: str, ic_name: str, ic_contact: str = "",
         opened_at=_now_iso(),
         incident_commander={"name": ic_name, "contact": ic_contact,
                             "ic_pubkey_fingerprint": ""},
+        context=context.strip(),
         last_updated_at=_now_iso(),
         last_updated_by="case-init",
     ))

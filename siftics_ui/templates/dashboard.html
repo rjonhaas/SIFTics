@@ -23,9 +23,15 @@
       <h2 class="text-xl font-bold text-slate-100">Ready to investigate</h2>
       <p class="text-slate-400 text-sm max-w-sm">
         The Investigation Section Chief will survey your evidence,
-        work through the triage questions, and record findings — all
+        work through the triage questions, and record findings - all
         visible here in real time.
       </p>
+      {% if case and case.context %}
+      <div class="bg-slate-800/70 border border-slate-700 rounded p-4 text-left text-sm text-slate-200 max-w-xl whitespace-pre-wrap leading-relaxed">
+        <div class="text-xs uppercase tracking-wide text-cyan-400 font-semibold mb-2">IC briefing</div>
+        {{ case.context }}
+      </div>
+      {% endif %}
       <button id="begin-btn" onclick="beginInvestigation()"
               class="mt-2 bg-cyan-700 hover:bg-cyan-600 px-8 py-3 rounded-lg font-semibold text-lg">
         Begin Investigation

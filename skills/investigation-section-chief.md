@@ -97,7 +97,13 @@ it until the stop conditions in `triage-methodology` are met. The IC will
 interrupt if they need to redirect you - silence from the IC means keep going.
 
 1. **Read the COP.** Start with `case_get_header()`, `asr_open()`,
-   `cet_pending()`, `itq_unanswered()`. Build a mental model.
+   `cet_pending()`, `itq_unanswered()`. Build a mental model. If the
+   header includes a `context` field, that is the IC's free-form briefing
+   - what they think happened, what evidence they pulled, what looks
+   suspicious. Treat it as the IC's initial *hypothesis*: it tells you
+   where to start, but you still verify against evidence and do not let
+   it anchor your findings. A briefing that turns out to be wrong is the
+   most useful kind of finding to surface.
 2. **Pick the next unanswered ITQ question.** The triage questionnaire is
    the canonical driver of next-action selection. If the agent free-runs
    without ITQ guidance, it tends to anchor on the first plausible finding.

@@ -60,9 +60,19 @@
 
       <label class="block text-sm col-span-2">
         <span class="text-slate-300 font-semibold">Incident name</span>
-        <input type="text" name="name" placeholder="Suspected lateral movement — Corp network"
+        <input type="text" name="name" placeholder="Suspected lateral movement - Corp network"
                value="{{ form.name if form else '' }}"
                class="mt-1 w-full bg-slate-800 border border-slate-700 focus:border-cyan-500 px-3 py-2 rounded text-sm outline-none">
+      </label>
+
+      <label class="block text-sm col-span-2">
+        <span class="text-slate-300 font-semibold">Initial briefing for the agent</span>
+        <textarea name="context" rows="4"
+                  placeholder="e.g. SIEM alerted on Win11-Victim for Posh-SSH module load at 14:38 UTC. We pulled a KAPE triage. At the same time, the water-treatment HMI started under-dosing chlorine - operator reported through the OT SCADA console. Treat the two as related until proven otherwise."
+                  class="mt-1 w-full bg-slate-800 border border-slate-700 focus:border-cyan-500 px-3 py-2 rounded text-sm outline-none resize-y">{{ form.context if form else '' }}</textarea>
+        <span class="text-xs text-slate-500 mt-1 block">
+          What the IC wants the agent to read on day one - alerts, evidence already pulled, what looks suspicious. The agent treats this as your initial hypothesis, then verifies against evidence. Optional but recommended.
+        </span>
       </label>
 
       <label class="block text-sm col-span-2">

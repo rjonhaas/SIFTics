@@ -390,6 +390,7 @@ def create_app() -> Flask:
         case_id      = request.form.get("case_id", "").strip()
         name         = request.form.get("name", "").strip()
         ic_name      = request.form.get("ic_name", "").strip()
+        context      = request.form.get("context", "").strip()
         passphrase   = request.form.get("passphrase", "").strip()
 
         def _fail(messages):
@@ -413,9 +414,10 @@ def create_app() -> Flask:
             case_path.mkdir(parents=True, exist_ok=True)
             (case_path / "evidence").mkdir(exist_ok=True)
             os.environ["SIFTICS_CASE_DIR"] = str(case_path)
-            itq_tmpl = Path(__file__).parent.parent / "templates" / "itq_questions.yaml"
+            itq_tmpl = Path(__file__).parent.parent / "siftics" / "templates" / "itq_questions.yaml"
             case_state.init_case(
                 case_id=case_id, name=name, ic_name=ic_name, ic_contact="",
+                context=context,
                 itq_template=itq_tmpl if itq_tmpl.exists() else None,
             )
             ic_approval.init_ic_key(passphrase, ic_name=ic_name)
@@ -627,9 +629,23 @@ def create_app() -> Flask:
             return Response("No case loaded.", status=400)
         evidence_dir = case_path / "evidence"
         evidence_files = sorted(evidence_dir.iterdir()) if evidence_dir.exists() else []
-        evidence_list = "\n".join(f"  - {f.name}" for f in evidence_files) if evidence_files else "  (no files yet — drop evidence into the evidence/ folder)"
+        evidence_list = "\n".join(f"  - {f.name}" for f in evidence_files) if evidence_files else "  (no files yet - drop evidence into the evidence/ folder)"
+        # Pull the IC briefing from the case header so we can lead with it.
+        # Treat absence as fine - many cases won't have one.
+        try:
+            _hdr = case_state.case_get_header()
+            ic_briefing = (_hdr.get("context") or "").strip()
+        except Exception:
+            ic_briefing = ""
+        briefing_block = (
+            f"IC briefing (the Incident Commander's read of what happened; "
+            f"treat as their initial hypothesis, verify against evidence - "
+            f"the briefing is not ground truth):\n"
+            f"  {ic_briefing}\n\n"
+        ) if ic_briefing else ""
         prompt = (
             f"You are the Investigation Section Chief for this case.\n\n"
+            f"{briefing_block}"
             f"Evidence is in: {evidence_dir}\n"
             f"Evidence files:\n{evidence_list}\n\n"
             f"Case directory: {case_path}\n\n"

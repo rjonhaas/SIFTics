@@ -127,7 +127,11 @@ def _verify_audit_chain_refs(payload, write_name: str) -> None:
 
 @mcp.tool()
 def case_get_header() -> dict:
-    """Return the current Incident COP header — IC, deputies, scope, impact level."""
+    """Return the current Incident COP header - IC, deputies, scope, impact
+    level, plus the IC's free-form ``context`` briefing if one was written
+    at case-init. The briefing is the IC's initial *hypothesis* of what
+    happened and what evidence was pulled; treat it as orientation, not as
+    ground truth, and verify every claim against evidence."""
     return case_state.case_get_header()
 
 
