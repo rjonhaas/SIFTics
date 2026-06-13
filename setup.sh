@@ -623,7 +623,7 @@ fi
 # ---------------------------------------------------------------------------
 
 set_siftics_wallpaper() {
-    local src="${SCRIPT_DIR}/assets/siftics_circuit_1080p.png"
+    local src="${SCRIPT_DIR}/assets/FindEvilFightEvil.png"
     [[ -f "$src" ]] || return 0
 
     # Skip if headless / no display server attached
@@ -634,16 +634,21 @@ set_siftics_wallpaper() {
     command -v gsettings >/dev/null 2>&1 || return 0
 
     mkdir -p "$HOME/Pictures" 2>/dev/null || return 0
-    local dst="$HOME/Pictures/siftics_circuit_1080p.png"
+    local dst="$HOME/Pictures/FindEvilFightEvil.png"
     cp "$src" "$dst" 2>/dev/null || return 0
 
-    # SIFT 2026.04 OVA is Ubuntu MATE; WSL-SIFT is often GNOME; judges may
-    # be on either. Try both, take whichever the running desktop accepts.
+    # SIFT 2026.04 OVA is Ubuntu MATE; WSL-SIFT is often GNOME; Mint hosts are
+    # Cinnamon. Try the matching schema; fall through to best-effort if the
+    # session reports something we don't recognise.
     local de="${XDG_CURRENT_DESKTOP:-}"
     case "${de,,}" in
         *mate*)
             gsettings set org.mate.background picture-filename "$dst"  2>/dev/null || true
             gsettings set org.mate.background picture-options  'zoom'  2>/dev/null || true
+            ;;
+        *cinnamon*)
+            gsettings set org.cinnamon.desktop.background picture-uri     "file://$dst" 2>/dev/null || true
+            gsettings set org.cinnamon.desktop.background picture-options 'zoom'        2>/dev/null || true
             ;;
         *gnome*|*ubuntu*|*unity*)
             gsettings set org.gnome.desktop.background picture-uri      "file://$dst" 2>/dev/null || true
@@ -652,9 +657,11 @@ set_siftics_wallpaper() {
             gsettings set org.gnome.desktop.background primary-color    '#000000'     2>/dev/null || true
             ;;
         *)
-            # Unknown DE — try MATE first (SIFT default), then GNOME. Failures are
-            # silently absorbed; we never block setup over a cosmetic.
+            # Unknown DE - try MATE first (SIFT default), then Cinnamon, then
+            # GNOME. Failures are silently absorbed; we never block setup over
+            # a cosmetic.
             gsettings set org.mate.background picture-filename "$dst"    2>/dev/null \
+                || gsettings set org.cinnamon.desktop.background picture-uri "file://$dst" 2>/dev/null \
                 || gsettings set org.gnome.desktop.background picture-uri "file://$dst" 2>/dev/null \
                 || true
             ;;
