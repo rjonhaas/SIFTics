@@ -1,6 +1,6 @@
 ---
 name: linux-server-artifacts
-description: Linux and web server forensic artifact map — logs, persistence, web artifacts, and compromise indicators
+description: Linux and web server forensic artifact map - logs, persistence, web artifacts, and compromise indicators
 ---
 
 # Linux and Web Server Forensic Artifacts
@@ -50,7 +50,7 @@ grep "sudo:" /var/log/auth.log | grep "COMMAND"
 
 | Shell | Location |
 |---|---|
-| bash | `~/.bash_history` (written on logout — may be empty if attacker killed shell without exiting) |
+| bash | `~/.bash_history` (written on logout - may be empty if attacker killed shell without exiting) |
 | zsh | `~/.zsh_history` |
 | fish | `~/.local/share/fish/fish_history` |
 
@@ -95,7 +95,7 @@ persistence points; finding one does not mean you have found all.
 | SSH authorized_keys | `~/.ssh/authorized_keys` for every user | Attacker-added public key = persistent backdoor |
 | PAM modules | `/etc/pam.d/`, `/lib/security/` | Modified PAM = credential harvesting or bypass |
 | LD_PRELOAD / ld.so.preload | `/etc/ld.so.preload` | Rootkit injection point |
-| SUID/SGID binaries | Anywhere | `find / -perm -4000 -type f 2>/dev/null` — compare against baseline |
+| SUID/SGID binaries | Anywhere | `find / -perm -4000 -type f 2>/dev/null` - compare against baseline |
 | World-writable directories | `/tmp`, `/dev/shm`, `/var/tmp` | Primary attacker staging areas |
 
 **Hidden files in common staging paths:**
@@ -132,10 +132,10 @@ find /tmp /dev/shm /var/tmp -name ".*" -type f 2>/dev/null
 
 | Artifact | What it reveals |
 |---|---|
-| PHP session files | `/var/lib/php/sessions/sess_*` — active user sessions, may contain attacker session tokens |
-| `php.ini` | `allow_url_include`, `disable_functions` — tells you what PHP can/cannot do |
+| PHP session files | `/var/lib/php/sessions/sess_*` - active user sessions, may contain attacker session tokens |
+| `php.ini` | `allow_url_include`, `disable_functions` - tells you what PHP can/cannot do |
 | Webshell signatures | `system(`, `exec(`, `passthru(`, `shell_exec(`, `eval(base64_decode(` in `.php` files |
-| Upload directories | Configured in web app — check for PHP files in image/upload directories |
+| Upload directories | Configured in web app - check for PHP files in image/upload directories |
 
 **Find PHP files with command execution functions:**
 ```bash
@@ -153,8 +153,8 @@ find /var/www -name "*.php" -mtime -30 -type f | sort
 |---|---|---|
 | MySQL error log | `/var/log/mysql/error.log` | Connection errors, `INTO OUTFILE` permission errors, SQL syntax errors |
 | MySQL general query log | `/var/lib/mysql/<hostname>.log` (disabled by default) | All SQL executed |
-| MySQL binary log | `/var/lib/mysql/mysql-bin.*` | All data-modifying queries for replication — recoverable even without general log |
-| Database files | `/var/lib/mysql/<dbname>/` | Table data files — may contain injected content in text fields |
+| MySQL binary log | `/var/lib/mysql/mysql-bin.*` | All data-modifying queries for replication - recoverable even without general log |
+| Database files | `/var/lib/mysql/<dbname>/` | Table data files - may contain injected content in text fields |
 
 ---
 
@@ -180,7 +180,7 @@ find /var/www -maxdepth 4 -name ".*" -type d 2>/dev/null
 
 ```bash
 stat <filename>             # shows Access, Modify, Change times + inode
-ls -lai <directory>         # inode number — sequential inodes suggest batch creation
+ls -lai <directory>         # inode number - sequential inodes suggest batch creation
 debugfs -R "stat <file>" /dev/<device>   # full inode metadata from live volume
 ```
 
@@ -196,7 +196,7 @@ cat /proc/<pid>/net/tcp    # TCP connections (hex ports)
 
 ---
 
-## Evidence of web compromise — artifact checklist
+## Evidence of web compromise - artifact checklist
 
 When the evidence type is a web server compromise, work through this list before
 forming a conclusion:

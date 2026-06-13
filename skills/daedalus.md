@@ -1,13 +1,13 @@
 ---
 name: daedalus
-description: Tool discovery and implementation for unknown artifacts — find the right tool, install it, document it, get IC approval before running against evidence
+description: Tool discovery and implementation for unknown artifacts - find the right tool, install it, document it, get IC approval before running against evidence
 ---
 
-# Daedalus — Tool Discovery and Implementation
+# Daedalus - Tool Discovery and Implementation
 
 Daedalus activates when the investigation reaches an artifact, file format, or
 technology that no existing skill file covers and no installed tool can parse.
-Its job is not to write new tools from scratch — it is to **find existing vetted
+Its job is not to write new tools from scratch - it is to **find existing vetted
 tools, understand how to use them, and get IC approval before running anything
 unfamiliar against evidence.**
 
@@ -19,7 +19,7 @@ Invoke this skill when **all three conditions are true:**
 
 1. You have an artifact in hand that you cannot parse with currently installed tools
 2. You have already checked `/windows-artifacts`, `/linux-server-artifacts`,
-   `/macos-artifacts`, and `/iot-ot-artifacts` — none cover this artifact
+   `/macos-artifacts`, and `/iot-ot-artifacts` - none cover this artifact
 3. `forensic_rag_search` returned no relevant Sigma rules, ATT&CK techniques, or
    LOLBAS entries that describe the artifact's parsing
 
@@ -32,7 +32,7 @@ Invoke this skill when **all three conditions are true:**
 
 ## The Daedalus workflow
 
-### Step 1 — Characterise the unknown artifact
+### Step 1 - Characterise the unknown artifact
 
 Before searching for tools, document what is known:
 
@@ -48,7 +48,7 @@ A precise artifact description is the most important input to the search.
 "Unknown binary" is not useful. "32-byte-header binary from a Siemens S7-1500
 PLC in `/DB/Retentive/`, first 4 bytes `0x53 0x37 0x44 0x42`" is useful.
 
-### Step 2 — Search mcp_rag
+### Step 2 - Search mcp_rag
 
 ```python
 forensic_rag_search(
@@ -58,9 +58,9 @@ forensic_rag_search(
 ```
 
 If mcp_rag returns a matching Sigma rule, ATT&CK entry, or LOLBAS entry that
-points to known tooling — use that tool. No further Daedalus steps needed.
+points to known tooling - use that tool. No further Daedalus steps needed.
 
-### Step 3 — Targeted web search
+### Step 3 - Targeted web search
 
 If mcp_rag returns nothing relevant, search for existing tools:
 
@@ -77,7 +77,7 @@ For each tool found, verify:
 - Is there a published paper, blog post, or conference talk explaining the format?
   (This is stronger evidence than just finding a tool)
 
-### Step 4 — Document the tool
+### Step 4 - Document the tool
 
 Before installing or running anything, create a `finding_record()` that documents:
 
@@ -88,16 +88,16 @@ finding_record(
     artifact_source="<evidence_source>",
     tool="daedalus_research",
     command="web search: '<search_terms_used>'",
-    output_excerpt="<tool_name> by <author> — <brief_description> — <github_url>",
+    output_excerpt="<tool_name> by <author> - <brief_description> - <github_url>",
 )
 ```
 
 This creates an auditable record that a new tool was introduced into the analysis.
 
-### Step 5 — Request IC approval before running
+### Step 5 - Request IC approval before running
 
 **Always request IC approval before running a previously-unknown tool against
-evidence.** This is not the `publish_intel` gate — create a standard
+evidence.** This is not the `publish_intel` gate - create a standard
 `ic_request_approval` with gate `execute_hunt_package` or a descriptive
 summary. The IC's question is:
 
@@ -108,7 +108,7 @@ Rationale: running an unvetted tool against evidence can modify access timestamp
 produce incorrect output that contaminates the finding record, or in rare cases
 alter the evidence. The IC's approval documents that the decision was deliberate.
 
-### Step 6 — Install and run
+### Step 6 - Install and run
 
 After IC approval:
 
@@ -138,7 +138,7 @@ finding_record(
 
 ## Common Daedalus scenarios and likely tools
 
-These are starting points for tool research — verify currency before installing.
+These are starting points for tool research - verify currency before installing.
 
 | Artifact type | Tool to research | Notes |
 |---|---|---|
@@ -147,7 +147,7 @@ These are starting points for tool research — verify currency before installin
 | Android `.ab` backup | `android-backup-extractor` | Java-based; needs JDK |
 | iOS filesystem image | `iLEAPP` | Python; outputs HTML timeline |
 | Android filesystem image | `ALEAPP` | Python; sister tool to iLEAPP |
-| Chromebook / Chrome OS | `chrome_forensics` | Research first — tooling is sparse |
+| Chromebook / Chrome OS | `chrome_forensics` | Research first - tooling is sparse |
 | Siemens S7 PLC program backup | `plcscan` or `s7scan` | Network tools; research for static analysis |
 | OSIsoft PI database | `PI-Web-API` export or `PIExcel` | Vendor tools; may require licence |
 | Vehicle CAN bus log | `cantools` or `python-can` | Open source; DBC file needed for decoding |
@@ -161,7 +161,7 @@ These are starting points for tool research — verify currency before installin
 ## What Daedalus does NOT do
 
 - **Does not write new parsers.** If no tool exists anywhere for this artifact,
-  that is a finding in itself — document it as a gap, escalate to the IC, and
+  that is a finding in itself - document it as a gap, escalate to the IC, and
   consider whether the investigation can proceed without parsing this artifact.
 - **Does not run tools without IC approval.** The approval step is mandatory,
   not optional.

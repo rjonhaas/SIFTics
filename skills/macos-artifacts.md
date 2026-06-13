@@ -1,13 +1,13 @@
 ---
 name: macos-artifacts
-description: macOS forensic artifact map for acquisition bundles — mac_apt plugins, Unified Log, persistence, and triage workflow
+description: macOS forensic artifact map for acquisition bundles - mac_apt plugins, Unified Log, persistence, and triage workflow
 ---
 
 # macOS Forensic Artifacts
 
 This skill covers macOS artifact analysis from acquisition packages. The primary tool
 is **mac_apt** (installed at `/opt/mac-apt/bin/mac_apt_git/`). It must be run from
-its own directory — the symlinks in `/usr/local/bin/` fail due to relative imports.
+its own directory - the symlinks in `/usr/local/bin/` fail due to relative imports.
 
 ---
 
@@ -21,7 +21,7 @@ its own directory — the symlinks in `/usr/local/bin/` fail due to relative imp
 | `E01` | EnCase image (via libewf) |
 | `DMG` | Apple disk image |
 | `AXIOMZIP` | Magnet AXIOM logical acquisition zip |
-| `UAC` | UAC (Unix Artifact Collector) triage bundle — zip from `uac -p macos` |
+| `UAC` | UAC (Unix Artifact Collector) triage bundle - zip from `uac -p macos` |
 | `VR` | Velociraptor offline collector triage zip |
 | `MOUNTED` | Live or already-mounted volume at a path |
 
@@ -31,7 +31,7 @@ its own directory — the symlinks in `/usr/local/bin/` fail due to relative imp
 ```bash
 cd /opt/mac-apt/bin/mac_apt_git
 
-# Full triage (FAST plugin group — most plugins, ~5 min)
+# Full triage (FAST plugin group - most plugins, ~5 min)
 python3 mac_apt.py DD /cases/<name>/evidence/mac_image.dd \
     -o /cases/<name>/mac_apt_out/ FAST
 
@@ -61,13 +61,13 @@ python3 mac_apt.py DD image.dd -o /output/ -j FAST
 | `FIREFOX` | Firefox history, downloads | Web activity |
 | `IMESSAGE` | iMessage/SMS database | Communications |
 | `RECENTITEMS` | Recent files, recent applications, recent servers | User activity MRU |
-| `SPOTLIGHT` | Spotlight database — file access metadata | File access history |
+| `SPOTLIGHT` | Spotlight database - file access metadata | File access history |
 | `SAVEDSTATE` | Application saved state | What apps were open and what documents |
 | `TERMINALSTATE` | Terminal window contents | Shell session content |
 | `KEYCHAINS` | System keychain items | Saved credentials |
 | `INETACCOUNTS` | Configured email, calendar, cloud accounts | Connected services |
 | `TCC` | Privacy permissions (camera, microphone, disk access) | What apps had what access |
-| `QUARANTINE` | Quarantine database — downloaded files | Files downloaded from internet |
+| `QUARANTINE` | Quarantine database - downloaded files | Files downloaded from internet |
 | `NETWORKING` | Network interfaces, last IP, WiFi history | Network configuration |
 | `BLUETOOTH` | Paired Bluetooth devices | Physical proximity / device connections |
 | `IDEVICEINFO` | Connected iOS devices and sync history | iPhone/iPad connections |
@@ -82,7 +82,7 @@ Run `FAST` to cover all of the above plus others in one pass.
 
 ---
 
-## Unified Log — the primary macOS activity source
+## Unified Log - the primary macOS activity source
 
 The Unified Log replaced ASL in macOS 10.12 (Sierra) and is now the richest
 activity source on any modern Mac. It lives at:
@@ -91,7 +91,7 @@ activity source on any modern Mac. It lives at:
 /private/var/db/uuidtext/        ← DSC files (required to decode log messages)
 ```
 
-### Step 1 — Export log files with mac_apt
+### Step 1 - Export log files with mac_apt
 
 ```bash
 cd /opt/mac-apt/bin/mac_apt_git
@@ -99,7 +99,7 @@ python3 mac_apt.py DD image.dd -o /output/mac_apt/ UNIFIEDLOGEXPORT
 # Exports .tracev3 files + uuidtext/ DSC directory to output folder
 ```
 
-### Step 2 — Parse with Mandiant macos-UnifiedLogs
+### Step 2 - Parse with Mandiant macos-UnifiedLogs
 
 The Mandiant `macos-UnifiedLogs` tool (Rust binary) is the recommended parser.
 If not installed:
@@ -121,7 +121,7 @@ unifiedlog_parser_json \
 
 Each record includes: timestamp, process, subsystem, category, message.
 
-### Alternative — log command (live system only)
+### Alternative - log command (live system only)
 
 The `log` command is macOS-native and NOT available on Linux/SIFT. Do not attempt
 to use it against an acquired image. Use mac_apt + Mandiant parser instead.
@@ -147,7 +147,7 @@ grep -i "IOUSBDevice\|IOUSBHost\|DiskArbitration" /output/unified_log.jsonl
 
 ---
 
-## macOS persistence — what to check
+## macOS persistence - what to check
 
 After confirming initial access, immediately pivot to persistence. macOS has more
 persistence locations than Windows.
@@ -175,7 +175,7 @@ that wasn't installed by a known vendor is a candidate.
 
 mac_apt `AUTOSTART` covers these.
 
-### Kernel extensions (kexts) — legacy
+### Kernel extensions (kexts) - legacy
 
 ```
 /Library/Extensions/         ← third-party kexts
@@ -211,7 +211,7 @@ ls /etc/periodic/          # daily/weekly/monthly
 | Velociraptor VR zip | ✗ | ✓ (if configured) | ✗ | Depends on VR artifacts configured |
 | AXIOM logical | ✗ | varies | ✗ | App-database level; no raw FS |
 
-For UAC bundles: confirm whether the UAC profile included `-a unifiedlogs` — it's
+For UAC bundles: confirm whether the UAC profile included `-a unifiedlogs` - it's
 not always enabled. If Unified Log is absent, FSEvents and ASL are fallbacks.
 
 ---
@@ -236,7 +236,7 @@ process for the Apple escrow key.
 
 Work through this on every macOS case:
 
-- [ ] Run mac_apt FAST — covers 50+ artifact types
+- [ ] Run mac_apt FAST - covers 50+ artifact types
 - [ ] Check mac_apt BASICINFO output: OS version, serial, last user, timezone
 - [ ] Check mac_apt AUTOSTART: any non-Apple LaunchAgent/Daemon?
 - [ ] Check mac_apt USERS: unexpected accounts? root enabled?

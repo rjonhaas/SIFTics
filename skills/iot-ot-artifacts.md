@@ -1,6 +1,6 @@
 ---
 name: iot-ot-artifacts
-description: IoT and OT/ICS forensic triage — firmware analysis, industrial protocol capture, and when to invoke Daedalus for unknown devices
+description: IoT and OT/ICS forensic triage - firmware analysis, industrial protocol capture, and when to invoke Daedalus for unknown devices
 ---
 
 # IoT and OT/ICS Forensic Artifacts
@@ -30,11 +30,11 @@ Classify before starting any analysis. The approach is completely different for 
 
 ## Firmware blob analysis
 
-### Step 1 — Identify the firmware format
+### Step 1 - Identify the firmware format
 
 ```bash
 file firmware.bin
-binwalk firmware.bin           # signature scan — identifies embedded filesystems
+binwalk firmware.bin           # signature scan - identifies embedded filesystems
 strings -n 10 firmware.bin | head -50   # quick recon
 hexdump -C firmware.bin | head -20     # check magic bytes / header
 ```
@@ -43,15 +43,15 @@ hexdump -C firmware.bin | head -20     # check magic bytes / header
 
 | Signature found | Meaning |
 |---|---|
-| `squashfs` | Compressed filesystem — extract with binwalk `-e` |
-| `JFFS2` | Flash filesystem — common in routers/embedded Linux |
-| `UBI` | NAND flash filesystem — use `ubireader` |
-| `gzip/lzma/xz` | Compressed section — decompress and re-analyze |
-| `ELF` | Executable — analyze with `strings`, `readelf`, `ghidra` |
-| `uImage` header | U-Boot image — strip 64-byte header then analyze payload |
-| Nothing | Encrypted firmware, custom format — invoke Daedalus |
+| `squashfs` | Compressed filesystem - extract with binwalk `-e` |
+| `JFFS2` | Flash filesystem - common in routers/embedded Linux |
+| `UBI` | NAND flash filesystem - use `ubireader` |
+| `gzip/lzma/xz` | Compressed section - decompress and re-analyze |
+| `ELF` | Executable - analyze with `strings`, `readelf`, `ghidra` |
+| `uImage` header | U-Boot image - strip 64-byte header then analyze payload |
+| Nothing | Encrypted firmware, custom format - invoke Daedalus |
 
-### Step 2 — Extract filesystem
+### Step 2 - Extract filesystem
 
 ```bash
 # Automatic extraction (tries all known formats)
@@ -67,7 +67,7 @@ dd if=firmware.jffs2 of=/dev/mtdblock0
 mount -t jffs2 /dev/mtdblock0 /mnt/jffs2/
 ```
 
-### Step 3 — Analyze extracted filesystem
+### Step 3 - Analyze extracted filesystem
 
 Once extracted, treat as a minimal Linux filesystem:
 
@@ -90,7 +90,7 @@ find /output/ -name "*.html" -o -name "*.php" -o -name "*.cgi" | head -20
 ### Entropy analysis (detecting encryption/packing)
 
 ```bash
-binwalk -E firmware.bin   # plots entropy — high uniform entropy = encrypted/compressed
+binwalk -E firmware.bin   # plots entropy - high uniform entropy = encrypted/compressed
 ```
 
 Sections with entropy > 7.8 are likely encrypted. If the entire firmware is
@@ -208,12 +208,12 @@ the device make/model and protocol name if known.
 ## OT incident triage checklist
 
 - [ ] Classify evidence type (firmware / PCAP / log export / database)
-- [ ] For firmware: `binwalk` scan + entropy — encrypted or extractable?
-- [ ] For PCAP: `tshark -z io,phs` — what protocols are present?
+- [ ] For firmware: `binwalk` scan + entropy - encrypted or extractable?
+- [ ] For PCAP: `tshark -z io,phs` - what protocols are present?
 - [ ] Identify all devices by IP and protocol role (PLC, HMI, historian, EWS)
 - [ ] Flag any IP not in the expected network topology
-- [ ] For Modbus/DNP3: extract write commands — what values were set, when, from where?
+- [ ] For Modbus/DNP3: extract write commands - what values were set, when, from where?
 - [ ] For firmware: extract filesystem and check for hardcoded credentials + startup scripts
 - [ ] For logs: parse timestamps to UTC, build timeline, identify anomalous events
 - [ ] Flag any engineering workstation connection to a PLC outside normal change windows
-- [ ] Document what tools were available and what couldn't be parsed — invoke Daedalus for gaps
+- [ ] Document what tools were available and what couldn't be parsed - invoke Daedalus for gaps

@@ -6,16 +6,16 @@ description: Phase sequencing + decision engine. Replaces a static run_all.sh wi
 # Triage Methodology
 
 The classic "run all phases in order" approach (`run_all.sh`) is wrong for IR.
-Cases differ wildly — a ransomware incident needs different phases first than a
+Cases differ wildly - a ransomware incident needs different phases first than a
 credential-dumping incident or a webshell. This skill encodes which phase to
 run, when, based on the Initial Triage Questionnaire (ITQ).
 
-## The map — ITQ category → phase script
+## The map - ITQ category → phase script
 
 | ITQ category (questions) | Phase scripts in priority order |
 |---|---|
 | `scope` (ITQ-001..005) | answered by IC; agent records into case header |
-| `platform` (ITQ-010..016) | (no script — derived from evidence file types and case header) |
+| `platform` (ITQ-010..016) | (no script - derived from evidence file types and case header) |
 | `logs` (ITQ-020..026) | `run_eventlogs.sh` · `run_anti_forensics.sh` (specifically for log clearing) |
 | `ownership` (ITQ-030..035) | IC-driven |
 | `tooling` (ITQ-040..043) | agent surveys what's installed; reports gaps |
@@ -23,15 +23,15 @@ run, when, based on the Initial Triage Questionnaire (ITQ).
 | `containment` (ITQ-060..064) | `run_artifacts.sh` · `run_execution.sh` · `run_credaccess.sh` |
 | `communication` (ITQ-070..074) | IC-driven |
 
-**Note — network/pcap evidence:** When the evidence set contains pcap, pcapng,
+**Note - network/pcap evidence:** When the evidence set contains pcap, pcapng,
 or network flow files, see the **Network/pcap evidence** section below. The
 network hot-path runs before Windows host phases when both evidence types are
 present.
 
-## Exhibit intake — chain of custody (MANDATORY, FIRST STEP)
+## Exhibit intake - chain of custody (MANDATORY, FIRST STEP)
 
 **Before any analysis runs, every exhibit gets recorded with its hash.** This is
-not a CTF-only nicety — it is the chain-of-custody anchor that every later
+not a CTF-only nicety - it is the chain-of-custody anchor that every later
 finding will reference. Skip this and your findings cannot be defended in court,
 in a peer review, or in a hackathon ground-truth comparison.
 
@@ -42,18 +42,18 @@ For each file under `evidence/` and each archive listed in the case:
 sha1sum   <path> | tee -a chain_of_custody.txt
 sha256sum <path> | tee -a chain_of_custody.txt
 
-# 2. For E01/Ex01 forensic images — read metadata from the header
+# 2. For E01/Ex01 forensic images - read metadata from the header
 ewfinfo <path>      # examiner, evidence number, acquisition date, hash
 # or:
 mmls    <path>      # partition table
 fsstat  <path>      # filesystem stats including volume serial, label
 
-# 3. For VMware/VirtualBox/QCOW2 — record format + size + parent chain
+# 3. For VMware/VirtualBox/QCOW2 - record format + size + parent chain
 qemu-img info <path>
 ```
 
 Record each exhibit as a `finding_record()` with `claim` of the form
-*"Exhibit X has SHA-256 …; examiner='…'; acquisition_date='…'."* — these are the
+*"Exhibit X has SHA-256 …; examiner='…'; acquisition_date='…'."* - these are the
 foundational findings; every later finding's `artifact_source` field traces back
 to one of them. Without this you cannot prove which image you actually analysed.
 
@@ -70,22 +70,22 @@ These metadata items often **are themselves** the answers to early ITQ questions
 
 When you start a case:
 
-1. **`fast_evtx_attack_filter`** (HOT) — < 30 s for the last 24h of EVTX.
+1. **`fast_evtx_attack_filter`** (HOT) - < 30 s for the last 24h of EVTX.
    Identifies obvious attack indicators (process creation, service install,
    credential access).
-2. **`fast_persistence_scan`** (HOT) — < 10 s. Diff registry persistence
+2. **`fast_persistence_scan`** (HOT) - < 10 s. Diff registry persistence
    keys + services + scheduled tasks against `mcp_baseline`. Anything not in
    baseline becomes a candidate.
-3. **`fast_execution_timeline`** (HOT) — last 4 hours of MFT + Prefetch +
+3. **`fast_execution_timeline`** (HOT) - last 4 hours of MFT + Prefetch +
    Amcache + Sysmon-1 events, deduplicated.
-4. **`classify_binary` fan-out** on each surface binary — Rathbun baseline,
+4. **`classify_binary` fan-out** on each surface binary - Rathbun baseline,
    imphash via abuse.ch MalwareBazaar, capa behavioural tags, RAG matches to
    ATT&CK.
 
 Only after HOT findings stabilise should you reach for WARM (targeted EZ
 Tools usage) or COLD (full Plaso super-timeline, Volatility full image).
 
-## Escalation rules — when to move from HOT → WARM → COLD
+## Escalation rules - when to move from HOT → WARM → COLD
 
 - HOT confirms persistence + execution → WARM on identified hosts: pull
   full process tree, full PowerShell transcripts, registry hive snapshot.
@@ -124,26 +124,26 @@ You stop a case when one of these is true:
   all related ITQ questions are answered.
 
 Do not stop just because findings have plateaued for 30 minutes. The Hypothesis
-Engine's signal scoring should drive that decision — not the absence of new
+Engine's signal scoring should drive that decision - not the absence of new
 findings, which often just means you're not looking in the right place yet.
 
 ---
 
-## Network/pcap evidence — hot-path, identity-token extraction, and victim identification
+## Network/pcap evidence - hot-path, identity-token extraction, and victim identification
 
 This section applies when the evidence set contains any pcap, pcapng, or
 network flow file (NFCAP, Zeek conn.log, Suricata eve.json). It has equal
 standing with the Windows host-artifact hot-path above.
 
-### Extended ITQ category table — network row
+### Extended ITQ category table - network row
 
 | ITQ category | Phase action |
 |---|---|
-| `network` — evidence enumeration | Enumerate all pcap/flow files; record in case header scope (ITQ-080 equivalent). |
-| `network` — identity extraction | Extract all session-layer identity tokens before any hypothesis is opened. |
-| `network` — anonymous services | Check whether any flow contacted a known anonymous email/communication service. |
-| `network` — HTTP POST bodies | Carve POST bodies when trigger conditions below are met. |
-| `network` — victim identification | Identify victim from RCPT TO, POST body destination, or carved message content. |
+| `network` - evidence enumeration | Enumerate all pcap/flow files; record in case header scope (ITQ-080 equivalent). |
+| `network` - identity extraction | Extract all session-layer identity tokens before any hypothesis is opened. |
+| `network` - anonymous services | Check whether any flow contacted a known anonymous email/communication service. |
+| `network` - HTTP POST bodies | Carve POST bodies when trigger conditions below are met. |
+| `network` - victim identification | Identify victim from RCPT TO, POST body destination, or carved message content. |
 
 The network category is **not optional** when pcap is present. It runs before
 any hypothesis is opened. Reason: session-layer identifiers (cookies, POST
@@ -156,25 +156,25 @@ When pcap or network flow files are present, run these steps **before**
 `fast_evtx_attack_filter` (or as the entire hot-path if no Windows host
 artifacts exist):
 
-**Step N-1 — identity-token extraction (MANDATORY, HOT)**
+**Step N-1 - identity-token extraction (MANDATORY, HOT)**
 
 Before calling `hypothesis_score add` for the first time, perform an
 exhaustive pass over all session-layer identifiers in the pcap. Extract and
 record every distinct value found in:
 
 - HTTP `Cookie:` and `Set-Cookie:` headers (full cookie string)
-- HTTP form POST bodies — all field names and values
+- HTTP form POST bodies - all field names and values
 - SMTP `MAIL FROM:`, `RCPT TO:`, `X-Originating-IP:` headers
 - DNS PTR/A responses (map every layer-3 IP to its resolved hostname)
 - Any header containing an email address or username token
 
 Write every token as a finding note in the ASR or case notes before
-proceeding. Do not filter or deduplicate before recording — deduplication
+proceeding. Do not filter or deduplicate before recording - deduplication
 happens at analysis time.
 
 **This step must complete before the Hypothesis Engine is called.** This
 overrides the hypothesis-engine.md directive "open a hypothesis the moment
-you have a coherent story" — for network cases, token extraction takes
+you have a coherent story" - for network cases, token extraction takes
 precedence over early hypothesis opening.
 
 A Gmail `gmailchat=` cookie value is an identity token. An SMTP `RCPT TO:`
@@ -182,16 +182,16 @@ address is an identity token. A POST body field named `to=` or `email=` is
 an identity token. Record all of them before forming any theory about sender
 identity.
 
-**Step N-2 — flow summary (HOT)**
+**Step N-2 - flow summary (HOT)**
 
 Summarise all flows (src_ip, dst_ip, dst_port, bytes, timestamps). Flag any
 IP that contacted a known anonymisation service (Tor exit nodes via mcp_cti,
 or anonymous email services such as Guerrilla Mail, Mailinator, 10minutemail,
-AnonEmail). Note: `mcp_rag/anon_email_providers.json` is aspirational — if
+AnonEmail). Note: `mcp_rag/anon_email_providers.json` is aspirational - if
 absent, use mcp_cti for Tor and manually note any anonymous email services
 observed in DNS queries or HTTP Host headers.
 
-**Step N-3 — HTTP POST body carving (HOT when triggered)**
+**Step N-3 - HTTP POST body carving (HOT when triggered)**
 
 Run HTTP POST body carving when **any one** of these triggers fires:
 
@@ -219,7 +219,7 @@ the victim has been identified or explicitly declared unrecoverable.
 
 Answer this before any external-reporting Authority Gate:
 ```
-itq_answer("ITQ-085", "<victim identity or 'unknown — sources consulted: RCPT TO, POST body, carved content'>", source="agent")
+itq_answer("ITQ-085", "<victim identity or 'unknown - sources consulted: RCPT TO, POST body, carved content'>", source="agent")
 ```
 
 If ITQ-085 does not exist in the seeded grid (it may not in older cases),
@@ -253,12 +253,12 @@ IIS logs, Nginx logs, or any HTTP server log file.
 
 **Rule: UA histogram before IP analysis. Always.**
 
-Grouping by IP first is the most common access log mistake — it misses automated
+Grouping by IP first is the most common access log mistake - it misses automated
 tooling that runs from a single IP but is unmistakable from its User-Agent.
 A UA histogram takes 10 seconds and surfaces sqlmap, nikto, Metasploit, curl,
 and Python-urllib in the first line of output.
 
-### Step W-1 — User-Agent histogram (MANDATORY, first action on any access log)
+### Step W-1 - User-Agent histogram (MANDATORY, first action on any access log)
 
 ```bash
 awk '{print $12}' access.log | sort | uniq -c | sort -rn | head -30
@@ -271,11 +271,11 @@ known exploit framework UA, or UA inconsistent with the platform (e.g. Linux UA
 on a Windows-only internal app).
 
 **sqlmap identification:** `sqlmap/1.*` in UA means automated SQL injection.
-Map to T1190. The requests associated with that UA are your attack timeline —
+Map to T1190. The requests associated with that UA are your attack timeline - 
 read them in order to reconstruct injection payloads, extracted data, and
 file-write operations (`SELECT INTO OUTFILE`).
 
-### Step W-2 — IP + UA joint frequency table
+### Step W-2 - IP + UA joint frequency table
 
 ```bash
 awk '{print $1, $12}' access.log | sort | uniq -c | sort -rn | head -30
@@ -284,7 +284,7 @@ awk '{print $1, $12}' access.log | sort | uniq -c | sort -rn | head -30
 This separates tool-driven traffic (one IP, one UA, high frequency) from
 browser-driven traffic (one IP, mixed UAs).
 
-### Step W-3 — HTTP status code distribution
+### Step W-3 - HTTP status code distribution
 
 ```bash
 awk '{print $9}' access.log | sort | uniq -c | sort -rn
@@ -292,7 +292,7 @@ awk '{print $9}' access.log | sort | uniq -c | sort -rn
 
 High 500-count from a single IP = injection/exploitation. High 404-count = scanning.
 
-### Step W-4 — POST requests with body size > 0
+### Step W-4 - POST requests with body size > 0
 
 ```bash
 grep '"POST ' access.log | awk '$10 > 100 {print}' | sort -k10 -rn | head -20
@@ -305,20 +305,20 @@ in an upload directory = webshell activation.
 
 | Observation | MITRE technique |
 |---|---|
-| sqlmap UA + SQLi payloads in URI | T1190 — Exploit Public-Facing Application |
-| `SELECT INTO OUTFILE` in URI | T1505.001 — SQL Stored Procedures (file write via DB) |
-| PHP webshell POST execution | T1505.003 — Web Shell |
-| Python-urllib or curl POST to .php | T1059.006/T1059.004 — command execution via webshell |
+| sqlmap UA + SQLi payloads in URI | T1190 - Exploit Public-Facing Application |
+| `SELECT INTO OUTFILE` in URI | T1505.001 - SQL Stored Procedures (file write via DB) |
+| PHP webshell POST execution | T1505.003 - Web Shell |
+| Python-urllib or curl POST to .php | T1059.006/T1059.004 - command execution via webshell |
 
 ---
 
-## Memory image evidence — Volatility minimum checklist
+## Memory image evidence - Volatility minimum checklist
 
 This section applies when a memory image (`.mem`, `.dmp`, `.raw`, `.vmem`) is
 in the evidence set. **Running only pslist/pstree/netscan is not sufficient.**
-The checklist below is the minimum — run all tiers before drawing conclusions.
+The checklist below is the minimum - run all tiers before drawing conclusions.
 
-### Tier 1 — always run (< 10 min total)
+### Tier 1 - always run (< 10 min total)
 
 Run these unconditionally on every memory image:
 
@@ -339,8 +339,8 @@ vol -f image.mem windows.malfind      # injected code / suspicious VAD regions
 
 **Why `consoles` and `cmdscan` are mandatory:**
 Command history lives in `csrss.exe` / `conhost.exe` memory, not in cmd.exe's
-argument list. A cmd.exe that appears entirely clean in pstree — normal parent,
-no suspicious args — can still have a full attacker command history recoverable
+argument list. A cmd.exe that appears entirely clean in pstree - normal parent,
+no suspicious args - can still have a full attacker command history recoverable
 from `consoles`/`cmdscan`. This is where `net user`, `netsh`, and `net localgroup`
 commands show up. If you skip these plugins you will miss account creation and
 firewall modification evidence even when the process tree looks innocent.
@@ -351,12 +351,12 @@ They cost almost nothing and frequently answer ITQ questions about local account
 in VCRUNTIME140.dll is a classic side-loading pattern). Cheap to run unconditionally.
 
 **Why `mftparser` is Tier 1:**
-The MFT records cached in memory cover the most recent file activity — often
+The MFT records cached in memory cover the most recent file activity - often
 including files the on-disk MFT entries have already overwritten or that were
 created and deleted within the volatile window. It is a different time slice
 of the filesystem than `$MFT` on disk.
 
-### Tier 2 — run when initial access or RCE is confirmed
+### Tier 2 - run when initial access or RCE is confirmed
 
 ```bash
 vol -f image.mem windows.printkey --key "SAM\Domains\Account\Users\Names"
@@ -366,7 +366,7 @@ vol -f image.mem windows.shimcachemem  # Shimcache from in-memory hive
 vol -f image.mem windows.userassist    # UserAssist (GUI program execution)
 ```
 
-### Tier 3 — run when specific evidence warrants
+### Tier 3 - run when specific evidence warrants
 
 ```bash
 vol -f image.mem windows.handles --pid <PID>    # open handles (files, registry, sockets)
@@ -396,8 +396,8 @@ nothing to ask about.
 
 ## Post-exploitation persistence pivot (mandatory after RCE confirmation)
 
-**Rule: the instant you confirm code execution — webshell, RCE, LFI→RCE,
-Meterpreter session — stop web log analysis and run the persistence pivot
+**Rule: the instant you confirm code execution - webshell, RCE, LFI→RCE,
+Meterpreter session - stop web log analysis and run the persistence pivot
 before doing anything else.**
 
 Attackers create accounts and modify firewall rules within minutes of getting
@@ -410,10 +410,10 @@ instead of pivoting to "what did the attacker do with that access?"
 **1. cmdscan / consoles against csrss.exe** (if memory is available):
 ```bash
 vol -f image.mem windows.cmdscan    # look for: net user, net localgroup
-vol -f image.mem windows.consoles   # same — conhost.exe view
+vol -f image.mem windows.consoles   # same - conhost.exe view
 ```
 
-**2. SAM hive — on-disk local account list**:
+**2. SAM hive - on-disk local account list**:
 ```bash
 # Mount image, then:
 python3 -c "
@@ -429,7 +429,7 @@ sam.dump()
 Record every non-default local account as a finding_record(). Note SID, creation
 time, group membership.
 
-**3. Security.evtx — account events**:
+**3. Security.evtx - account events**:
 ```bash
 # EID 4720 = account created, EID 4732 = user added to security group
 python3 -m evtx /mnt/img/Windows/System32/winevt/Logs/Security.evtx \
@@ -445,7 +445,7 @@ netsh advfirewall firewall add rule name="RDP" dir=in action=allow protocol=TCP 
 net localgroup "Remote Desktop Users" <username> /add
 ```
 
-**2. Registry — Windows Firewall rules** (on-disk or in-memory via printkey):
+**2. Registry - Windows Firewall rules** (on-disk or in-memory via printkey):
 ```bash
 vol -f image.mem windows.printkey \
   --key "SYSTEM\CurrentControlSet\services\SharedAccess\Parameters\FirewallPolicy\FirewallRules"
@@ -455,9 +455,9 @@ vol -f image.mem windows.printkey \
 
 | Evidence | MITRE |
 |---|---|
-| `net user <name> <pass> /add` | T1136.001 — Create Local Account |
-| `net localgroup "Remote Desktop Users" <user> /add` | T1021.001 — Remote Desktop Protocol |
-| `netsh firewall set service remotedesktop` | T1021.001 + T1562.004 — Impair Defenses: Disable Firewall |
+| `net user <name> <pass> /add` | T1136.001 - Create Local Account |
+| `net localgroup "Remote Desktop Users" <user> /add` | T1021.001 - Remote Desktop Protocol |
+| `netsh firewall set service remotedesktop` | T1021.001 + T1562.004 - Impair Defenses: Disable Firewall |
 
 ### NTFS $LogFile for deleted-file recovery
 

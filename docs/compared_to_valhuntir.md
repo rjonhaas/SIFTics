@@ -1,11 +1,11 @@
-# SIFTics vs Valhuntir — Honest Criterion-by-Criterion Comparison
+# SIFTics vs Valhuntir - Honest Criterion-by-Criterion Comparison
 
 > Per Rob T. Lee's Slack: *"@channel just as a reminder of what we are shooting for is exceeding this →
 > [github.com/AppliedIR/Valhuntir](https://github.com/AppliedIR/Valhuntir)"*
 
-This document is SIFTics's honest read of where it lands vs Valhuntir on each of the six equal-weighted Find Evil! judging criteria. **Honesty over salesmanship** — every claim below is verifiable from the repo or from Valhuntir's own README.
+This document is SIFTics's honest read of where it lands vs Valhuntir on each of the six equal-weighted Find Evil! judging criteria. **Honesty over salesmanship** - every claim below is verifiable from the repo or from Valhuntir's own README.
 
-> Authors: rjonhaas (SIFTics maintainer). Comparison was prepared without input from the Valhuntir team. If anything here misrepresents Valhuntir, please open an issue — we'll correct it.
+> Authors: rjonhaas (SIFTics maintainer). Comparison was prepared without input from the Valhuntir team. If anything here misrepresents Valhuntir, please open an issue - we'll correct it.
 
 ---
 
@@ -24,7 +24,7 @@ This document is SIFTics's honest read of where it lands vs Valhuntir on each of
 
 ---
 
-## Criterion 1 — Autonomous Execution Quality (tiebreaker)
+## Criterion 1 - Autonomous Execution Quality (tiebreaker)
 
 > *Does the agent reason about next steps, handle failures, and self-correct in real time?*
 
@@ -33,7 +33,7 @@ This document is SIFTics's honest read of where it lands vs Valhuntir on each of
 - **Phase 18 anomaly check** scans for cross-artifact contradictions (e.g., Shimcache says binary executed at T1, MFT records creation at T2 > T1).
 - **`run_self_correct.sh`** re-runs upstream phases up to three iterations until the contradiction count decreases. **Mid-investigation self-correction is explicit machinery, not an emergent property.**
 - **Hypothesis Engine** (`hypothesis_score.py`) maintains a working-theory ledger; confidence is computed *mechanically* from signal weights, not LLM-guessed. Avoids anchoring on first plausible explanation.
-- **NIMS ICS Authority Gates** — tactical autonomy for the agent within the investigation section; strategic decisions (scope expansion, fleet actions) gated by cryptographic IC approval.
+- **NIMS ICS Authority Gates** - tactical autonomy for the agent within the investigation section; strategic decisions (scope expansion, fleet actions) gated by cryptographic IC approval.
 
 ### What Valhuntir has
 
@@ -43,7 +43,7 @@ This document is SIFTics's honest read of where it lands vs Valhuntir on each of
 
 ### Verdict
 
-**SIFTics ahead.** Valhuntir's autonomy story is "agent proposes, human disposes" — *one* human-in-the-loop boundary per finding. SIFTics's is "agent investigates, detects its own errors, re-runs upstream, surfaces gates" — *N* corrections per case.
+**SIFTics ahead.** Valhuntir's autonomy story is "agent proposes, human disposes" - *one* human-in-the-loop boundary per finding. SIFTics's is "agent investigates, detects its own errors, re-runs upstream, surfaces gates" - *N* corrections per case.
 
 ### Demo move
 
@@ -51,7 +51,7 @@ Show Phase 18 catching a contradiction → `run_self_correct.sh` re-runs phase �
 
 ---
 
-## Criterion 2 — IR Accuracy
+## Criterion 2 - IR Accuracy
 
 > *Are findings correct? Hallucinations caught and flagged? Confirmed findings distinguished from inferences?*
 
@@ -60,7 +60,7 @@ Show Phase 18 catching a contradiction → `run_self_correct.sh` re-runs phase �
 - **Measured accuracy** against three public datasets: NIST CFReDS, Digital Corpora Nitroba, Ali Hadi web server. Score card in [`accuracy_report.md §2`](accuracy_report.md).
 - **Five independent signals** for binary classification (Rathbun baseline, imphash, ssdeep/TLSH, capa, semantic RAG) fused per finding.
 - **Zircolite** applies the SigmaHQ rule set to EVTX before the agent reasons over the events.
-- **Hash-chained provenance** — every finding traces to the tool execution that produced it.
+- **Hash-chained provenance** - every finding traces to the tool execution that produced it.
 
 ### What Valhuntir has
 
@@ -71,7 +71,7 @@ Show Phase 18 catching a contradiction → `run_self_correct.sh` re-runs phase �
 
 ### Verdict
 
-**SIFTics slight edge** — measured beats claimed. Valhuntir likely has *broader* coverage (15-parser ingest is more comprehensive than SIFTics's HOT extractors today) but no public accuracy numbers to compare against.
+**SIFTics slight edge** - measured beats claimed. Valhuntir likely has *broader* coverage (15-parser ingest is more comprehensive than SIFTics's HOT extractors today) but no public accuracy numbers to compare against.
 
 ### Honest caveats
 
@@ -80,7 +80,7 @@ Show Phase 18 catching a contradiction → `run_self_correct.sh` re-runs phase �
 
 ---
 
-## Criterion 3 — Breadth and Depth
+## Criterion 3 - Breadth and Depth
 
 > *How much case data can the agent handle? Depth on fewer types beats shallow coverage of many.*
 
@@ -88,13 +88,13 @@ Show Phase 18 catching a contradiction → `run_self_correct.sh` re-runs phase �
 
 - 20 forensic phase scripts: NTFS, registry, EVTX, artifacts, execution, hunting, credential access, anti-forensics, IOC extraction, C2 beacon, browser, ransomware, web server, **email, Linux, CVE attribution, attack-path graph, anomaly check, memory, PCAP**.
 - **9 domain knowledge skill files** guiding the agent: `windows-artifacts`, `linux-server-artifacts`, `malware-triage`, `timeline-reconstruction`, `anti-forensics-detection`, `reporting-conventions`, plus the original ISC, triage-methodology, and hypothesis-engine skills.
-- HOT/WARM/COLD execution tiering — depth-on-demand.
-- Cross-machine attack-path graph (Mermaid output) — multi-host scope.
+- HOT/WARM/COLD execution tiering - depth-on-demand.
+- Cross-machine attack-path graph (Mermaid output) - multi-host scope.
 
 ### What Valhuntir has
 
 - 15 parsers across similar territory (Windows Event Logs, EZ Tool artifacts, Volatility 3 memory, Suricata/tshark/Velociraptor JSON, Apache/Nginx, IIS/HTTPERR, Windows Defender MPLog, Scheduled Tasks XML, SSH auth logs, PowerShell transcripts, Prefetch/SRUM).
-- OpenSearch-indexed evidence — handles large cases at scale.
+- OpenSearch-indexed evidence - handles large cases at scale.
 
 ### Verdict
 
@@ -102,49 +102,49 @@ Show Phase 18 catching a contradiction → `run_self_correct.sh` re-runs phase �
 
 ---
 
-## Criterion 4 — Constraint Implementation (architectural vs prompt-based)
+## Criterion 4 - Constraint Implementation (architectural vs prompt-based)
 
 > *Are guardrails architectural or prompt-based? Judges evaluate where security boundaries are enforced and whether they were tested for bypass.*
 
 ### What SIFTics has
 
 - **14 architectural guardrails** documented and labelled in [`architecture.md §3`](architecture.md#3-trust-boundaries--architectural-vs-prompt-based) and [`constraint_implementation.md`](constraint_implementation.md).
-- **T1–T8 bypass test harness** (14 sub-tests) — measured pass/fail. Run with `pytest tests/test_constraints.py -v`. **14/14 pass.**
-- **Cryptographic IC approval** — HMAC-SHA256, PBKDF2 key derivation, single-use enforcement (`O_EXCL`), wrong-gate rejection, agent-context drift detection, TTL expiry.
-- **Budget circuit breaker** at the LLM-call boundary — architectural, not prompt-based.
+- **T1–T8 bypass test harness** (14 sub-tests) - measured pass/fail. Run with `pytest tests/test_constraints.py -v`. **14/14 pass.**
+- **Cryptographic IC approval** - HMAC-SHA256, PBKDF2 key derivation, single-use enforcement (`O_EXCL`), wrong-gate rejection, agent-context drift detection, TTL expiry.
+- **Budget circuit breaker** at the LLM-call boundary - architectural, not prompt-based.
 - **No `execute_shell()` / `eval()` / arbitrary file write** on the MCP surface.
 
 ### What Valhuntir has
 
 - HMAC-signed approvals with PBKDF2 auth (similar primitive).
 - Typed MCP functions (similar primitive).
-- Forensic discipline reinforcement via system prompt and per-tool caveats — *some* of which are prompt-based.
+- Forensic discipline reinforcement via system prompt and per-tool caveats - *some* of which are prompt-based.
 
 ### Verdict
 
-**SIFTics edge** — measured bypass tests beat claimed architectural guardrails. Specifically, Valhuntir does not document a bypass test harness equivalent to T1–T8. If both architectures are "sound", the *measured* one is more defensible.
+**SIFTics edge** - measured bypass tests beat claimed architectural guardrails. Specifically, Valhuntir does not document a bypass test harness equivalent to T1–T8. If both architectures are "sound", the *measured* one is more defensible.
 
 ### Demo move
 
-Show T1–T8 running live on-screen — all 14 green. *"Our constraints aren't claimed, they're measured."* Valhuntir cannot replicate this on-camera without writing the same harness.
+Show T1–T8 running live on-screen - all 14 green. *"Our constraints aren't claimed, they're measured."* Valhuntir cannot replicate this on-camera without writing the same harness.
 
 ---
 
-## Criterion 5 — Audit Trail Quality
+## Criterion 5 - Audit Trail Quality
 
 > *Can judges trace any finding back to the specific tool execution that produced it?*
 
 ### What SIFTics has
 
-- **`forensic_audit.jsonl`** — hash-chained JSONL, `SHA-256(prev_line_hash || canonical(event))`.
-- **`audit_verify.sh`** — recomputes the chain end-to-end; exit 0 = intact, ≠ 0 = tampered.
-- **`llm_call` events** — every LLM call carries model, tokens, cache stats, cost. Per-finding cost traceability.
-- **Approval lifecycle in the chain** — request → sign → execute → consume, each as a separate hashed event. Tracing a hunt finding back: `action_executed` → `ic_approval_signed` → `ic_request_approval` → original tool execution. **Five hops, all hashed, all verifiable.**
+- **`forensic_audit.jsonl`** - hash-chained JSONL, `SHA-256(prev_line_hash || canonical(event))`.
+- **`audit_verify.sh`** - recomputes the chain end-to-end; exit 0 = intact, ≠ 0 = tampered.
+- **`llm_call` events** - every LLM call carries model, tokens, cache stats, cost. Per-finding cost traceability.
+- **Approval lifecycle in the chain** - request → sign → execute → consume, each as a separate hashed event. Tracing a hunt finding back: `action_executed` → `ic_approval_signed` → `ic_request_approval` → original tool execution. **Five hops, all hashed, all verifiable.**
 
 ### What Valhuntir has
 
 - "Append-only audit logs" mentioned in description.
-- HMAC-signed approval records — cryptographic only at the approval moment, not over the whole chain.
+- HMAC-signed approval records - cryptographic only at the approval moment, not over the whole chain.
 
 ### Verdict
 
@@ -156,7 +156,7 @@ Run `audit_verify.sh` on-screen. Walk a single finding back through the chain. *
 
 ---
 
-## Criterion 6 — Usability and Documentation
+## Criterion 6 - Usability and Documentation
 
 > *Can another practitioner deploy and build on this?*
 
@@ -164,12 +164,12 @@ Run `audit_verify.sh` on-screen. Walk a single finding back through the chain. *
 
 - Compliance README (this submission) with every Devpost item directly linked.
 - Flask + vanilla JS web UI: `/dashboard`, `/gates`, `/audit`, `/chat`, `/setup`, `/report`, `/intel`, `/findings`.
-  - **Block-level markdown rendering** of agent output (tables, lists, headings rendered natively).
-  - **Transcript persistence** — agent output survives page navigation without a server round-trip.
-  - **`/intel` page** — IOC generation UI backed by `intel.jsonl` (STIX/YARA/Sigma outputs from `mcp_intel`).
-  - **`/findings` page** — evidence chain traceability; each finding links back to the tool execution events in `findings.jsonl`.
-  - **`/report` page** — structured case report generated from the completed investigation.
-- Setup wizard supports **5 LLM backends** — Claude Code, Anthropic API, OpenAI API, Ollama (local), Codex. Including Ollama is a fully-offline option Valhuntir does not have.
+ - **Block-level markdown rendering** of agent output (tables, lists, headings rendered natively).
+ - **Transcript persistence** - agent output survives page navigation without a server round-trip.
+ - **`/intel` page** - IOC generation UI backed by `intel.jsonl` (STIX/YARA/Sigma outputs from `mcp_intel`).
+ - **`/findings` page** - evidence chain traceability; each finding links back to the tool execution events in `findings.jsonl`.
+ - **`/report` page** - structured case report generated from the completed investigation.
+- Setup wizard supports **5 LLM backends** - Claude Code, Anthropic API, OpenAI API, Ollama (local), Codex. Including Ollama is a fully-offline option Valhuntir does not have.
 - Quickstart that goes from `git clone` to *first finding* in 30 seconds.
 - Tested install on stock SIFT OVA *and* WSL-SIFT (per Rob's Slack 2026-05-13).
 
@@ -182,7 +182,7 @@ Run `audit_verify.sh` on-screen. Walk a single finding back through the chain. *
 
 ### Verdict
 
-**Valhuntir ahead, gap narrowing.** Valhuntir's portal is more polished overall, but SIFTics now has multiple purpose-built analyst pages (findings traceability, IOC publishing UI, structured report view) that cover the most important investigation workflows. The remaining gap is polish and multi-examiner support, not feature coverage. Mitigation: nail the compliance README (done), ship a fresh-VM install script that works without intervention (in progress), do a 30-second "from clone to first finding" segment in the demo (planned). Don't try to match the portal — substitute substance.
+**Valhuntir ahead, gap narrowing.** Valhuntir's portal is more polished overall, but SIFTics now has multiple purpose-built analyst pages (findings traceability, IOC publishing UI, structured report view) that cover the most important investigation workflows. The remaining gap is polish and multi-examiner support, not feature coverage. Mitigation: nail the compliance README (done), ship a fresh-VM install script that works without intervention (in progress), do a 30-second "from clone to first finding" segment in the demo (planned). Don't try to match the portal - substitute substance.
 
 ---
 
@@ -192,10 +192,10 @@ These are architectural capabilities that exist in SIFTics and do not exist in V
 
 1. **Active Velociraptor hunt orchestration.** SIFTics generates a typed `HuntPackage` object, surfaces it as an Authority Gate, signs it with HMAC, executes it across the fleet, and ingests the results back into the case. Valhuntir uses Velociraptor only as a JSON/JSONL parser of *already-collected* data.
 2. **Phase 18 self-correction.** Cross-artifact contradiction detection with three-iteration re-run loop. Valhuntir does not describe a mid-investigation self-correction mechanism.
-3. **Hypothesis Engine.** Mechanical confidence scoring with signal weights — no LLM-estimated probabilities. Avoids the anchoring bias common in LLM-driven investigations.
+3. **Hypothesis Engine.** Mechanical confidence scoring with signal weights - no LLM-estimated probabilities. Avoids the anchoring bias common in LLM-driven investigations.
 4. **T1–T8 bypass test harness.** Measured architectural-guardrail evidence.
-5. **Budget circuit breaker.** Architectural cost ceiling — agent cannot exhaust API credits beyond the configured per-case budget.
-6. **Multi-runtime LLM backend.** Setup wizard supports Claude Code, Anthropic API, OpenAI API, Ollama (fully local), Codex — *including* offline operation. Valhuntir requires an external MCP client and does not ship a fully-local mode.
+5. **Budget circuit breaker.** Architectural cost ceiling - agent cannot exhaust API credits beyond the configured per-case budget.
+6. **Multi-runtime LLM backend.** Setup wizard supports Claude Code, Anthropic API, OpenAI API, Ollama (fully local), Codex - *including* offline operation. Valhuntir requires an external MCP client and does not ship a fully-local mode.
 
 ## Where Valhuntir structurally exceeds SIFTics
 
@@ -213,10 +213,10 @@ Equally honest:
 | Claim | How to verify in 5 minutes or less |
 |---|---|
 | Self-correction is real | `cat phases/run_self_correct.sh && grep -A 5 'iter' phases/run_self_correct.sh` |
-| Bypass tests pass | `python -m pytest tests/test_constraints.py -v` — 14 lines of green |
+| Bypass tests pass | `python -m pytest tests/test_constraints.py -v` - 14 lines of green |
 | Hash chain works | `siftics/audit.py:verify_chain()` runs in <1 s on any sample case |
-| Budget breaker is real | Test T7 specifically — `pytest tests/test_constraints.py::test_t7_budget_circuit_breaker -v` |
-| Multi-runtime is real | Open `/setup` in the Flask UI — 5 backend cards, with live detection |
-| Velociraptor active hunt is real | `mcp_broker/server.py` exposes `create_hunt`, `start_hunt`, `wait_for_hunt`, `get_hunt_results` — none of which exist in Valhuntir's parser model |
+| Budget breaker is real | Test T7 specifically - `pytest tests/test_constraints.py::test_t7_budget_circuit_breaker -v` |
+| Multi-runtime is real | Open `/setup` in the Flask UI - 5 backend cards, with live detection |
+| Velociraptor active hunt is real | `mcp_broker/server.py` exposes `create_hunt`, `start_hunt`, `wait_for_hunt`, `get_hunt_results` - none of which exist in Valhuntir's parser model |
 
 If any of these fail to verify against the repo, that is a bug. Open an issue.

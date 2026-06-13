@@ -2,7 +2,7 @@
 
 Tested on a fresh **SANS SIFT 2026.04 OVA**, on **WSL-Ubuntu-22.04 + SIFT-server-mode**, and on **Linux Mint 22 hosts**. Per Rob T. Lee (Slack 2026-05-13) both SIFT-VM and WSL-SIFT are acceptable hackathon submission targets.
 
-## Express path — one command
+## Express path - one command
 
 ```bash
 git clone -b find-evil https://github.com/rjonhaas/SIFTics.git
@@ -15,7 +15,7 @@ cd SIFTics
 
 | Flag | Effect |
 |---|---|
-| (none) | venv + deps + seed baseline (default — fastest) |
+| (none) | venv + deps + seed baseline (default - fastest) |
 | `--full-baseline` | …but fetch the ~100 MB full Rathbun DB from a GitHub Release (~30 s) |
 | `--build-baseline` | …but build the full DB locally from sources (~30 min, ~5 GB cache) |
 | `--no-baseline` | skip baseline step entirely |
@@ -29,9 +29,9 @@ The script:
 - Detects missing `python3.X-venv` and prints the exact `apt install` to run
 - Skips steps that already completed (re-running after a partial install is safe)
 - Times itself and reports total elapsed time
-- Auto-generates the case ID as `YYYY-MM-DD-NN` (zero-padded daily sequence — first case today → `2026-06-11-01`, tenth → `2026-06-11-10`) under `~/Desktop/cases/`. The UI's `/new-case` page uses the same scheme. Override the base with `SIFTICS_CASE_BASE=/some/other/path`; supply a custom name to skip the auto-ID
+- Auto-generates the case ID as `YYYY-MM-DD-NN` (zero-padded daily sequence - first case today → `2026-06-11-01`, tenth → `2026-06-11-10`) under `~/Desktop/cases/`. The UI's `/new-case` page uses the same scheme. Override the base with `SIFTICS_CASE_BASE=/some/other/path`; supply a custom name to skip the auto-ID
 
-## Manual path — the same 30 seconds, but explicit
+## Manual path - the same 30 seconds, but explicit
 
 Use this when you want to see what the script automates.
 
@@ -41,7 +41,7 @@ cd SIFTics
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e .
 
-# Baseline DB — pick one:
+# Baseline DB - pick one:
 #   (a) demo / quick-start    (~50 curated rows, instant)
 ./scripts/build_baseline_db.sh --seed
 #   (b) full coverage         (~50-150 MB asset from latest GitHub release, ~30 s)
@@ -57,7 +57,7 @@ sift-case-init \
     --name     "Demo: Find Evil triage" \
     --ic-name  "$USER" \
     --itq-template ./templates/itq_questions.yaml
-# (you will be prompted to set an IC passphrase — this derives the HMAC key)
+# (you will be prompted to set an IC passphrase - this derives the HMAC key)
 
 # Run the UI
 siftics-ui run --case-dir "$SIFTICS_CASE_DIR" &
@@ -74,35 +74,35 @@ You now have:
 
 Open `http://127.0.0.1:8080/setup`. Two umbrella radios drive the first-run choices:
 
-- **Anthropic authentication** — *Claude.ai subscription (Pro / Max / Team)* uses the OAuth credentials produced by `claude login`; *Anthropic API key* takes a pasted key. The page detects existing OAuth credentials and existing env keys, so re-opening `/setup` mid-investigation shows you what's active right now.
-- **Response posture** — *Standalone* keeps the agent's response tools working against a small sample environment (no infrastructure needed, judges' default); *Connected* talks to a real Velociraptor server via mTLS.
+- **Anthropic authentication** - *Claude.ai subscription (Pro / Max / Team)* uses the OAuth credentials produced by `claude login`; *Anthropic API key* takes a pasted key. The page detects existing OAuth credentials and existing env keys, so re-opening `/setup` mid-investigation shows you what's active right now.
+- **Response posture** - *Standalone* keeps the agent's response tools working against a small sample environment (no infrastructure needed, judges' default); *Connected* talks to a real Velociraptor server via mTLS.
 
-Switching either radio takes effect on the **next agent turn** — the save handler patches `os.environ` in the running Flask process, so no UI restart is needed — and writes a `runtime_auth_changed` / `response_posture_changed` event into the audit chain.
+Switching either radio takes effect on the **next agent turn** - the save handler patches `os.environ` in the running Flask process, so no UI restart is needed - and writes a `runtime_auth_changed` / `response_posture_changed` event into the audit chain.
 
 Additional runtime options (further down the page):
 
 | Option | Best for | Cost |
 |---|---|---|
-| **Claude Code** *(primary — what Rob ranked best)* | Has `claude` CLI subscription installed | covered by subscription |
+| **Claude Code** *(primary - what Rob ranked best)* | Has `claude` CLI subscription installed | covered by subscription |
 | **Anthropic API key** | In-browser chat panel; full control over models | per-token |
 | **Ollama** *(fully local)* | Air-gapped / no-internet demo | $0 |
 | OpenAI API key | Stub in v1 | per-token |
 | Codex CLI | Stub in v1 | covered by subscription |
 
-If you choose Anthropic API, paste your key in the wizard's password field. It's stored in the OS keychain (or a chmod-600 file as fallback) — never logged.
+If you choose Anthropic API, paste your key in the wizard's password field. It's stored in the OS keychain (or a chmod-600 file as fallback) - never logged.
 
-**One small UX note**: the ISC persona spells out NIMS-doctrine acronyms (Investigation Section Chief, Common Operating Picture, Affected Systems Register, Containment & Eradication Tracker, Initial Triage Questionnaire, Public Information Officer) on first use per response. This is deliberate — the cyber world has collided meanings for several of these (ISC → Internet Storm Center, ASR → Automatic Speech Recognition, CET → Central European Time, PIO → Programmed I/O), and the spell-out keeps briefings unambiguous when an analyst reads them out of context.
+**One small UX note**: the ISC persona spells out NIMS-doctrine acronyms (Investigation Section Chief, Common Operating Picture, Affected Systems Register, Containment & Eradication Tracker, Initial Triage Questionnaire, Public Information Officer) on first use per response. This is deliberate - the cyber world has collided meanings for several of these (ISC → Internet Storm Center, ASR → Automatic Speech Recognition, CET → Central European Time, PIO → Programmed I/O), and the spell-out keeps briefings unambiguous when an analyst reads them out of context.
 
-## Optional — external CTI integrations
+## Optional - external CTI integrations
 
 The `/setup` page also accepts API keys for three optional CTI services that
 enrich `mcp_cti` lookups:
 
 | Service | What it adds | Free tier |
 |---|---|---|
-| **Shodan** | `lookup_shodan_ip()` — open ports, services, banners, CVEs for any IP | yes (1 query/sec) |
-| **VirusTotal** | `lookup_virustotal()` — hash / URL / domain / IP reputation across 70+ AV engines | yes (4 queries/min) |
-| **OpenSourceMalware** | `osm_lookup_indicator()` — STIX 2.1 indicator + relationship lookups | account required |
+| **Shodan** | `lookup_shodan_ip()` - open ports, services, banners, CVEs for any IP | yes (1 query/sec) |
+| **VirusTotal** | `lookup_virustotal()` - hash / URL / domain / IP reputation across 70+ AV engines | yes (4 queries/min) |
+| **OpenSourceMalware** | `osm_lookup_indicator()` - STIX 2.1 indicator + relationship lookups | account required |
 
 All three keys are stored in the OS keychain (libsecret on Linux, Keychain on
 macOS, Credential Vault on Windows) via the Python `keyring` library. **Security
@@ -111,9 +111,9 @@ posture:**
 - The raw key value is **never** written to `agent.yaml`, the audit log, or git
 - MCP tools record only the storage location (`keyring:siftics_shodan`,
   `env:SIFTICS_SHODAN_API_KEY`, or `file:~/.config/siftics/shodan.key`) in
-  `forensic_audit.jsonl` — never the value itself
+  `forensic_audit.jsonl` - never the value itself
 - If the OS keychain is unavailable, the fallback is a `chmod 0600` file under
-  `~/.config/siftics/` — owned by the analyst user, unreadable by anyone else
+  `~/.config/siftics/` - owned by the analyst user, unreadable by anyone else
 - Each integration degrades gracefully when its key is absent: the corresponding
   MCP tool returns an empty result and the agent records the absence as a gap
 - Typing the literal string `CLEAR` (all caps) in any key field removes the
@@ -129,7 +129,7 @@ cfg = rc.load_config()
 rc.save_integration_key(cfg.integrations.shodan, "your-key-here", "shodan.key")
 ```
 
-## Optional — response targets (Authority Gate destinations)
+## Optional - response targets (Authority Gate destinations)
 
 The `/setup` page also accepts connection profiles for the systems that
 Authority Gates fire against. These are higher blast radius than CTI lookups
@@ -143,19 +143,19 @@ and are wired separately:
 
 **Universal output: the action checklist.** When you call `containment_action`,
 the agent always produces a structured action checklist. Configured targets
-upgrade each checklist item from "manual action required" to "executable" —
+upgrade each checklist item from "manual action required" to "executable" - 
 they never the inverse. A SIFTics deployment with zero targets configured
 still produces useful output: a step-by-step plan the IC executes by hand.
 
 **Security model for response targets:**
 
 - Non-secret fields (URLs, cert file paths, tenant IDs, app client IDs) live
-  in `agent.yaml` — they are configuration, not credentials
+  in `agent.yaml` - they are configuration, not credentials
 - Secret fields (Elastic API key, Entra app client secret, Velociraptor client
   key file) follow the same keyring-first pattern as the CTI vault
 - Velociraptor cert files (`client.pem`, `client.key`, `ca.pem`) should be
   `chmod 0600` in `~/.config/siftics/velociraptor/`
-- Entra ID ships in **stub mode by default** — `containment_action` approval
+- Entra ID ships in **stub mode by default** - `containment_action` approval
   logs the intent to the audit chain but does NOT call Graph API until you
   explicitly toggle LIVE mode in `/setup`. This is deliberate: real Graph
   calls lock users out of their work; the stub mode lets you exercise the
@@ -196,7 +196,7 @@ cd ~/SIFTics
 claude    # then type:  /investigation-section-chief
 ```
 
-## Optional — full forensic-RAG knowledge corpus
+## Optional - full forensic-RAG knowledge corpus
 
 `setup.sh` **automatically builds the RAG index on first run (Step 7)**. It checks whether `mcp_rag/index/` is already present; if not, it builds from GitHub sources (~10–30 min, network-bound). If the build fails, setup warns but does not abort. Pass `--no-rag` to skip Step 7 entirely.
 
@@ -208,23 +208,23 @@ If you need to rebuild manually after setup:
 # Rebuild locally (~10–30 min, network-bound)
 ./scripts/download_rag_index.sh --build
 
-# Better embeddings — optional but recommended:
+# Better embeddings - optional but recommended:
 pip install sentence-transformers
 ```
 
 Without `sentence-transformers`, `mcp_rag` falls back to a deterministic hash-bag embedder (functional but lower-quality semantic search).
 
-## Optional — full Rathbun baseline corpus
+## Optional - full Rathbun baseline corpus
 
 Two paths:
 
-**Fastest** — fetch the prebuilt SQLite from the latest GitHub Release:
+**Fastest** - fetch the prebuilt SQLite from the latest GitHub Release:
 ```bash
 ./scripts/download_baseline.sh
 # ~30 seconds; ~50-150 MB compressed download
 ```
 
-**From scratch** — clone Rathbun's repos and rebuild locally:
+**From scratch** - clone Rathbun's repos and rebuild locally:
 ```bash
 ./scripts/build_baseline_db.sh --full
 # Clones AndrewRathbun/VanillaWindowsReference + VanillaWindowsRegistryHives
@@ -235,7 +235,7 @@ The Release-asset path is what we use in CI (`.github/workflows/build_baseline.y
 and what we recommend for judges who want full coverage in seconds rather than
 minutes.
 
-## Optional — connect a real Velociraptor server
+## Optional - connect a real Velociraptor server
 
 `mcp_broker` defaults to mock mode for demos. To wire it to a real server:
 
@@ -251,9 +251,9 @@ pkill -f 'siftics-ui run' || true
 siftics-ui run --case-dir "$SIFTICS_CASE_DIR" &
 ```
 
-Real-mode talks to the Velociraptor REST API (the same endpoint the WebUI uses). For deployments that only expose gRPC, swap in `pyvelociraptor` — the integration point is `mcp_broker.server._post()`.
+Real-mode talks to the Velociraptor REST API (the same endpoint the WebUI uses). For deployments that only expose gRPC, swap in `pyvelociraptor` - the integration point is `mcp_broker.server._post()`.
 
-## Optional — sync to a SIFT VM during development
+## Optional - sync to a SIFT VM during development
 
 If you develop on a host and test on a SIFT VM:
 
@@ -292,7 +292,7 @@ SIFTICS/
 │   ├── datasets.md            # evidence sources + corpora
 │   ├── demo_video.md          # 5-minute storyboard
 │   └── QUICKSTART.md          # this file
-├── tests/test_constraints.py  # T1–T8 — 14 passing
+├── tests/test_constraints.py  # T1–T8 - 14 passing
 ├── scripts/
 │   ├── build_baseline_db.sh
 │   ├── download_rag_index.sh

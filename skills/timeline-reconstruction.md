@@ -1,6 +1,6 @@
 ---
 name: timeline-reconstruction
-description: Building and interpreting investigation timelines — MAC times, artifact correlation, timestomping, super-timeline
+description: Building and interpreting investigation timelines - MAC times, artifact correlation, timestomping, super-timeline
 ---
 
 # Timeline Reconstruction
@@ -47,8 +47,8 @@ reliable set for files that have not been moved.
 | Timestamp | Name | Updated when |
 |---|---|---|
 | `mtime` | Modify time | File content written |
-| `ctime` | Change time | Metadata changed (permissions, owner, name) — NOT "created" |
-| `atime` | Access time | File read (often `relatime` or `noatime` mounted — may be stale) |
+| `ctime` | Change time | Metadata changed (permissions, owner, name) - NOT "created" |
+| `atime` | Access time | File read (often `relatime` or `noatime` mounted - may be stale) |
 | `crtime` | Birth time | File creation (ext4 only, via `debugfs -R "stat <file>"`) |
 
 ---
@@ -80,13 +80,13 @@ cross-corroborate and detect manipulation.
 For most cases, a manually constructed timeline from key artifacts is faster and
 more targeted than a full super-timeline. Build it in this order:
 
-**1. Anchor points first** — establish the known-good timestamps:
+**1. Anchor points first** - establish the known-good timestamps:
 - OS install date (SOFTWARE hive `Windows NT\CurrentVersion\InstallDate`)
 - Memory acquisition time (from acquisition tool log or file timestamp)
 - Disk image acquisition time (from FTK/dd log)
 - Case-reported incident date (from ITQ-002 answer)
 
-**2. Attack artifact timestamps** — work backward and forward from the anchor:
+**2. Attack artifact timestamps** - work backward and forward from the anchor:
 - First attacker IP in access log
 - First webshell creation (MFT FN Created)
 - First command execution (EVTX 4688 or cmdscan output)
@@ -94,7 +94,7 @@ more targeted than a full super-timeline. Build it in this order:
 - Persistence installation (service, cron, Run key)
 - Anti-forensics execution (Eraser/CCleaner Prefetch or cmdscan)
 
-**3. Correlate across sources** — for each event, find at least two independent
+**3. Correlate across sources** - for each event, find at least two independent
 artifact sources. Single-source timestamps are facts; dual-source timestamps are
 findings you can defend.
 
@@ -123,7 +123,7 @@ psort.py -o l2tcsv timeline.plaso "parser is 'winevtx'" > evtx_only.csv
 ```
 
 **Cost:** Plaso takes 30–120 minutes on a typical disk image. Use it after HOT
-findings have identified the relevant time window — filter immediately rather than
+findings have identified the relevant time window - filter immediately rather than
 reviewing the full super-timeline.
 
 **mactime format** (alternative, faster for MFT-only):
@@ -185,7 +185,7 @@ reg.py -hive /mnt/img/Windows/System32/config/SYSTEM print \
 ```
 
 Windows event logs store timestamps in UTC. Apache logs default to the server's
-local time unless configured otherwise — check `httpd.conf` for `CustomLog` format.
+local time unless configured otherwise - check `httpd.conf` for `CustomLog` format.
 Browser history SQLite timestamps are in microseconds since 1601-01-01 (Chrome)
 or seconds since 1970-01-01 (Firefox). Convert before adding to timeline.
 

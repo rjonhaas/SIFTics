@@ -1,6 +1,6 @@
 ---
 name: windows-artifacts
-description: Windows forensic artifact map — what exists, where it lives, what tool reads it, what question it answers
+description: Windows forensic artifact map - what exists, where it lives, what tool reads it, what question it answers
 ---
 
 # Windows Forensic Artifacts
@@ -20,7 +20,7 @@ without mounting (use `reg.py`, `regipy`, `RECmd`, or `hivex`).
 |---|---|---|
 | SYSTEM | `Windows\System32\config\SYSTEM` | current control set, services, device history, USB connections (USBSTOR), network interfaces, timezone, last shutdown time |
 | SOFTWARE | `Windows\System32\config\SOFTWARE` | installed software, Windows version, run keys at `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run`, product install times |
-| SAM | `Windows\System32\config\SAM` | local user accounts, password hashes, last logon time, login count, account creation time — requires SYSTEM hive for boot key to decrypt |
+| SAM | `Windows\System32\config\SAM` | local user accounts, password hashes, last logon time, login count, account creation time - requires SYSTEM hive for boot key to decrypt |
 | SECURITY | `Windows\System32\config\SECURITY` | LSA secrets, cached domain credentials, audit policy |
 | NTUSER.DAT | `Users\<username>\NTUSER.DAT` | per-user run keys, MRU lists, typed paths, recently accessed files, search history, user-installed software, timezone offset |
 | UsrClass.dat | `Users\<username>\AppData\Local\Microsoft\Windows\UsrClass.dat` | Shellbags (folder access history including network shares and removable media) |
@@ -30,7 +30,7 @@ without mounting (use `reg.py`, `regipy`, `RECmd`, or `hivex`).
 | Location | What it reveals |
 |---|---|
 | `SYSTEM\...\Enum\USBSTOR` | Every USB storage device ever connected: device type, serial number, first/last connection time |
-| `SYSTEM\...\Services` | All registered services — compare against baseline to find attacker-installed services |
+| `SYSTEM\...\Services` | All registered services - compare against baseline to find attacker-installed services |
 | `SOFTWARE\...\Run`, `RunOnce` | Persistence via autorun at login |
 | `NTUSER.DAT\...\RecentDocs` | Files recently opened by user, by extension |
 | `NTUSER.DAT\...\OpenSavePidlMRU` | Files opened/saved via dialog boxes |
@@ -55,8 +55,8 @@ Event logs are in `Windows\System32\winevt\Logs\`. Parse with `EvtxECmd` (bulk) 
 
 | EID | Log | Meaning |
 |---|---|---|
-| 4624 | Security | Successful logon — note Logon Type: 2=interactive, 3=network, 10=remote interactive (RDP), 7=unlock |
-| 4625 | Security | Failed logon — repeated failures = brute force |
+| 4624 | Security | Successful logon - note Logon Type: 2=interactive, 3=network, 10=remote interactive (RDP), 7=unlock |
+| 4625 | Security | Failed logon - repeated failures = brute force |
 | 4634/4647 | Security | Logoff |
 | 4648 | Security | Logon with explicit credentials (runas, Pass-the-Hash) |
 | 4672 | Security | Special privileges assigned (admin logon) |
@@ -71,20 +71,20 @@ Event logs are in `Windows\System32\winevt\Logs\`. Parse with `EvtxECmd` (bulk) 
 
 | EID | Log | Meaning |
 |---|---|---|
-| 4688 | Security | Process creation (requires audit policy — includes command line if configured) |
+| 4688 | Security | Process creation (requires audit policy - includes command line if configured) |
 | 4689 | Security | Process exit |
 | 1 | Sysmon | Process creation with full command line and parent info (more reliable than 4688) |
-| 7045 | System | **New service installed** — common persistence mechanism |
+| 7045 | System | **New service installed** - common persistence mechanism |
 | 7036 | System | Service started/stopped |
 
 ### Log tampering
 
 | EID | Log | Meaning |
 |---|---|---|
-| 1102 | Security | **Security audit log cleared** — records who cleared it |
+| 1102 | Security | **Security audit log cleared** - records who cleared it |
 | 104 | System | **System log cleared** |
-| 4616 | Security | **System time changed** — anti-forensics indicator |
-| 4608 | Security | Audit system starting — RecordID reset to 1 following log clear |
+| 4616 | Security | **System time changed** - anti-forensics indicator |
+| 4608 | Security | Audit system starting - RecordID reset to 1 following log clear |
 
 ### Network and firewall
 
@@ -106,14 +106,14 @@ Event logs are in `Windows\System32\winevt\Logs\`. Parse with `EvtxECmd` (bulk) 
 **Tools (on SIFT, in order of preference):**
 
 ```bash
-# 1. evtx_dump (Rust, omerbenamram/evtx) — fastest, single binary, no Python deps
+# 1. evtx_dump (Rust, omerbenamram/evtx) - fastest, single binary, no Python deps
 evtx_dump /mnt/img/Windows/System32/winevt/Logs/Security.evtx > Security.xml
 evtx_dump -o jsonl /mnt/img/.../Security.evtx > Security.jsonl   # JSONL (easier to grep)
 
-# 2. EvtxECmd (Eric Zimmerman, .NET) — bulk CSV with built-in maps
+# 2. EvtxECmd (Eric Zimmerman, .NET) - bulk CSV with built-in maps
 EvtxECmd.exe -d /mnt/img/Windows/System32/winevt/Logs/ --csv /output/ --csvf events.csv
 
-# 3. evtx_dump.py (Python fallback) — only if the Rust binary is unavailable
+# 3. evtx_dump.py (Python fallback) - only if the Rust binary is unavailable
 evtx_dump.py /mnt/img/.../Security.evtx
 ```
 
@@ -122,7 +122,7 @@ evtx_dump.py /mnt/img/.../Security.evtx
 > is a Python entry-point shim that frequently breaks with
 > `ModuleNotFoundError: No module named 'scripts'` after pip upgrades. The
 > canonical, fast one is the Rust binary from
-> <https://github.com/omerbenamram/evtx/releases> — also called `evtx_dump`
+> <https://github.com/omerbenamram/evtx/releases> - also called `evtx_dump`
 > but it lives wherever you put it (we install it at `~/.local/bin/evtx_dump`,
 > shadowing the broken Python shim). If `evtx_dump` dies with that
 > `ModuleNotFoundError`, re-download the Rust release.
@@ -134,13 +134,13 @@ evtx_dump.py /mnt/img/.../Security.evtx
 ### MFT ($MFT)
 
 The Master File Table records every file on an NTFS volume. Each entry has:
-- `$STANDARD_INFORMATION` (SI) — timestamps that users/programs can modify
-- `$FILE_NAME` (FN) — timestamps maintained by the kernel; harder to tamper
+- `$STANDARD_INFORMATION` (SI) - timestamps that users/programs can modify
+- `$FILE_NAME` (FN) - timestamps maintained by the kernel; harder to tamper
 
 **Timestomping indicator:** SI timestamps earlier than FN timestamps by more than
 a few seconds indicate manual timestamp manipulation.
 
-**Tool:** `MFTECmd` — parses the raw $MFT:
+**Tool:** `MFTECmd` - parses the raw $MFT:
 ```bash
 MFTECmd.exe -f /mnt/img/'$MFT' --csv /output/ --csvf mft.csv
 ```
@@ -192,10 +192,10 @@ Prefetch on a server is expected, not evidence of tampering.
 
 | Artifact | Location | What it reveals |
 |---|---|---|
-| LNK files | `Users\<user>\AppData\Roaming\Microsoft\Windows\Recent\` | Recently opened files and folders — includes path, timestamps, volume info, MAC address |
+| LNK files | `Users\<user>\AppData\Roaming\Microsoft\Windows\Recent\` | Recently opened files and folders - includes path, timestamps, volume info, MAC address |
 | JumpLists | `Users\<user>\AppData\Roaming\Microsoft\Windows\Recent\AutomaticDestinations\` | Per-application recently opened files |
 | Shellbags | `UsrClass.dat` → `Local Settings\Software\Microsoft\Windows\Shell\BagMRU` | Every folder ever navigated to, including USB drives, network shares, zip files |
-| Thumbcache | `Users\<user>\AppData\Local\Microsoft\Windows\Explorer\thumbcache_*.db` | Thumbnail cache — can recover images of files even after deletion |
+| Thumbcache | `Users\<user>\AppData\Local\Microsoft\Windows\Explorer\thumbcache_*.db` | Thumbnail cache - can recover images of files even after deletion |
 
 **Tools:** `LECmd` (LNK), `JLECmd` (JumpLists), `SBECmd` (Shellbags)
 
@@ -218,13 +218,13 @@ Prefetch on a server is expected, not evidence of tampering.
 | Artifact | Location | What it reveals |
 |---|---|---|
 | Network interface history | `SYSTEM` hive → `CurrentControlSet\Services\Tcpip\Parameters\Interfaces` | Historical IP assignments |
-| DNS cache | Memory only (not on disk) — use Volatility `windows.netstat` | Recent DNS resolutions |
+| DNS cache | Memory only (not on disk) - use Volatility `windows.netstat` | Recent DNS resolutions |
 | WLAN profiles | `ProgramData\Microsoft\Wlansvc\Profiles\Interfaces\` | Previously connected WiFi SSIDs |
 | RDP cached credentials | `Users\<user>\AppData\Local\Microsoft\Terminal Server Client\Cache\` | Cached RDP thumbnails of remote sessions |
 
 ---
 
-## SAM hive — account forensics
+## SAM hive - account forensics
 
 The SAM hive is encrypted by the boot key from the SYSTEM hive.
 
@@ -239,5 +239,5 @@ samdump2 /mnt/img/Windows/System32/config/SYSTEM \
 ```
 
 Output includes: username, RID (SID suffix), NT hash, last logon time, creation
-time, login count. RIDs are sequential — two new accounts with consecutive RIDs
+time, login count. RIDs are sequential - two new accounts with consecutive RIDs
 created at the same timestamp indicate batch creation (likely attacker automation).

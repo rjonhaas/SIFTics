@@ -1,13 +1,13 @@
 # SIFTics Accuracy Report
 
-Devpost submission item #9 — *Accuracy Report*.
+Devpost submission item #9 - *Accuracy Report*.
 
 > **Pinned model:** all benchmark results in this report are against
 > `claude-sonnet-4-6` with Anthropic prompt caching enabled. SIFTics will run on
 > any Claude 4.x model and on Ollama-served local models, but the headline
 > figures are pinned to Sonnet 4.6 for reproducibility.
 >
-> **Honesty over perfection** — per the hackathon rules: false positives, missed
+> **Honesty over perfection** - per the hackathon rules: false positives, missed
 > artifacts, and hallucinated claims are documented here. Failure modes are
 > signal, not weakness.
 
@@ -17,7 +17,7 @@ Devpost submission item #9 — *Accuracy Report*.
 
 | Metric | Value | Source |
 |---|---|---|
-| Total cases benchmarked | **3** | CFReDS, Nitroba, webserver — see §2 |
+| Total cases benchmarked | **3** | CFReDS, Nitroba, webserver - see §2 |
 | Public ground-truth corpora used | NIST CFReDS Data Leakage Case · Digital Corpora Nitroba Harassment Scenario · Ali Hadi Web Server Compromise Case | [`datasets.md`](datasets.md) |
 | Findings precision (vs ground truth) | *TBD* | `tools/score_benchmark.py` |
 | Findings recall (vs ground truth) | *TBD* | `tools/score_benchmark.py` |
@@ -30,8 +30,8 @@ Devpost submission item #9 — *Accuracy Report*.
 
 *(Numbers marked TBD will be filled in during final benchmarking; the three
 completed cases are documented in §2 below. A first grading-run datapoint
-against DFIR Madness "Stolen Szechuan Sauce" — 22 TP / 1 FP / 13 FN / 0
-hallucinations across 36 graded claims — is recorded in
+against DFIR Madness "Stolen Szechuan Sauce" - 22 TP / 1 FP / 13 FN / 0
+hallucinations across 36 graded claims - is recorded in
 [`datasets.md` §6.1](datasets.md); the FN class is what motivated the
 completeness critic landed this cycle, see §3.4.)*
 
@@ -43,12 +43,12 @@ completeness critic landed this cycle, see §3.4.)*
 
 Three public, attribution-friendly datasets are used as ground truth:
 
-1. **NIST CFReDS Data Leakage Case** — Windows disk image with 43 documented
+1. **NIST CFReDS Data Leakage Case** - Windows disk image with 43 documented
    Initial Triage Questions (ITQ); NIST-curated ground truth.
-2. **Digital Corpora Nitroba University Harassment Scenario** — multi-host
+2. **Digital Corpora Nitroba University Harassment Scenario** - multi-host
    network evidence (pcaps, logs) with documented attribution ground truth,
    including the perpetrator's Gmail address recovered from HTTP cookies.
-3. **Ali Hadi Web Server Compromise Case** — Linux web server disk image with
+3. **Ali Hadi Web Server Compromise Case** - Linux web server disk image with
    a documented multi-stage attack chain (exploit → webshell → persistence).
 
 Each case is run end-to-end through SIFTics. The resulting findings are scored
@@ -68,12 +68,12 @@ Two recent additions specifically target the FP and FN classes surfaced by the
 first grading-run datapoint (see [`datasets.md` §6.1](datasets.md)):
 
 - **`anti-forensics-detection.md` timestomping scope expansion** (commit
-  `adc94a1`) — the Timestomping section now names three scopes the agent must
+  `adc94a1`) - the Timestomping section now names three scopes the agent must
   check (implant binaries, user-data files in attacker-accessed directories,
   log files), and a closer rule that "no timestomping observed" without scope
   coverage reads as incomplete. Closes the Beth_Secret.txt timestomp
   false-positive class.
-- **`case-completeness-review.md`** — pre-close completeness critic skill. The
+- **`case-completeness-review.md`** - pre-close completeness critic skill. The
   ISC persona's operating loop now has a step 9: call `case_completeness_check()`
   before any final briefing, motivation set, or ASR row marked as safe
   transition; address every HIGH gap, document every MEDIUM gap. Backed by the
@@ -96,7 +96,7 @@ Recall    = HIT / (HIT + MISS + PARTIAL).
 ### 1.3 Test environment
 
 - SIFT Workstation 2026.04.22 OVA, 8 GB RAM, 4 vCPU
-- WSL-Ubuntu-22.04 + SIFT server-mode (parity test target — Rob explicitly
+- WSL-Ubuntu-22.04 + SIFT server-mode (parity test target - Rob explicitly
   approved WSL in Slack 2026-05-13)
 - Python 3.10
 - `claude-sonnet-4-6` via Anthropic API with prompt caching enabled
@@ -129,7 +129,7 @@ All 43 ITQ answered. Primary attribution target correctly identified.
 |---|---|
 | ITQ completion | **43 / 43** |
 | Perpetrator email address identified | **jcoachj@gmail.com** (recovered from HTTP cookie in pcap) |
-| Shared WiFi / open network null hypothesis | Correctly cleared — traffic pattern inconsistent with shared connection |
+| Shared WiFi / open network null hypothesis | Correctly cleared - traffic pattern inconsistent with shared connection |
 
 The correct identification of `jcoachj@gmail.com` from HTTP cookie evidence
 without false positives demonstrates reliable low-level network artifact
@@ -148,7 +148,7 @@ post-run and has been corrected in the `linux-server-artifacts` skill.
 | Persistence mechanism | Missed in initial run; now covered by updated skill |
 
 **Summary**: Attack chain found end-to-end. Persistence gap exposed a real
-blind spot in Linux server artifact coverage — documented here per the
+blind spot in Linux server artifact coverage - documented here per the
 "honesty over perfection" principle, and corrected in `linux-server-artifacts.md`.
 
 ### 2.4 Hunt_lab-generated case (controlled adversary)
@@ -181,9 +181,9 @@ Hallucinations are the IR-specific failure mode the hackathon rules call out:
 
 Examples observed during benchmarking will be listed here with the
 contradicting evidence pair (e.g., "Shimcache says binary executed at T1, but
-MFT records its creation at T2 > T1 — flagged").
+MFT records its creation at T2 > T1 - flagged").
 
-### 3.2 Caught (and not surfaced) — manual review only
+### 3.2 Caught (and not surfaced) - manual review only
 
 Honest accounting: claims the agent made that we identified post-hoc as
 unsupported by tool output. Example archetypes:
@@ -194,53 +194,53 @@ unsupported by tool output. Example archetypes:
 
 ### 3.3 Avoided entirely by architectural design
 
-- **No raw shell** — the agent cannot fabricate a `bash` invocation it didn't
+- **No raw shell** - the agent cannot fabricate a `bash` invocation it didn't
   actually run, because there is no `execute_shell()` MCP function. Every claim
   traces to a typed function with a deterministic output.
-- **No `eval()` or arbitrary file read** — the agent cannot "claim it ran X"
+- **No `eval()` or arbitrary file read** - the agent cannot "claim it ran X"
   without there being an audit event proving it ran X.
-- **Hash-chained provenance** — fabricated findings cannot be inserted into the
+- **Hash-chained provenance** - fabricated findings cannot be inserted into the
   audit log without breaking the chain at `audit_verify.sh`.
-- **RAG grounding** — every semantic enrichment claim (MITRE technique alignment,
+- **RAG grounding** - every semantic enrichment claim (MITRE technique alignment,
   Sigma rule match explanation, LOLBAS context) is backed by a retrieved record
   from `mcp_rag`. The agent is instructed to cite the returned `record_id` and
   similarity score; uncited claims can therefore be identified by diffing the
   agent's narrative against `forensic_audit.jsonl` `rag_lookup` events. Claims
   that cannot be grounded in a retrieved record are the surface area Rob Lee's
-  article describes — we expect Phase 18 to catch most of them via
+  article describes - we expect Phase 18 to catch most of them via
   cross-artifact contradiction checks.
-- **Deterministic vs probabilistic source typing** — baseline lookups
+- **Deterministic vs probabilistic source typing** - baseline lookups
   (`mcp_baseline`), IOC lookups (`mcp_cti`), and Sigma rule hits (`mcp_rag`
   Sigma path) return exact-match results, not probability-weighted completions.
   The `source_type` field in each `forensic_audit.jsonl` event distinguishes
   `deterministic` (hash/IP exact-match) from `ai_enrichment` (LLM reasoning
   over retrieved context) so downstream verification can be targeted.
 
-### 3.4 Pre-close completeness critic — the architectural answer to the FN class
+### 3.4 Pre-close completeness critic - the architectural answer to the FN class
 
 False negatives (ground-truth checks the agent never surfaced) are the dominant
 error class in the first grading-run datapoint (13 FN out of 36 graded claims;
 see [`datasets.md` §6.1](datasets.md)). The architectural mitigation shipped
 this cycle:
 
-- **`siftics/completeness_rules.py`** — pure-Python rule engine, seven rules
+- **`siftics/completeness_rules.py`** - pure-Python rule engine, seven rules
   each a typed function over a `CaseState` dataclass (suit.jsonl + findings.jsonl
   + grid.jsonl + briefings/). Initial v1 ruleset:
-  - `antiforensics_scope_data_files` (HIGH) — covers the Beth_Secret.txt
+ - `antiforensics_scope_data_files` (HIGH) - covers the Beth_Secret.txt
     timestomp false-positive class
-  - `antiforensics_scope_log_files` (MEDIUM)
-  - `registry_persistence_when_service_persistence` (HIGH)
-  - `browser_history_when_remote_entry_vector` (MEDIUM)
-  - `timezone_registry_read_for_windows` (MEDIUM)
-  - `cti_lookup_for_external_ips` (MEDIUM)
-  - `credential_dump_on_dc_compromise` (HIGH)
-- **`mcp_case.case_completeness_check()`** — typed MCP tool the agent calls
+ - `antiforensics_scope_log_files` (MEDIUM)
+ - `registry_persistence_when_service_persistence` (HIGH)
+ - `browser_history_when_remote_entry_vector` (MEDIUM)
+ - `timezone_registry_read_for_windows` (MEDIUM)
+ - `cti_lookup_for_external_ips` (MEDIUM)
+ - `credential_dump_on_dc_compromise` (HIGH)
+- **`mcp_case.case_completeness_check()`** - typed MCP tool the agent calls
   before any final briefing or motivation lock-in. Returns gaps ordered
   HIGH → MEDIUM → LOW. Writes a `case_completeness_check_run` audit event.
-- **`mcp_case.case_set_motivation(text)`** — typed lock-in for the
+- **`mcp_case.case_set_motivation(text)`** - typed lock-in for the
   attacker-motive narrative. Rejects placeholder strings (<25 chars, "TBD",
   "Unknown", etc.) and writes a `case_motivation_set` audit event.
-- **`skills/case-completeness-review.md`** — the prompt-side obligation that
+- **`skills/case-completeness-review.md`** - the prompt-side obligation that
   forces the agent to call the check before closing. Every HIGH gap must be
   addressed; every MEDIUM gap must be documented.
 
@@ -298,20 +298,20 @@ in v1; T8 has 7 sub-tests covering the IC approval enforcement specifically.
 Default budget per case: **$10 USD**. When the running case cost reaches this,
 `cost_tracker.BudgetExceeded` is raised at the top of the next LLM call and
 no further requests are made. The agent is *unable* to continue past the
-budget regardless of its reasoning — this is architectural (criterion #4),
+budget regardless of its reasoning - this is architectural (criterion #4),
 not prompt-based.
 
 The audit log includes an `llm_call` event for every LLM invocation with
 `model`, `task_class`, `purpose`, `input_tokens`, `cached_read_tokens`,
 `cached_creation_tokens`, `output_tokens`, `cost_usd`, and `cache_hit_rate`.
-This gives **per-finding cost traceability** — a feature Valhuntir does not
+This gives **per-finding cost traceability** - a feature Valhuntir does not
 claim.
 
 ---
 
 ## 6. Known failure modes and limitations
 
-Honest list — these are real and accepted in v1:
+Honest list - these are real and accepted in v1:
 
 1. **HOT layer narrow coverage.** The HOT extractors only cover Windows
    execution / persistence / credential access. Web-server, email, and Linux
@@ -361,8 +361,8 @@ layers; the first two are live in this submission, the third is staged.
 |---|---|---|
 | OS hardening before any forensic code runs | `unattended-upgrade --minimal-upgrade-steps` against the Ubuntu security archive at step 1 | live; skip with `--no-security-updates` |
 | Python CVE scan against PyPA DB | `pip-audit` inline after step 3 venv populate | live; skip with `--no-audit` |
-| Hash-pinned reproducible installs | `pip install --require-hashes` from a `requirements-pinned.txt` produced by `pip-compile --generate-hashes` | **staged** — not in this submission |
-| npm `--ignore-scripts` for Claude Code CLI | already declarative when the user opts into `--install-claude` | partial — Claude Code install path uses `npm install -g`, planned migration to `npm ci --ignore-scripts` against a vendored `package-lock.json` |
+| Hash-pinned reproducible installs | `pip install --require-hashes` from a `requirements-pinned.txt` produced by `pip-compile --generate-hashes` | **staged** - not in this submission |
+| npm `--ignore-scripts` for Claude Code CLI | already declarative when the user opts into `--install-claude` | partial - Claude Code install path uses `npm install -g`, planned migration to `npm ci --ignore-scripts` against a vendored `package-lock.json` |
 
 ### 7.2 Case-init SBOM snapshot (live in `siftics/sbom.py` + `siftics/case_state.py:init_case`)
 
@@ -392,7 +392,7 @@ The strongest possible enforcement layer: `mcp_ic_approval`'s
 to the snapshot chained in audit row 1. Mismatch → approval refused →
 the agent literally cannot fire `execute_hunt_package`,
 `containment_action`, `publish_intel`, or `escalate_to_cold` against a
-drifted toolchain. This is **architectural, not prompt-based** — the
+drifted toolchain. This is **architectural, not prompt-based** - the
 verifier function refuses regardless of what the LLM asks for.
 
 Staged for v1.1. The current submission carries §7.1 and §7.2; the
@@ -411,7 +411,7 @@ wired into the verification path.
   filed, and visible in the audit chain via any IO the payload performs.
 - `unattended-upgrade` is best-effort. If the Ubuntu archive itself is
   compromised between SIFTics's install and a later case-init, the SBOM
-  hash detects it (different installed bytes) — but the prior install
+  hash detects it (different installed bytes) - but the prior install
   ran with the compromised packages.
 
 These limits are documented so a judge / operator knows exactly what
@@ -430,7 +430,7 @@ pip install -e .
 # Pull the benchmark datasets (one-time, ~5-10 GB)
 ./scripts/download_benchmarks.sh
 
-# Run the full accuracy benchmark — writes results to examples/benchmark_<date>/
+# Run the full accuracy benchmark - writes results to examples/benchmark_<date>/
 SIFTICS_ANTHROPIC_KEY=... sift-benchmark run --pin claude-sonnet-4-6
 
 # Re-run the bypass tests

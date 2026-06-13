@@ -35,7 +35,7 @@ You should:
 - Add signals as evidence accrues. Each signal explicitly references the
   audit-log event ID that produced it.
 - Add *negative* signals too. If you searched for something and it wasn't
-  there, that is evidence — record it.
+  there, that is evidence - record it.
 - Periodically retire hypotheses below 0.1 confidence after at least 5 signals
   have been weighed. Keep the ledger clean.
 
@@ -43,7 +43,7 @@ You should not:
 
 - Pick a winning hypothesis until at least one has confidence > 0.7 *and*
   no competing hypothesis is above 0.3.
-- Self-estimate the confidence number — let the math do it.
+- Self-estimate the confidence number - let the math do it.
 
 ---
 
@@ -53,12 +53,12 @@ These rules have teeth. They are not suggestions. Violating them is the
 mechanical equivalent of anchoring, and anchoring is how agents misidentify
 suspects.
 
-### Rule 1 — Every distinct identity token gets at least one hypothesis (F-001)
+### Rule 1 - Every distinct identity token gets at least one hypothesis (F-001)
 
 An *identity token* is any artifact that could be the actor's true source:
 an IP address, email address, username, device identifier, session cookie,
 MAC address, or DHCP lease entry. The moment your evidence extraction
-produces a new identity token — any new one — you must open a hypothesis
+produces a new identity token - any new one - you must open a hypothesis
 that names that token as the actor, even if you privately believe it is
 noise.
 
@@ -87,7 +87,7 @@ same person" or "probably irrelevant." That feeling is anchoring. The
 hypothesis ledger is the mechanism that exposes whether the feeling is
 justified.
 
-### Rule 2 — Shared-medium cases require an attribution-uncertainty hypothesis at case open (F-005)
+### Rule 2 - Shared-medium cases require an attribution-uncertainty hypothesis at case open (F-005)
 
 A *shared medium* is any network path where multiple physical actors could
 be the true source of observed traffic: open WiFi, shared NAT, shared VLAN,
@@ -106,8 +106,8 @@ hypothesis_score add "An unknown actor used the shared network medium; the obser
 hypothesis_score signal H-7c3d9e1a 2 "Evidence originates from a shared-medium network; physical attribution not yet established" --audit-event <event_seq>
 ```
 
-**This hypothesis may only be retired — using an explicit retire call with
---reason — after BOTH of the following are satisfied:**
+**This hypothesis may only be retired - using an explicit retire call with
+--reason - after BOTH of the following are satisfied:**
 
 1. A device-binding record (DHCP binding with MAC, 802.11 association log,
    VPN cert, or equivalent) ties the IP to a specific physical device at
@@ -120,7 +120,7 @@ retire-by-score.
 
 **Shared-medium pattern:**
 ```
-Open at case start (IDs illustrative — use what the CLI returns):
+Open at case start (IDs illustrative - use what the CLI returns):
   H-aa1bb2cc: "<primary suspect> sent the harassing email"
   H-dd3ee4ff: "<alternative IP/account> is the true sender"
   H-ff5aa6bb: "Unknown actor used the shared medium; no physical attribution yet"
@@ -130,7 +130,7 @@ equivalent device-binding evidence ties a device to a specific person at the
 relevant IP and timestamp.
 ```
 
-### Hypothesis coverage checklist — run before every IC briefing
+### Hypothesis coverage checklist - run before every IC briefing
 
 Before calling `briefing_post()`, confirm all of the following:
 
@@ -161,7 +161,7 @@ hypothesis_score.py retire <id> --reason "..."     # closes a theory
 | Direct evidence (matching IOC, hash, timeline) | 3–5 |
 | Strong circumstantial (logs of a tool the actor uses) | 2–3 |
 | Weak circumstantial (unusual but not unique) | 1–2 |
-| Absence-of-evidence (looked for X, didn't find it — *only valid when the search was thorough*) | 0.5–1 |
+| Absence-of-evidence (looked for X, didn't find it - *only valid when the search was thorough*) | 0.5–1 |
 | Contradicting evidence | negative of the corresponding positive weight |
 
 If you find yourself wanting to use weight > 5 on a single signal, the signal
@@ -180,7 +180,7 @@ see the conclusion.
 
 When you request an `execute_hunt_package` Authority Gate, include the
 hypothesis you're testing in the gate summary. If the hypothesis has only
-0.4 confidence, that's still a perfectly valid reason to propose a hunt —
+0.4 confidence, that's still a perfectly valid reason to propose a hunt - 
 hunts are how you confirm or disconfirm low-confidence theories. State that
 explicitly: "I'm 0.4 on the credential-dumper theory; this hunt will tell us
 whether other hosts show the imphash pattern, which would push the theory to

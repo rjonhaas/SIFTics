@@ -25,16 +25,16 @@ An ITQ answer is complete when it meets all three criteria:
 
 3. **States confidence.** When the answer is based on incomplete evidence or
    indirect inference, say so explicitly:
-   - *High confidence* — directly evidenced by two or more independent artifacts
-   - *Medium confidence* — one artifact, corroborated by circumstantial evidence
-   - *Low confidence* — inference from indirect evidence; single source; or the
+  - *High confidence* - directly evidenced by two or more independent artifacts
+  - *Medium confidence* - one artifact, corroborated by circumstantial evidence
+  - *Low confidence* - inference from indirect evidence; single source; or the
      primary source has tamper risk
 
 **For N/A answers:** A training exercise, offline case, or inapplicable question
-still needs a reason. "N/A — offline forensic case; no live EDR applicable" is
+still needs a reason. "N/A - offline forensic case; no live EDR applicable" is
 complete. "N/A" alone is not.
 
-**For unanswerable questions:** "Cannot determine from available evidence —
+**For unanswerable questions:** "Cannot determine from available evidence - 
 sources consulted: Security.evtx (cleared), Prefetch (absent on Server SKU),
 memory (not available)" is complete. Stating what was checked and came up empty
 is forensically meaningful.
@@ -58,7 +58,7 @@ is forensically meaningful.
 Every briefing should contain these sections, in order:
 
 ```markdown
-# [Briefing title] — [case name]
+# [Briefing title] - [case name]
 
 **Posted:** [UTC timestamp] | **Author:** Investigation Section Chief
 **Phase:** [what phase of the investigation this covers]
@@ -70,7 +70,7 @@ One paragraph. What was done, what was found, what it means. Written for an
 IC who has not read the previous briefing. Do not assume prior context.
 
 ## Key findings
-Bullet list. Each bullet: [finding_id if applicable] — one sentence claim —
+Bullet list. Each bullet: [finding_id if applicable] - one sentence claim - 
 confidence level.
 
 ## MITRE ATT&CK
@@ -82,7 +82,7 @@ What remains unanswered and what evidence would answer it.
 
 ### What does NOT belong in a briefing
 
-- Raw tool output — that belongs in `finding_record()` output_excerpt
+- Raw tool output - that belongs in `finding_record()` output_excerpt
 - Speculation without labeling it as such
 - Summaries of previous briefings (the IC has those)
 - Hedging language that obscures the finding ("it appears that perhaps...")
@@ -102,7 +102,7 @@ add T1059 without evidence of direct command execution via that vector.
 
 | Technique | Sub-technique | Evidence | Confidence |
 |---|---|---|---|
-| T1190 | — | sqlmap UA in access log; `UNION SELECT` payloads in URI | High |
+| T1190 | - | sqlmap UA in access log; `UNION SELECT` payloads in URI | High |
 | T1505 | T1505.003 Web Shell | phpshell.php, c99.php found in web root | High |
 | T1136 | T1136.001 Local Account | cmdscan: `net user <name> <pass> /add` | High |
 
@@ -179,7 +179,7 @@ Use consistent language across all outputs:
 | **High confidence** | One strong artifact source, not easily manipulated | FN timestamp; kernel-written log entry; memory string with full context |
 | **Medium confidence** | One artifact source with some tamper risk, or indirect inference | SI timestamp; single EVTX entry; access log entry (can be spoofed) |
 | **Low confidence** | Circumstantial; one weak source; inference chain with multiple steps | Absence of evidence; user-writable log; behavioral inference |
-| **Unconfirmed** | Hypothesis without direct artifact support — clearly labeled as such | "Suspected but not evidenced in available artifacts" |
+| **Unconfirmed** | Hypothesis without direct artifact support - clearly labeled as such | "Suspected but not evidenced in available artifacts" |
 
 Never present a low-confidence finding as confirmed. If the IC needs to act on
 a low-confidence finding, label it clearly so they understand the risk.

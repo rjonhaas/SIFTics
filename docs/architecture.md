@@ -1,29 +1,29 @@
 # SIFTics Architecture
 
-Devpost submission item #7 — *Architecture Diagram*.
+Devpost submission item #7 - *Architecture Diagram*.
 
-> **Architectural pattern:** *Custom MCP Server* — Rob T. Lee's #2 approach,
+> **Architectural pattern:** *Custom MCP Server* - Rob T. Lee's #2 approach,
 > described in the hackathon rules as *"the most sound architecture in the evaluation."*
 > Read-only mounts, typed MCP functions, cryptographically-signed Authority Gates,
-> hash-chained audit log — every guardrail enforced **structurally** rather than by
+> hash-chained audit log - every guardrail enforced **structurally** rather than by
 > prompt instruction.
 
 This file is the canonical architecture overview. ASCII diagrams are
-embedded inline — the markdown is the source of truth. Section 0
+embedded inline - the markdown is the source of truth. Section 0
 shows the deployment framing (what's in the submission vs. what
 exists to demonstrate it); sections 1+ show the internal execution
 model in detail.
 
-## 0. Deployment framing — three layers
+## 0. Deployment framing - three layers
 
 The README leads with this; here's what it looks like as a diagram.
 The vertical bar in the middle is the **MCP integration contract**
-— the typed tool surface that makes Layer 1 oblivious to whatever
+ -  the typed tool surface that makes Layer 1 oblivious to whatever
 specific environment is on the right.
 
 ```
    ┌──────────────────────────────┐ │ ┌──────────────────────────────┐
-   │  Layer 1 — SIFTics agent     │ │ │  Layer 3 — Reference          │
+   │  Layer 1 - SIFTics agent     │ │ │  Layer 3 - Reference          │
    │  THE SUBMISSION              │ │ │  deployment                   │
    │                              │ │ │  THE PROOF POINT              │
    │   NIMS IC framework          │ │ │                               │
@@ -46,7 +46,7 @@ specific environment is on the right.
                   └──────────────────┴─────────────────┘
                                      │
                   ╔══════════════════▼═══════════════════╗
-                  ║  Layer 2 — INTEGRATION CONTRACT      ║
+                  ║  Layer 2 - INTEGRATION CONTRACT      ║
                   ║  THE ARCHITECTURE                    ║
                   ║                                      ║
                   ║   Typed MCP tool surface             ║
@@ -71,7 +71,7 @@ specific environment is on the right.
 
 **What's in this repository:** Layers 1 and 2. Layer 3 lives at
 [github.com/rjonhaas/hunt_lab](https://github.com/rjonhaas/hunt_lab)
-and is an *example* of what plugs into the Layer-2 contract —
+and is an *example* of what plugs into the Layer-2 contract - 
 not a dependency of the submission.
 
 > *NIMS = National Incident Management System; IC = Incident Commander. The full role mapping is in §2c.*
@@ -83,7 +83,7 @@ can be graded end-to-end without any external infrastructure.
 
 **Real mode** (the demo-video path): the broker's typed functions
 call out to whatever Velociraptor/EDR/TIP is configured. The same
-agent, the same audit chain, the same Authority Gates — now with
+agent, the same audit chain, the same Authority Gates - now with
 hunts actually firing across an enterprise. This is the path that
 demonstrates "fighting back at AI-speed."
 
@@ -102,7 +102,7 @@ on the same page and uses the same env-patch + audit pattern
 
 ```mermaid
 flowchart TB
-    subgraph Host["Host (judges' SIFT VM — physical or WSL)"]
+    subgraph Host["Host (judges' SIFT VM - physical or WSL)"]
         Browser["IC browser<br/>localhost:8080"]
     end
 
@@ -112,19 +112,19 @@ flowchart TB
             Wizard["/setup wizard<br/>(Flask)"]
         end
 
-        subgraph Agent["Layer 0 — Agent runtime (configurable)"]
+        subgraph Agent["Layer 0 - Agent runtime (configurable)"]
             CC["Claude Code<br/>(primary, per rules)"]
             ANT["Anthropic API<br/>(in-process)"]
             OL["Ollama<br/>(local LLM)"]
         end
 
-        subgraph L3["Layer 3 — Response & Scope Expansion"]
+        subgraph L3["Layer 3 - Response & Scope Expansion"]
             IOCPush["IOC → EDR/SIEM"]
             HuntPush["Findings → Velociraptor hunts"]
             Contain["Containment recommendations"]
         end
 
-        subgraph L2["Layer 2 — AI-Native Interpretation"]
+        subgraph L2["Layer 2 - AI-Native Interpretation"]
             Narrate["narrative_chunker"]
             Correlate["cross_artifact_correlator"]
             Hypoth["hypothesis_engine"]
@@ -133,15 +133,15 @@ flowchart TB
             SelfCor["self_correction (Phase 18)"]
         end
 
-        subgraph L1["Layer 1 — Extractors"]
+        subgraph L1["Layer 1 - Extractors"]
             Hot["HOT (AI-built, fast, narrow)<br/>fast_evtx_attack_filter<br/>fast_persistence_scan<br/>fast_execution_timeline<br/>classify_binary"]
             Cold["COLD (existing forensic tools)<br/>Plaso · Volatility · EZ Tools<br/>Sleuth Kit · Zircolite · capa"]
         end
 
         subgraph MCP["Custom MCP Servers"]
-            McpCase["mcp_case<br/>(case state + completeness critic —<br/>finding_record, case_set_motivation,<br/>case_completeness_check, etc.)"]
+            McpCase["mcp_case<br/>(case state + completeness critic - <br/>finding_record, case_set_motivation,<br/>case_completeness_check, etc.)"]
             McpIC["mcp_ic_approval<br/>(Authority Gates)"]
-            McpVR["mcp_broker<br/>(Velociraptor — 10 typed fns)"]
+            McpVR["mcp_broker<br/>(Velociraptor - 10 typed fns)"]
             McpRAG["mcp_rag"]
             McpCTI["mcp_cti<br/>(OSM + abuse.ch)"]
             McpBase["mcp_baseline<br/>(Rathbun lookup)"]
@@ -215,17 +215,17 @@ version) or the ASCII fallback below.
             ║  └─────────┬────────────────────────────────────┘    ║
             ║            │                                          ║
             ║   ┌────────▼────────────────────────────────────┐    ║
-            ║   │ Layer 3 — Response & Scope Expansion        │ ←─ ║ PROMPT-based
+            ║   │ Layer 3 - Response & Scope Expansion        │ ←─ ║ PROMPT-based
             ║   │   IOC push · hunt deploy · containment      │    ║ orchestration
             ║   └────────▲────────────────────────────────────┘    ║ (YELLOW)
             ║   ┌────────┴────────────────────────────────────┐    ║
-            ║   │ Layer 2 — AI-native interpretation          │    ║
+            ║   │ Layer 2 - AI-native interpretation          │    ║
             ║   │   narrative_chunker · hypothesis_engine     │    ║
             ║   │   cross_artifact_corr · attack_path_grapher │    ║
             ║   │   forensic_rag · self_correction (Phase 18) │    ║
             ║   └────────▲────────────────────────────────────┘    ║
             ║   ┌────────┴────────────────────────────────────┐    ║
-            ║   │ Layer 1 — Extractors                        │    ║
+            ║   │ Layer 1 - Extractors                        │    ║
             ║   │   HOT  AI-built, narrow, fast (<30s)        │    ║
             ║   │   COLD existing forensic tools (defensible) │    ║
             ║   └─────────────────────────────────────────────┘    ║
@@ -255,8 +255,8 @@ version) or the ASCII fallback below.
 SIFTics models NIMS Incident Command System (ICS) doctrine: an **Incident
 Commander** (the human analyst) sits at the top of the structure, and a
 single **Investigation Section Chief** (the Claude Code agent) runs the
-tactical investigation. v1.1 adds two NIMS Command Staff roles — **Safety
-Officer** and **Legal Officer** — that get consulted before any Authority
+tactical investigation. v1.1 adds two NIMS Command Staff roles - **Safety
+Officer** and **Legal Officer** - that get consulted before any Authority
 Gate is surfaced to the IC.
 
 **These roles are not separate agents.** They are personas activated by
@@ -274,10 +274,10 @@ The persona pattern is a pragmatic v1 choice. The trade-offs:
 
 | Multi-agent pattern would give us | Persona pattern gives us instead |
 |---|---|
-| Fresh-eyes review (no IC framing bias) | Same context — but a structured output schema (5 dimensions × score + rationale) forces the role to fill specific fields rather than nod along |
-| Separate tool surface per role | A bounded sub-prompt and a single consult MCP tool per role — the persona can't reach for arbitrary tools mid-consultation |
+| Fresh-eyes review (no IC framing bias) | Same context - but a structured output schema (5 dimensions × score + rationale) forces the role to fill specific fields rather than nod along |
+| Separate tool surface per role | A bounded sub-prompt and a single consult MCP tool per role - the persona can't reach for arbitrary tools mid-consultation |
 | Doctrinal purity | A documented compromise. We call this *NIMS-doctrine-aligned single-agent Command Staff*, not "multiple agents" |
-| Marshaling cost (tokens to copy case state) | Zero context marshaling — the persona inherits the live conversation |
+| Marshaling cost (tokens to copy case state) | Zero context marshaling - the persona inherits the live conversation |
 | Audit fragmentation across agents | One audit chain, ``actor`` field per row records the role that wrote it |
 
 The architectural property of the consults is enforced at the MCP-tool
@@ -293,7 +293,7 @@ G16, G17.)
 
 NIMS doctrine also includes Finance / Administration Section Chief and
 Public Information Officer. v1.1 deliberately ships Safety + Legal first.
-Finance, PIO, and Liaison are sketched in §2c–§2f below — they don't
+Finance, PIO, and Liaison are sketched in §2c–§2f below - they don't
 ship as code in this submission, but they're documented so the
 architectural completeness story holds.
 
@@ -302,21 +302,21 @@ architectural completeness story holds.
 ## 2c. Mapping to NIMS Incident Command System
 
 The canonical NIMS ICS organizational chart (FEMA-published) has one
-position at the top — **Incident Commander** — with two distinct
+position at the top - **Incident Commander** - with two distinct
 support structures hanging off it:
 
 - **Command Staff** (Public Information Officer, Safety Officer,
-  Liaison Officer) — report directly to the IC, *outside* the tactical
+  Liaison Officer) - report directly to the IC, *outside* the tactical
   chain of command. Their authority is to advise + flag, not to
   execute. Safety Officer specifically has the *standing to stop work*.
-- **General Staff** — four Section Chiefs who do the tactical work:
+- **General Staff** - four Section Chiefs who do the tactical work:
   **Operations Section** (the response itself), **Planning Section**
   (next-cycle thinking, situation awareness, documentation),
   **Logistics Section** (resources, infrastructure, comms), and
   **Finance/Administration Section** (cost tracking, procurement,
   comp/claims).
 
-SIFTics does not need to be lock-step with NIMS — but it has been a
+SIFTics does not need to be lock-step with NIMS - but it has been a
 proven command structure for emergency response since the 1970s and
 applies cleanly to a machine-paced incident response, so we adopt it
 as the framework and document where we deviate or collapse roles.
@@ -351,7 +351,7 @@ The deviations we make and why:
   claim.
 - **Liaison Officer**'s third-party-NDA / vendor-coordination function
   is currently folded into Legal Officer's `third_party_nda_scope`
-  dimension. A future v1.2 could split them — Liaison handles the
+  dimension. A future v1.2 could split them - Liaison handles the
   *coordination* (NDA scope, MSSP engagement, ISAC sharing) while
   Legal handles the *advisability* (privilege, admissibility,
   regulator triggers). For v1.1, the merged role is honest about the
@@ -359,7 +359,7 @@ The deviations we make and why:
 
 ---
 
-## 2d. Logistics Section — what a real-deployment architecture would look like
+## 2d. Logistics Section - what a real-deployment architecture would look like
 
 NIMS Logistics owns *the resources the responders need to do their job*.
 For a digital incident response that's deployed at an organization (not
@@ -374,14 +374,14 @@ covers a realistic deployment, not just the offline forensic walkthrough.
 | Logistics responsibility | What it looks like for SIFTics in real deployment |
 |---|---|
 | **Identity and RBAC** | Provision identities for every responder (IC, analyst, junior analyst, observer). Just-in-time access to the case directory, mediated by an IdP (Okta / Entra). Read-only observer mode for legal-counsel viewers. SIFTics's MCP gateway authorizes per-role, refusing case-mutation calls for read-only roles. |
-| **Remote-access tunneling** | The IR team is not always on the corporate LAN — especially mid-breach, where they may deliberately be working off the corp network. **Cloudflare Tunnels** (or Tailscale) provide an authenticated reverse tunnel from the SIFTics host to a token-gated public endpoint each authorized responder can reach. No port exposure on the IR host; auth and audit happen at the tunnel boundary. |
+| **Remote-access tunneling** | The IR team is not always on the corporate LAN - especially mid-breach, where they may deliberately be working off the corp network. **Cloudflare Tunnels** (or Tailscale) provide an authenticated reverse tunnel from the SIFTics host to a token-gated public endpoint each authorized responder can reach. No port exposure on the IR host; auth and audit happen at the tunnel boundary. |
 | **Evidence storage with chain-of-custody** | Write-once-read-many evidence buckets (AWS S3 Object Lock, or equivalent). Every artifact ingested into SIFTics writes a paired immutable copy with hash + ingest_audit_id. Logistics owns the policy (retention period, legal-hold flag, destruction process). |
 | **Sandbox compute** | On-demand spin-up of analysis VMs for malware detonation, memory analysis, or anything that shouldn't touch the analyst workstation. Logistics provisions and destroys them per case; SIFTics's `mcp_broker` orchestrates the actual workload. |
 | **Secrets management** | The IC's HMAC key today is mode-0600 on the analyst's disk. In a deployed-for-real architecture, that key lives in an HSM or KMS (AWS KMS, HashiCorp Vault Transit). IC signing happens via the KMS API rather than a local file. Migration path to Ed25519 (the v2 plan) integrates here. |
-| **Toolchain logistics** | Keeping SIFTics, mac_apt, Volatility, Plaso, EZ Tools, etc. up to date and *pinned*. The SBOM-hash work already in v1.1 (G15) is the foundation — Logistics would own the pipeline that rebuilds and re-pins the toolchain on a known cadence, with sign-off by Safety before deployment. |
+| **Toolchain logistics** | Keeping SIFTics, mac_apt, Volatility, Plaso, EZ Tools, etc. up to date and *pinned*. The SBOM-hash work already in v1.1 (G15) is the foundation - Logistics would own the pipeline that rebuilds and re-pins the toolchain on a known cadence, with sign-off by Safety before deployment. |
 | **Comms infrastructure** | A war-room channel that doesn't live on the corporate IT stack during a breach (because the attacker may be reading corporate Slack). Out-of-band Signal / Matrix / dedicated comms. Logistics owns provisioning and access list. |
-| **Status board / dashboard** | Multi-IC operational picture for major incidents — multiple cases, cross-case IOC reuse, executive-rollup view. SIFTics's single-case dashboard would be one tile of a larger Logistics-provisioned board. |
-| **Backup and disaster recovery** | Audit chains, findings, IC keys, sboms — all replicated across regions on a Logistics-defined schedule. |
+| **Status board / dashboard** | Multi-IC operational picture for major incidents - multiple cases, cross-case IOC reuse, executive-rollup view. SIFTics's single-case dashboard would be one tile of a larger Logistics-provisioned board. |
+| **Backup and disaster recovery** | Audit chains, findings, IC keys, sboms - all replicated across regions on a Logistics-defined schedule. |
 
 ### Why this isn't built in v1.1
 
@@ -403,7 +403,7 @@ covers a realistic deployment, not just the offline forensic walkthrough.
 
 Even without Logistics implemented, **the gate machinery is already
 the right enforcement point** for these actions. Provisioning a
-sandbox VM, rotating an IC key, exposing a Cloudflare tunnel — all
+sandbox VM, rotating an IC key, exposing a Cloudflare tunnel - all
 of these are state-changing actions that would require IC sign-off
 in a real deployment. SIFTics's `mcp_ic_approval` + Safety/Legal
 consult pattern means a future `mcp_logistics` server gets the same
@@ -412,7 +412,7 @@ hash-chained audit. No new architectural work; just new tools.
 
 ---
 
-## 2e. Finance / Admin Section — present, partial
+## 2e. Finance / Admin Section - present, partial
 
 NIMS Finance/Admin covers Time Unit, Cost Unit, Procurement Unit, and
 Compensation Claims Unit. SIFTics implements the Cost Unit's job
@@ -422,12 +422,12 @@ domains.
 
 ### What's implemented today
 
-- `siftics/cost_tracker.py` — per-call LLM cost tracking, per-case
+- `siftics/cost_tracker.py` - per-call LLM cost tracking, per-case
   cumulative spend, configurable per-case budget circuit breaker.
 - G9 architectural guardrail: `check_budget_or_raise()` refuses LLM
   calls once the per-case spend hits the configured ceiling.
 
-### What the Finance Officer persona adds (now built — `skills/finance-officer.md` + `consult_finance_officer` MCP tool)
+### What the Finance Officer persona adds (now built - `skills/finance-officer.md` + `consult_finance_officer` MCP tool)
 
 A `skills/finance-officer.md` mirroring Safety/Legal, with five
 dimensions:
@@ -437,7 +437,7 @@ dimensions:
 | `current_spend` | Where the case is vs. budget (low / medium / high / critical) |
 | `projection_window` | What the remaining ITQ + open hypotheses + planned hunts would cost (medium-high if projection blows budget) |
 | `vendor_engagement` | When the case proposes engaging an outside IR retainer, malware lab, or specialised analyst (cost, scope, NDA) |
-| `recovery_cost_class` | Class of recovery work the findings imply (rebuild N hosts, license recovery, regulatory fines) — feeds the after-action report |
+| `recovery_cost_class` | Class of recovery work the findings imply (rebuild N hosts, license recovery, regulatory fines) - feeds the after-action report |
 | `breach_insurance_scope` | Whether the proposed actions are within the policy's covered scope (some carriers exclude certain forensic vendors or pre-authorise others) |
 
 `consult_finance_officer` would be called automatically when:
@@ -451,13 +451,13 @@ The Finance Officer persona is *informational*; it doesn't add a new
 architectural constraint, it surfaces signals to the IC before the
 budget gate fires.
 
-Staged for v1.2 — not load-bearing for the Find Evil! demo case.
+Staged for v1.2 - not load-bearing for the Find Evil! demo case.
 
 ---
 
 ## 2f. Public Information Officer + Legal compliance-document workflow
 
-The PIO is Command Staff in canonical NIMS — its job is external
+The PIO is Command Staff in canonical NIMS - its job is external
 communication. For cyber-IR, that's customer notifications, regulator
 filings, press releases, executive briefings, and the internal
 "holding statement" that goes out before facts are confirmed.
@@ -467,35 +467,35 @@ reviews them for compliance and privilege**; **IC signs off** before
 publication. This is a three-step Authority Gate, not a single
 person's decision.
 
-### What the PIO persona produces (now built — `skills/public-information-officer.md` + `pio_draft_statement` MCP tool)
+### What the PIO persona produces (now built - `skills/public-information-officer.md` + `pio_draft_statement` MCP tool)
 
 `skills/public-information-officer.md` owns these
-deliverables — *drafts only*, none auto-published:
+deliverables - *drafts only*, none auto-published:
 
 | Deliverable | When | Goes to |
 |---|---|---|
 | **Holding statement** | First public awareness; facts not yet confirmed | Customer comms team, support desk |
 | **Customer notification** | Confirmed unauthorised access affecting customer data | Affected customers, support desk |
 | **Press release** | Major incident, public attention building | Press contacts, comms team |
-| **Executive briefing** | Internal — board, C-suite, regional leadership | Internal exec team |
+| **Executive briefing** | Internal - board, C-suite, regional leadership | Internal exec team |
 | **Customer-facing FAQ** | Follow-up after notification | Support desk, website |
 
 Each draft is written by the PIO persona using:
 - Facts confirmed in the audit chain (only).
 - Templates Legal maintains (see below).
-- No speculation — every claim either traces to an audit row or is
+- No speculation - every claim either traces to an audit row or is
   explicitly labelled as "as of now, unconfirmed."
 
 ### Legal's compliance-document templates
 
 Legal Officer owns canonical templates for the regulatory artifacts
-SIFTics may need to help draft. SIFTics does **not** author these —
+SIFTics may need to help draft. SIFTics does **not** author these - 
 it provides the template skeleton with placeholders, the audit-chain
 facts filled in, and outside counsel reviews and signs:
 
 | Template | Triggered by | Owner of final | Where the template lives |
 |---|---|---|---|
-| **SEC Form 8-K Item 1.05** — material cybersecurity incident | US public company, board determines materiality | Outside counsel + SEC counsel | `legal_templates/sec_8k_item_1_05.md` (planned) |
+| **SEC Form 8-K Item 1.05** - material cybersecurity incident | US public company, board determines materiality | Outside counsel + SEC counsel | `legal_templates/sec_8k_item_1_05.md` (planned) |
 | **GDPR Art. 33 notification** to supervisory authority | 72h from awareness of personal-data breach | Outside counsel + DPO | `legal_templates/gdpr_art33.md` (planned) |
 | **GDPR Art. 34 notification** to affected individuals | When high risk to data subjects | Outside counsel + DPO | `legal_templates/gdpr_art34.md` (planned) |
 | **HIPAA Breach Notification Rule letter** | 60d from discovery to affected individuals | Outside counsel + Privacy Officer | `legal_templates/hipaa_breach.md` (planned) |
@@ -511,7 +511,7 @@ The Legal Officer persona's role in v1.2+ would be:
 4. Surface counsel's edits back into the case.
 
 This is *workflow*, not *legal advice*. SIFTics is still not
-substituting for outside counsel — it's automating the boring
+substituting for outside counsel - it's automating the boring
 secretarial work of populating templates from the audit chain.
 
 ### Why the PIO ↔ Legal ↔ IC chain matters
@@ -529,15 +529,15 @@ directory.
 Same pattern as `execute_hunt_package` and `publish_intel`. Different
 artifact, same architecture.
 
-Staged for v1.2 — out of scope for the offline forensic walkthrough,
+Staged for v1.2 - out of scope for the offline forensic walkthrough,
 but the architectural slot is reserved.
 
 ---
 
-## 2g. Liaison Officer — folded into Legal in v1.1, split in v1.2
+## 2g. Liaison Officer - folded into Legal in v1.1, split in v1.2
 
 In canonical NIMS, Liaison Officer is Command Staff alongside Safety
-and PIO. Their job is *coordination with external parties* — other
+and PIO. Their job is *coordination with external parties* - other
 agencies, vendors, jurisdictions.
 
 For cyber IR that translates to:
@@ -553,7 +553,7 @@ For cyber IR that translates to:
   FCA, BaFin during ongoing examinations).
 
 SIFTics v1.1 folds these into the Legal Officer's
-`third_party_nda_scope` dimension. That's an honest collapse — Legal
+`third_party_nda_scope` dimension. That's an honest collapse - Legal
 and Liaison both touch external parties, and for a single-IC offline
 analysis case the distinction is academic.
 
@@ -570,12 +570,12 @@ operators know the collapse is deliberate, not an oversight.
 
 ---
 
-## 3. Trust boundaries — architectural vs prompt-based
+## 3. Trust boundaries - architectural vs prompt-based
 
 The hackathon's criterion #4 (*Constraint Implementation*) explicitly asks judges
 to distinguish architectural from prompt-based guardrails. The table below maps
 every guardrail in SIFTics. **Architectural guardrails are enforced by the
-absence of capability — code that can't bypass them doesn't exist on the MCP
+absence of capability - code that can't bypass them doesn't exist on the MCP
 surface.**
 
 | # | Guardrail | Type | Mechanism | Tested by |
@@ -607,18 +607,18 @@ surface.**
 | P12 | IoT/OT artifact guidance (firmware blobs, industrial PCAPs, SCADA DBs) | prompt-based | Skill file `iot-ot-artifacts.md` | not measured |
 | P13 | Daedalus tool-finder/implementer workflow (6-step; IC approval required before running unfamiliar tools) | prompt-based | Skill file `daedalus.md` | not measured |
 
-**Headline:** 13 architectural guardrails — 12 measurable, all 12 pass — vs.
+**Headline:** 13 architectural guardrails - 12 measurable, all 12 pass - vs.
 13 prompt-based. Compare to a Direct Agent Extension (Rob's #1 approach) which
 typically has 1-2 architectural and the rest prompt-based.
 
-## 4. Data flow — a single investigation
+## 4. Data flow - a single investigation
 
 ```
 1.  IC opens browser at localhost:8080
        └─> Flask renders dashboard reading case state files
 
 2.  IC starts agent: `claude` (Claude Code) or via /chat in browser
-       └─> Agent invokes mcp_case.itq_unanswered() — gets the questionnaire
+       └─> Agent invokes mcp_case.itq_unanswered() - gets the questionnaire
 
 3.  Agent runs Phase scripts (HOT path: fast_evtx_attack_filter, etc.)
        └─> Extracts evidence, writes findings, appends asr_appended events
@@ -681,13 +681,13 @@ typically has 1-2 architectural and the rest prompt-based.
 
 Documented honestly here so judges and operators know what to wear:
 
-- A compromised IC host that exposes the IC's HMAC key — out of scope (assume
+- A compromised IC host that exposes the IC's HMAC key - out of scope (assume
   the IC's signing workstation is trusted).
-- Side-channel coercion of the IC into signing a bad action — the audit chain
+- Side-channel coercion of the IC into signing a bad action - the audit chain
   at least records the signed approval for post-incident attribution.
-- Active attacks against the SIFT VM during an investigation — orthogonal to
+- Active attacks against the SIFT VM during an investigation - orthogonal to
   the constraint architecture; SIFT VM hardening is its own discipline.
-- Resource exhaustion via excessive `mcp_baseline` lookups — could DOS the
+- Resource exhaustion via excessive `mcp_baseline` lookups - could DOS the
   agent loop; future work.
 
 ## 7. Cross-references
@@ -695,9 +695,9 @@ Documented honestly here so judges and operators know what to wear:
 - Bypass test source: [`tests/test_constraints.py`](../tests/test_constraints.py)
 - IC approval implementation: [`siftics/ic_approval.py`](../siftics/ic_approval.py)
 - Audit chain: [`siftics/audit.py`](../siftics/audit.py)
-- mcp_case server: [`mcp_case/server.py`](../mcp_case/server.py) — writes `findings.jsonl` via `finding_record()`; exposes `case_set_motivation()` + `case_completeness_check()`
-- Completeness critic rules: [`siftics/completeness_rules.py`](../siftics/completeness_rules.py) — 7 pure-Python rules over a `CaseState` dataclass, called by `case_completeness_check()`
-- mcp_intel server: [`mcp_intel/server.py`](../mcp_intel/server.py) — generates STIX 2.1 / YARA / Sigma from typed IOCs; writes `intel.jsonl`
+- mcp_case server: [`mcp_case/server.py`](../mcp_case/server.py) - writes `findings.jsonl` via `finding_record()`; exposes `case_set_motivation()` + `case_completeness_check()`
+- Completeness critic rules: [`siftics/completeness_rules.py`](../siftics/completeness_rules.py) - 7 pure-Python rules over a `CaseState` dataclass, called by `case_completeness_check()`
+- mcp_intel server: [`mcp_intel/server.py`](../mcp_intel/server.py) - generates STIX 2.1 / YARA / Sigma from typed IOCs; writes `intel.jsonl`
 - mcp_ic_approval server: [`mcp_ic_approval/server.py`](../mcp_ic_approval/server.py)
 - Agent runtime backends: [`siftics/agent_runtime.py`](../siftics/agent_runtime.py)
 - Cost tracker / budget breaker: [`siftics/cost_tracker.py`](../siftics/cost_tracker.py)

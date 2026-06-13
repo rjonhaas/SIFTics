@@ -1,6 +1,6 @@
 ---
 name: anti-forensics-detection
-description: Detecting, documenting, and attributing anti-forensics activity — log clearing, timestomping, secure deletion, evidence destruction
+description: Detecting, documenting, and attributing anti-forensics activity - log clearing, timestomping, secure deletion, evidence destruction
 ---
 
 # Anti-Forensics Detection
@@ -8,7 +8,7 @@ description: Detecting, documenting, and attributing anti-forensics activity —
 Anti-forensics is any deliberate action to hinder, delay, or prevent forensic
 investigation. Detecting it serves two purposes: recovering what evidence remains
 despite the attempt, and documenting the attempt itself as evidence of consciousness
-of guilt. A sophisticated attacker who clears logs has demonstrated intent — that
+of guilt. A sophisticated attacker who clears logs has demonstrated intent - that
 is independently significant for prosecution regardless of whether the underlying
 activity is recoverable.
 
@@ -22,16 +22,16 @@ activity is recoverable.
 
 | EID | Log | Meaning |
 |---|---|---|
-| 1102 | Security | Security audit log cleared — includes SubjectUserName (who cleared it) |
+| 1102 | Security | Security audit log cleared - includes SubjectUserName (who cleared it) |
 | 104 | System | System log cleared |
 
 If EID 1102 is absent but the Security log appears to have been cleared, check for:
 - RecordID reset to 1 (log was cleared and the clearing event itself was deleted)
-- EID 4608 (audit system starting) immediately after a gap — indicates service restart after clear
+- EID 4608 (audit system starting) immediately after a gap - indicates service restart after clear
 - Large sequential gaps in RecordID values
 - First event timestamp that is later than expected given system age
 
-**EID 4616 — System time changed:**
+**EID 4616 - System time changed:**
 If Security.evtx shows EID 4616 with a timestamp rollback, the attacker changed
 the system clock to confuse the log timeline. Document the before/after times and
 the account that made the change. All log timestamps after this event are unreliable
@@ -53,7 +53,7 @@ ls -la /var/log/auth.log /var/log/syslog /var/log/apache2/access.log
 awk '{print $1,$2,$3}' /var/log/auth.log | head -5
 awk '{print $1,$2,$3}' /var/log/auth.log | tail -5
 
-# Check inode change time vs last log entry time — if ctime is much newer than
+# Check inode change time vs last log entry time - if ctime is much newer than
 # last log entry, the file may have been truncated and rewritten
 stat /var/log/auth.log
 ```
@@ -67,26 +67,26 @@ last log entry within it is consistent with truncation or replacement.
 
 Covered in detail in `timeline-reconstruction.md`.
 
-### Scope — three classes of files to check (all three, not just one)
+### Scope - three classes of files to check (all three, not just one)
 
 The most common real-world miss is scoping timestomping detection to the
 implant binary only. CTF and training examples timestomp the malware; real
 attackers timestomp **the data they stole** to hide *when* it was staged.
 Always check all three of these:
 
-1. **Implant binaries** — the canonical case. For each malware binary already
+1. **Implant binaries** - the canonical case. For each malware binary already
    on the Affected Systems Register, compare `$SI` to:
-   - EVTX 7045 service-install time, if the binary registered a service
-   - EVTX 4688 first-execution time
-   - WMI `Win32_Process` creation time (memory)
-   - Volatility `windows.timeliner` for the loaded module
+  - EVTX 7045 service-install time, if the binary registered a service
+  - EVTX 4688 first-execution time
+  - WMI `Win32_Process` creation time (memory)
+  - Volatility `windows.timeliner` for the loaded module
 
 2. **User-data files in attacker-accessed directories.** For every ASR row
    whose `notes` field mentions the attacker accessed a directory
    (`\FileShare\Secret\`, `\Administrator\Documents\`, exfil staging dirs,
    crown-jewel paths), run `analyzeMFT --fnmismatch` or equivalent across
    **every file in that directory**. A timestomped data file means the
-   attacker is hiding *when* they staged the exfil archive — extremely
+   attacker is hiding *when* they staged the exfil archive - extremely
    high-value finding for both the timeline and the intent narrative.
 
    Trigger: any `finding_record()` whose `claim` contains
@@ -98,7 +98,7 @@ Always check all three of these:
    compare each log's "last record timestamp" to its filesystem `mtime`.
 
 If any of these three was not in scope of your anti-forensics phase, the
-phase is incomplete — record an explicit "scope: implant-binaries only"
+phase is incomplete - record an explicit "scope: implant-binaries only"
 note in the briefing so a reviewer knows what was and wasn't covered.
 
 ### Key indicators
@@ -118,8 +118,8 @@ accidental artifact. Finding timestomped files demonstrates the attacker took
 active steps to conceal their activity.
 
 **Anchor the negative case too:** If you ran the three-scope check and found
-no timestomping, write the negative finding explicitly — naming every
-directory and file class you checked — so a downstream reviewer can confirm
+no timestomping, write the negative finding explicitly - naming every
+directory and file class you checked - so a downstream reviewer can confirm
 the scope. "No timestomping observed" without scope is a sin of omission
 that reads as "didn't check the right things."
 
@@ -137,7 +137,7 @@ Detecting their use is important even if the underlying files cannot be recovere
 | Eraser | `HKCU\Software\Eraser` or `HKLM\Software\Heidi Computers\Eraser` | `ERASER.EXE-*.pf` | Task scheduler entries may persist; installer package in Downloads |
 | CCleaner | `HKCU\Software\Piriform\CCleaner` | `CCLEANER.EXE-*.pf`, `CCLEANER64.EXE-*.pf` | Registry key survives uninstall; last run settings visible |
 | SDelete (Sysinternals) | Registry EULA key: `HKCU\Software\Sysinternals\SDelete` | `SDELETE.EXE-*.pf` | Leaves `SDELETE.EXE-*.pf` even after tool is deleted |
-| `cipher /w` (Windows built-in) | None | None | No artifact — deduce from command history |
+| `cipher /w` (Windows built-in) | None | None | No artifact - deduce from command history |
 | DBAN / Darik's Boot and Nuke | N/A (wipes entire drive) | N/A | Used to wipe machines before disposal |
 
 **What to look for:**
@@ -173,7 +173,7 @@ find / -name "shred" -o -name "wipe" -o -name "srm" 2>/dev/null  # tool presence
 - The cleared log itself: RecordID gap + EID 4608 immediately after
 
 **Multiple wevtutil.exe Prefetch entries** (e.g. `WEVTUTIL.EXE-AABBCCDD.pf` and
-`WEVTUTIL.EXE-11223344.pf`) indicate the tool was run from two different paths —
+`WEVTUTIL.EXE-11223344.pf`) indicate the tool was run from two different paths - 
 this is consistent with running from a webshell (different working directory) and
 also from an interactive session.
 
@@ -213,12 +213,12 @@ work through this checklist:
 Anti-forensics activity is evidence of consciousness of guilt. Document it
 with the same rigor as the underlying attack artifacts:
 
-1. **What tool was used** — name, version if recoverable
-2. **When it was executed** — timestamp from Prefetch, memory, or EVTX
-3. **What account ran it** — from Prefetch path, memory, or logon events
-4. **What was targeted** — log name, file path, or directory
-5. **Whether the attempt succeeded** — is the target evidence recoverable or gone?
-6. **Correlation to attack timeline** — does the execution time follow confirmed
+1. **What tool was used** - name, version if recoverable
+2. **When it was executed** - timestamp from Prefetch, memory, or EVTX
+3. **What account ran it** - from Prefetch path, memory, or logon events
+4. **What was targeted** - log name, file path, or directory
+5. **Whether the attempt succeeded** - is the target evidence recoverable or gone?
+6. **Correlation to attack timeline** - does the execution time follow confirmed
    attacker activity? This is the element that connects anti-forensics to intent.
 
 Record each confirmed anti-forensics action as a separate `finding_record()` with

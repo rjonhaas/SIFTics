@@ -1,6 +1,6 @@
 ---
 name: anti-forensics-review
-description: Pre-close anti-forensics reviewer — generative reasoning over the attacker actions recorded in this specific case. NOT a rule-matcher. Loaded at the same checkpoint as case-completeness-review.
+description: Pre-close anti-forensics reviewer - generative reasoning over the attacker actions recorded in this specific case. NOT a rule-matcher. Loaded at the same checkpoint as case-completeness-review.
 ---
 
 # Anti-Forensics Review
@@ -17,27 +17,27 @@ check on the *malware binary*, finds nothing, and concludes "no
 anti-forensics was deployed." That conclusion is structurally wrong every
 time the attacker used anti-forensics on *anything else* in the case.
 
-Your job is to **read the case and reason about coverage** — not match
+Your job is to **read the case and reason about coverage** - not match
 keywords.
 
 ## When to invoke
 
 The Investigation Section Chief operating loop calls
 `anti_forensics_review()` at the **same checkpoint** as
-`case_completeness_check()` — before any final briefing, before
+`case_completeness_check()` - before any final briefing, before
 `case_set_motivation()`, before any ASR row transitions from
 `pending_verification` to `safe`, whenever the IC asks "is the case ready?"
 
 The two complement each other:
 
 - `case_completeness_check` catches **bounded** gaps where the answer is
-  yes/no by tool invocation — did `regripper -p timezone` run? did
+  yes/no by tool invocation - did `regripper -p timezone` run? did
   `secretsdump` run? These have clear right answers.
 - `anti_forensics_review` is the **open-ended** companion. There is no
   fixed right answer; the persona's job is to reason about what *should*
   have been checked given what the attacker is recorded to have done.
 
-## Method — three deliberate passes
+## Method - three deliberate passes
 
 ### Pass 1: Enumerate attacker actions
 
@@ -63,25 +63,25 @@ For **each** attacker action from Pass 1, ask:
 > "If this attacker were trying to hide *this specific action* from a
 > forensic investigator, what would they do?"
 
-Generate the answer from general anti-forensics knowledge — not from a
+Generate the answer from general anti-forensics knowledge - not from a
 rule table. Some categories to consider for each action:
 
-- **Timestamp evasion** — would they timestomp the artifact? what
+- **Timestamp evasion** - would they timestomp the artifact? what
   comparison would surface it? (`$SI` vs `$FN`, but also: parent
   directory `$INDEX_ALLOCATION` mtime; filesystem mtime vs internal
   PE/document creation time; OS install date as lower bound)
-- **Existence evasion** — would they delete + overwrite the artifact?
+- **Existence evasion** - would they delete + overwrite the artifact?
   what recovery would surface the original? (`$MFT` inactive entries,
   `$LogFile`, `$UsnJrnl`, `$Recycle.Bin`, unallocated free space carving)
-- **Provenance evasion** — would they hide *who* did this? (cleared
+- **Provenance evasion** - would they hide *who* did this? (cleared
   EVTX, rotated logs, paused auditing, used a service account, used
   LOLBins to hide tool identity)
-- **Communication evasion** — would they hide *what* left the network?
+- **Communication evasion** - would they hide *what* left the network?
   (encrypted C2, DNS tunneling, steganography, lawful-services abuse)
-- **Tool identification evasion** — would they hide *what tool* they
+- **Tool identification evasion** - would they hide *what tool* they
   used? (renamed binaries, custom loaders, signed-but-malicious DLLs,
   living-off-the-land)
-- **Anchor evasion** — would they alter the things forensic tools
+- **Anchor evasion** - would they alter the things forensic tools
   anchor on? (registry transaction log tampering, USN journal pruning,
   prefetch deletion)
 
@@ -92,7 +92,7 @@ demonstrated by other actions in this case* would plausibly extend to.
 ### Pass 3: Check coverage and surface gaps
 
 For each (action, plausible evasion) pair from Pass 2, check whether the
-case state shows the agent actually ran the appropriate detection — not
+case state shows the agent actually ran the appropriate detection - not
 "mentioned the technique," but **ran the tool and recorded the output**.
 
 - If the detection ran and produced a clean negative → confirmed-covered.
@@ -152,11 +152,11 @@ audit event with the full structured output.
 
 - **Does not pattern-match keywords.** No keyword list, no trigger string,
   no expected-evidence regex. If you find yourself thinking "I should check
-  if the findings mention 'timestomp'," you're doing the wrong thing —
+  if the findings mention 'timestomp'," you're doing the wrong thing - 
   enumerate actions, reason about evasion, check actual tool runs.
 - **Does not produce a fixed checklist.** What you check depends entirely
   on what the attacker did in *this* case.
-- **Does not block.** Like Finance Officer, this is *informational* — the
+- **Does not block.** Like Finance Officer, this is *informational* - the
   IC decides whether to address each gap. Surfacing the gap is the role.
 
 ## Anti-patterns
@@ -174,11 +174,11 @@ audit event with the full structured output.
 
 ## Cross-references
 
-- `skills/anti-forensics-detection.md` — the detection methodology this
+- `skills/anti-forensics-detection.md` - the detection methodology this
   reviewer evaluates coverage of (the *what* and *how*; this skill is
   the *did we apply it where it mattered*).
-- `skills/case-completeness-review.md` — the bounded yes/no companion.
+- `skills/case-completeness-review.md` - the bounded yes/no companion.
   Both run at the same checkpoint; gaps from either feed the IC's
   pre-close decision.
-- `mcp_case.anti_forensics_review()` — the typed MCP tool that validates
+- `mcp_case.anti_forensics_review()` - the typed MCP tool that validates
   the structured output and writes the audit event.
