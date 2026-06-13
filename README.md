@@ -17,7 +17,7 @@ SIFTics turns the SIFT Workstation into an agentic DFIR analyst. Claude Code dri
 Tested on a fresh **SANS SIFT Workstation 2026.04.22** OVA and on **WSL-Ubuntu-22.04 with SIFT server-mode**.
 
 ```bash
-git clone -b find-evil https://github.com/rjonhaas/SIFTics.git
+git clone https://github.com/rjonhaas/SIFTics.git
 cd SIFTics
 ./setup.sh --init-case --start-ui
 # Then open http://127.0.0.1:8080 in a browser

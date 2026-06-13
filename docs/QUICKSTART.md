@@ -5,7 +5,7 @@ Tested on a fresh **SANS SIFT 2026.04 OVA**, on **WSL-Ubuntu-22.04 + SIFT-server
 ## Express path - one command
 
 ```bash
-git clone -b find-evil https://github.com/rjonhaas/SIFTics.git
+git clone https://github.com/rjonhaas/SIFTics.git
 cd SIFTics
 ./setup.sh --init-case --start-ui
 # Browse: http://127.0.0.1:8080
@@ -36,7 +36,7 @@ The script:
 Use this when you want to see what the script automates.
 
 ```bash
-git clone -b find-evil https://github.com/rjonhaas/SIFTics.git
+git clone https://github.com/rjonhaas/SIFTics.git
 cd SIFTics
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e .

@@ -240,4 +240,4 @@ After each run, SIFTics should:
 1. Write the run's score card to `examples/<dataset>/runs/<date>-<case_id>/score_card.md`
 2. Append one row to the appropriate table above with hyperlink to the score card
 3. Leave **Operator review notes** untouched - the operator fills those in during review
-4. Open a PR if running against `find-evil`; commit directly if on a sandbox branch
+4. Open a PR if running against `main`; commit directly if on a sandbox branch
