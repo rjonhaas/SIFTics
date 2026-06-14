@@ -52,11 +52,14 @@ META_JSON=$(curl -fsSL "$META_URL") || {
 }
 
 # Parse the asset URLs + resolved tag name. python3 is already a hard
-# SIFTics dep, so no jq required.
-read -r RESOLVED_TAG EVIDENCE_URL GROUND_TRUTH_URL <<<"$(
-    python3 - <<'PY' <<<"$META_JSON"
+# SIFTics dep, so no jq required. JSON is passed via argv[1] so that the
+# heredoc owns python's stdin (program source) without colliding with a
+# here-string (the previous version had two stdin redirections fighting,
+# and bash silently let the here-string win — python then tried to
+# execute the JSON and tripped on the `false` literal).
+PARSED=$(python3 - "$META_JSON" <<'PY'
 import json, sys
-r = json.load(sys.stdin)
+r = json.loads(sys.argv[1])
 tag = r.get("tag_name", "")
 ev = gt = ""
 for a in r.get("assets", []):
@@ -67,7 +70,8 @@ for a in r.get("assets", []):
         gt = a.get("browser_download_url", "")
 print(tag, ev, gt)
 PY
-)"
+)
+read -r RESOLVED_TAG EVIDENCE_URL GROUND_TRUTH_URL <<<"$PARSED"
 
 if [[ -z "$EVIDENCE_URL" ]]; then
     echo "[demo-case] no evidence_*.zip asset on release $RESOLVED_TAG" >&2
