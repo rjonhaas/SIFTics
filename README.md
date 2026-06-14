@@ -25,6 +25,14 @@ cd SIFTics
 
 `setup.sh` is idempotent and narrates each step. Cases are created through the UI's new-case page, which mints a `YYYY-MM-DD-NN` ID under `~/Desktop/cases/` and accepts a free-form IC briefing for the agent.
 
+**Demo evidence (optional):** pull a known-answer Caldera bundle from the [hunt_lab Releases](https://github.com/rjonhaas/hunt_lab/releases):
+
+```bash
+./scripts/download_demo_case.sh
+```
+
+Drops evidence into `~/Desktop/cases/<release-tag>/`. The ground-truth JSON lands separately at `~/dfir_answers/<release-tag>/` (chmod 600) — never on the same machine as the agent, per the answer-key isolation rule.
+
 Hardware tiers, manual install path, individual flags, and `agent.yaml` configuration: [`docs/QUICKSTART.md`](docs/QUICKSTART.md).
 
 ---

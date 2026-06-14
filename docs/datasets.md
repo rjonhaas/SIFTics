@@ -92,6 +92,8 @@ run, on the host side.
 Generation steps documented in [hunt_lab/README.md](https://github.com/rjonhaas/hunt_lab/blob/main/README.md).
 OSINT validation for each scenario (mapping every ability to a real CISA / Dragos / EPA / Mandiant incident) lives in the scenario READMEs under `scripts/scenarios/<name>/README.md` in that repo. hunt_lab is **not part of this submission** - it is a development convenience for producing realistic test evidence with documented ground truth.
 
+**Pulling a bundle:** `./scripts/download_demo_case.sh` (in this repo) discovers the latest hunt_lab Release via the GitHub API, downloads `evidence_<uuid>.zip` and extracts it to `~/Desktop/cases/<release-tag>/evidence/`, and downloads `ground_truth_<uuid>.json` separately to `~/dfir_answers/<release-tag>/ground_truth.json` (chmod 600). The two halves never share a host the agent can reach — the fetcher enforces the same answer-key isolation rule the manual flow uses. Pass `--tag <release-tag>` to pin a specific scenario; default is `latest`.
+
 ---
 
 ## 3. Knowledge corpora (used by mcp_rag, mcp_baseline, mcp_cti)
