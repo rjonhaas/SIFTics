@@ -7,8 +7,8 @@ Tested on a fresh **SANS SIFT 2026.04 OVA**, on **WSL-Ubuntu-22.04 + SIFT-server
 ```bash
 git clone https://github.com/rjonhaas/SIFTics.git
 cd SIFTics
-./setup.sh --init-case --start-ui
-# Browse: http://127.0.0.1:8080
+./setup.sh
+# Browse: http://127.0.0.1:8080  → create your case via the new-case page
 ```
 
 `./setup.sh` is idempotent (re-runnable) and narrates each step. Flags:
@@ -20,8 +20,7 @@ cd SIFTics
 | `--build-baseline` | …but build the full DB locally from sources (~30 min, ~5 GB cache) |
 | `--no-baseline` | skip baseline step entirely |
 | `--no-rag` | skip the forensic-RAG index build (Step 7) |
-| `--init-case` | also create `~/cases/dry_run/` + Incident Commander (IC) HMAC key |
-| `--start-ui` | also launch siftics-ui on `127.0.0.1:8080` |
+| `--no-ui` | skip launching `siftics-ui` (it starts by default) |
 
 The script:
 
@@ -29,7 +28,7 @@ The script:
 - Detects missing `python3.X-venv` and prints the exact `apt install` to run
 - Skips steps that already completed (re-running after a partial install is safe)
 - Times itself and reports total elapsed time
-- Auto-generates the case ID as `YYYY-MM-DD-NN` (zero-padded daily sequence - first case today → `2026-06-11-01`, tenth → `2026-06-11-10`) under `~/Desktop/cases/`. The UI's `/new-case` page uses the same scheme. Override the base with `SIFTICS_CASE_BASE=/some/other/path`; supply a custom name to skip the auto-ID
+- Does not create any case directory. Cases are created from the UI's `/new-case` page, which auto-generates the case ID as `YYYY-MM-DD-NN` under `~/Desktop/cases/` (first case today → `2026-06-11-01`, tenth → `2026-06-11-10`) and accepts a free-form IC briefing the agent reads as its initial hypothesis
 
 ## Manual path - the same 30 seconds, but explicit
 

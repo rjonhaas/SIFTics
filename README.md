@@ -19,11 +19,11 @@ Tested on a fresh **SANS SIFT Workstation 2026.04.22** OVA and on **WSL-Ubuntu-2
 ```bash
 git clone https://github.com/rjonhaas/SIFTics.git
 cd SIFTics
-./setup.sh --init-case --start-ui
-# Then open http://127.0.0.1:8080 in a browser
+./setup.sh
+# Then open http://127.0.0.1:8080 in a browser; create your case via the new-case page
 ```
 
-`setup.sh` is idempotent and narrates each step. Case IDs auto-generate as `YYYY-MM-DD-NN` under `~/Desktop/cases/`. Custom names still work via `--case-id`.
+`setup.sh` is idempotent and narrates each step. Cases are created through the UI's new-case page, which mints a `YYYY-MM-DD-NN` ID under `~/Desktop/cases/` and accepts a free-form IC briefing for the agent.
 
 Hardware tiers, manual install path, individual flags, and `agent.yaml` configuration: [`docs/QUICKSTART.md`](docs/QUICKSTART.md).
 

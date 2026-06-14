@@ -83,34 +83,6 @@
   </section>
   {% endif %}
 
-  <!-- Briefings -->
-  {% if briefings %}
-  <section class="mb-6">
-    <h3 class="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3">
-      Briefings ({{ briefings | length }})
-    </h3>
-    <div class="space-y-4">
-      {% for b in briefings %}
-      <details {% if loop.last %}open{% endif %}
-               class="bg-slate-900 border border-slate-700 rounded-lg">
-        <summary class="px-4 py-3 cursor-pointer text-sm text-slate-300 hover:text-slate-100
-                        flex items-center justify-between">
-          <span>{{ b.briefing_id }}</span>
-          <span class="text-slate-600 text-xs">{{ b.posted_at[:10] if b.posted_at else '' }}</span>
-        </summary>
-        <div class="px-4 pb-4 pt-1 prose prose-invert prose-sm max-w-none
-                    prose-headings:text-slate-200 prose-p:text-slate-300
-                    prose-li:text-slate-300 prose-code:text-cyan-300
-                    prose-table:text-slate-300 prose-strong:text-slate-200
-                    prose-blockquote:text-slate-400">
-          <pre class="whitespace-pre-wrap text-sm text-slate-300 font-sans leading-relaxed">{{ b.summary_md }}</pre>
-        </div>
-      </details>
-      {% endfor %}
-    </div>
-  </section>
-  {% endif %}
-
   <!-- Triage Q&A -->
   {% if itq_answered %}
   <section class="mb-6">
@@ -121,8 +93,11 @@
       <div class="px-4 pb-4 space-y-3 mt-2">
         {% for q in itq_answered %}
         <div class="border-l-2 border-slate-700 pl-3">
-          <p class="text-xs text-slate-500 mb-0.5">{{ q.question_id }} — {{ q.question }}</p>
-          <p class="text-sm text-slate-300">{{ q.answer }}</p>
+          <p class="text-sm text-slate-200 font-medium mb-1">
+            <span class="text-slate-500">{{ q.question_id }}</span>
+            <span class="ml-2">{{ q.question }}</span>
+          </p>
+          <p class="text-sm text-slate-300 leading-relaxed">{{ q.answer }}</p>
         </div>
         {% endfor %}
       </div>
@@ -130,12 +105,12 @@
   </section>
   {% endif %}
 
-  {% if not briefings and not findings %}
+  {% if not findings %}
   <div class="text-center py-16 text-slate-500">
     <p class="text-lg mb-2">No report content yet.</p>
     <p class="text-sm">Start an investigation from the
       <a href="{{ url_for('dashboard') }}" class="text-cyan-400 underline">Dashboard</a>
-      and the agent will post briefings as findings are recorded.
+      and findings will appear here as the agent records them.
     </p>
   </div>
   {% endif %}

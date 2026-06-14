@@ -23,13 +23,6 @@ OPTIONS
   Forensic RAG index (default: build if missing)
     --no-rag            Skip the RAG index step (mcp_rag will return empty results)
 
-  Case initialisation
-    --init-case         Create the case directory, hash-chained audit log,
-                        IC HMAC key, and 35-question ITQ seed
-    --case-dir DIR      Case directory path  (default: ~/Desktop/cases/<case-id>)
-    --case-id  ID       Case identifier      (default: YYYY-MM-DD-NN, next free
-                        2-digit sequence for today; e.g. 2026-06-10-01)
-
   AI runtimes (optional — prompted interactively if none specified)
     --install-claude    Install Claude Code CLI (npm install -g @anthropic-ai/claude-code)
     --install-codex     Install OpenAI Codex CLI (npm install -g @openai/codex)
@@ -54,14 +47,11 @@ EXAMPLES
   # Express path — UI starts automatically, no flags needed:
   ./setup.sh
 
-  # Full baseline + case + UI:
-  ./setup.sh --full-baseline --init-case
+  # Full baseline + UI:
+  ./setup.sh --full-baseline
 
-  # Custom case directory:
-  ./setup.sh --init-case --case-dir ~/Desktop/cases/defcon2019 --case-id defcon2019
-
-  # Headless / CI (no TTY, skip IC key, no UI):
-  ./setup.sh --no-baseline --init-case --no-ui
+  # Headless / CI (no UI):
+  ./setup.sh --no-baseline --no-ui
 
   # Re-run after a partial install (safe, UI restarts too):
   ./setup.sh
@@ -70,9 +60,8 @@ FILES
   .venv/                     Python virtual environment
   mcp_baseline/baseline.sqlite  Rathbun known-good Windows baseline DB
   mcp_rag/index/             Forensic RAG index (Sigma + ATT&CK + LOLBAS + Atomic Red Team)
-  ~/Desktop/cases/<case-id>/         Case directory (audit log, ASR, CET, ITQ, IC key)
   /tmp/siftics-ui.log        Web UI stdout / stderr
-  /tmp/siftics_*.log         Per-step log files for baseline build / case init
+  /tmp/siftics_*.log         Per-step log files for baseline build
 
 SEE ALSO
   docs/QUICKSTART.md    30-second path for judges
@@ -82,9 +71,11 @@ SEE ALSO
 EOF
 }
 
-# Flags can be combined: ./setup.sh --full-baseline --init-case --start-ui
+# Flags can be combined: ./setup.sh --full-baseline --start-ui
 
 set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ---------------------------------------------------------------------------
 # Flags + defaults
@@ -92,34 +83,9 @@ set -euo pipefail
 
 BASELINE_MODE="seed"        # seed | full | build | none
 BUILD_RAG="yes"             # yes | no
-INIT_CASE="no"
 # UI starts by default (main's UX choice — most operators want this).
 # Pass --no-ui to skip when running headless / for CI.
 START_UI="yes"
-# Default to a timestamped case name. Each setup run that uses --init-case
-# produces a fresh, identifiable case directory — no "dry_run"-labelled
-# default that lingers on disk pretending to be a real investigation.
-# Generate the default case ID in YYYY-MM-DD-NN format. NN is the next
-# unused 2-digit sequence for today's date in the canonical case base
-# (~/Desktop/cases). First case of the day → 2026-06-10-01; tenth → -10.
-# Mirrors siftics.case_state.next_case_id() so the CLI and UI agree.
-generate_case_id() {
-    local base_dir="$1"
-    local today
-    today=$(date +%Y-%m-%d)
-    local max=""
-    if [[ -d "$base_dir" ]]; then
-        max=$(find "$base_dir" -maxdepth 1 -type d -name "${today}-*" -printf '%f\n' 2>/dev/null \
-              | sed -nE "s/^${today}-0*([0-9]+)$/\1/p" \
-              | sort -n | tail -1)
-    fi
-    local n=$(( ${max:-0} + 1 ))
-    printf '%s-%02d\n' "$today" "$n"
-}
-
-CASE_DIR_BASE="${SIFTICS_CASE_BASE:-$HOME/Desktop/cases}"
-CASE_ID="$(generate_case_id "$CASE_DIR_BASE")"
-CASE_DIR="${SIFTICS_CASE_DIR:-$CASE_DIR_BASE/$CASE_ID}"
 QUIET="no"
 INSTALL_CLAUDE="no"
 INSTALL_CODEX="no"
@@ -134,11 +100,8 @@ while [[ $# -gt 0 ]]; do
         --build-baseline)  BASELINE_MODE="build";  shift ;;
         --no-baseline)     BASELINE_MODE="none";   shift ;;
         --no-rag)          BUILD_RAG="no";         shift ;;
-        --init-case)       INIT_CASE="yes";        shift ;;
         --start-ui)        START_UI="yes";         shift ;;
         --no-ui)           START_UI="no";          shift ;;
-        --case-dir)        CASE_DIR="$2";          shift 2 ;;
-        --case-id)         CASE_ID="$2";           shift 2 ;;
         --install-claude)  INSTALL_CLAUDE="yes";   shift ;;
         --install-codex)   INSTALL_CODEX="yes";    shift ;;
         --install-ollama)  INSTALL_OLLAMA="yes";   shift ;;
@@ -199,7 +162,6 @@ _progress_install() {
 TOTAL_STEPS=7
 [[ "$BASELINE_MODE" == "none" ]] && TOTAL_STEPS=$((TOTAL_STEPS - 1))
 [[ "$BUILD_RAG"      == "no"  ]] && TOTAL_STEPS=$((TOTAL_STEPS - 1))
-[[ "$INIT_CASE" == "yes"      ]] && TOTAL_STEPS=$((TOTAL_STEPS + 1))
 [[ "$START_UI"  == "yes"      ]] && TOTAL_STEPS=$((TOTAL_STEPS + 1))
 
 # ---------------------------------------------------------------------------
@@ -579,41 +541,6 @@ if [[ "$BUILD_RAG" == "yes" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Step 8 — init case dir (optional)
-# ---------------------------------------------------------------------------
-
-
-if [[ "$INIT_CASE" == "yes" ]]; then
-    CUR_STEP=$((CUR_STEP + 1))
-    step "$CUR_STEP" "$TOTAL_STEPS" "initialising case dir at $CASE_DIR"
-
-    if [[ -f "$CASE_DIR/case.json" ]]; then
-        skip "case already exists"
-    else
-        export SIFTICS_CASE_DIR="$CASE_DIR"
-        mkdir -p "$CASE_DIR"
-
-        # If stdin is a TTY, prompt; else use --no-key so unattended runs don't hang.
-        KEY_ARGS=()
-        if [[ ! -t 0 ]]; then
-            KEY_ARGS=(--no-key)
-            warn "non-interactive — skipping IC HMAC key creation"
-        fi
-
-        .venv/bin/sift-case-init \
-            --case-dir "$CASE_DIR" \
-            --case-id  "$CASE_ID" \
-            --name     "SIFTics case ($CASE_ID)" \
-            --ic-name  "${USER:-operator}" \
-            --itq-template ./siftics/templates/itq_questions.yaml \
-            "${KEY_ARGS[@]}" \
-            > /tmp/siftics_case.log 2>&1 \
-            && ok "$CASE_ID" \
-            || die "" "case-init failed (see /tmp/siftics_case.log)"
-    fi
-fi
-
-# ---------------------------------------------------------------------------
 # Cosmetic — SIFTics wallpaper on the SIFT VM desktop
 #
 # Pure quality-of-life: the demo video has the SIFTics logo behind every
@@ -674,6 +601,62 @@ set_siftics_wallpaper() {
 set_siftics_wallpaper
 
 # ---------------------------------------------------------------------------
+# Cosmetic — disable screen blanking and screensaver on the analyst host
+#
+# A blank screen mid-demo or mid-investigation is the worst kind of
+# interrupt. Set the session to never idle-blank, never lock, and never
+# DPMS-off. Skipped cleanly on headless / no display.
+#
+# Reverting (if you want default blanking back): re-enable in the DE's
+# Power / Screensaver settings, or `xset s default; xset +dpms`.
+# ---------------------------------------------------------------------------
+
+disable_screen_blanking() {
+    # Skip if headless / no display server attached
+    if [[ -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
+        return 0
+    fi
+
+    # X11 session controls — works on any DE with X. No-op on pure Wayland.
+    if command -v xset >/dev/null 2>&1 && [[ -n "${DISPLAY:-}" ]]; then
+        xset s off       2>/dev/null || true   # disable screensaver
+        xset s noblank   2>/dev/null || true   # don't blank the video
+        xset -dpms       2>/dev/null || true   # disable monitor power-off
+    fi
+
+    # gsettings (persistent across sessions)
+    command -v gsettings >/dev/null 2>&1 || return 0
+    local de="${XDG_CURRENT_DESKTOP:-}"
+    case "${de,,}" in
+        *mate*)
+            gsettings set org.mate.session idle-delay 0                              2>/dev/null || true
+            gsettings set org.mate.screensaver idle-activation-enabled false         2>/dev/null || true
+            gsettings set org.mate.screensaver lock-enabled false                    2>/dev/null || true
+            ;;
+        *cinnamon*)
+            gsettings set org.cinnamon.desktop.session idle-delay 0                  2>/dev/null || true
+            gsettings set org.cinnamon.desktop.screensaver idle-activation-enabled false 2>/dev/null || true
+            gsettings set org.cinnamon.desktop.screensaver lock-enabled false        2>/dev/null || true
+            ;;
+        *gnome*|*ubuntu*|*unity*)
+            gsettings set org.gnome.desktop.session idle-delay 0                     2>/dev/null || true
+            gsettings set org.gnome.desktop.screensaver idle-activation-enabled false 2>/dev/null || true
+            gsettings set org.gnome.desktop.screensaver lock-enabled false           2>/dev/null || true
+            ;;
+        *)
+            # Unknown DE — best-effort against the three schemas above.
+            gsettings set org.mate.session idle-delay 0                  2>/dev/null \
+                || gsettings set org.cinnamon.desktop.session idle-delay 0 2>/dev/null \
+                || gsettings set org.gnome.desktop.session idle-delay 0    2>/dev/null \
+                || true
+            ;;
+    esac
+    return 0
+}
+
+disable_screen_blanking
+
+# ---------------------------------------------------------------------------
 # Final step — start UI (optional)
 # ---------------------------------------------------------------------------
 
@@ -686,11 +669,7 @@ if [[ "$START_UI" == "yes" ]]; then
     if pgrep -f "siftics-ui run" >/dev/null; then
         skip "already running (pid $(pgrep -f 'siftics-ui run' | head -1))"
     else
-        export SIFTICS_CASE_DIR="$CASE_DIR"
-        # Make sure the case dir at least exists — siftics-ui starts without it
-        # but several routes assume the directory tree is present.
-        mkdir -p "$CASE_DIR"
-        nohup .venv/bin/siftics-ui run --case-dir "$CASE_DIR" \
+        nohup .venv/bin/siftics-ui run \
             > /tmp/siftics-ui.log 2>&1 &
         UI_PID=$!
 

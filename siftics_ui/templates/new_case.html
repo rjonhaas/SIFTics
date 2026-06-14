@@ -28,7 +28,7 @@
         <div class="relative mt-1">
           <div class="flex gap-2">
             <input type="text" name="case_dir" id="case_dir_input"
-                   placeholder="~/cases/incident_2026_05"
+                   placeholder="~/Desktop/cases/incident_2026_05"
                    value="{{ form.case_dir if form else '' }}"
                    autofocus
                    class="w-full bg-slate-800 border border-slate-700 focus:border-cyan-500 px-3 py-2 rounded font-mono text-sm outline-none">
@@ -103,7 +103,7 @@
 
   <div class="mt-8 text-center text-xs text-slate-600">
     Already have a case? Start the UI with
-    <code class="text-slate-400">--case-dir ~/cases/your_case</code>
+    <code class="text-slate-400">--case-dir ~/Desktop/cases/your_case</code>
     and it will load automatically.
   </div>
 
@@ -125,7 +125,7 @@
       .then(function (data) {
         drop.innerHTML = '';
         if (!data.dirs.length) {
-          drop.innerHTML = '<li class="px-3 py-2 text-slate-500 italic">No existing cases in ~/cases/</li>';
+          drop.innerHTML = '<li class="px-3 py-2 text-slate-500 italic">No existing cases in ~/Desktop/cases/</li>';
         } else {
           data.dirs.forEach(function (d) {
             var li = document.createElement('li');

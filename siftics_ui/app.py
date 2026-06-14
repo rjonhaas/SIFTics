@@ -323,8 +323,10 @@ def create_app() -> Flask:
         # helper looks at ~/Desktop/cases for today's existing dirs and
         # returns the next zero-padded sequence number.
         default_case_id = case_state.next_case_id("~/Desktop/cases")
+        default_case_dir = f"~/Desktop/cases/{default_case_id}"
         return render_template("new_case.html",
-                               form={"case_id": default_case_id})
+                               form={"case_id": default_case_id,
+                                     "case_dir": default_case_dir})
 
     @app.route("/api/list-cases")
     def api_list_cases():
