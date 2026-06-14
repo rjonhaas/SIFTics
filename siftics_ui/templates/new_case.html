@@ -12,7 +12,7 @@
   </div>
 
   {% if errors %}
-  <div class="mb-4 bg-rose-900/40 border border-rose-700 text-rose-200 rounded p-3 text-sm">
+  <div class="mb-4 bg-orange-900/40 border border-orange-700 text-orange-200 rounded p-3 text-sm">
     <ul class="list-disc list-inside space-y-1">
       {% for e in errors %}<li>{{ e }}</li>{% endfor %}
     </ul>
@@ -31,7 +31,7 @@
                    placeholder="~/Desktop/cases/incident_2026_05"
                    value="{{ form.case_dir if form else '' }}"
                    autofocus
-                   class="w-full bg-slate-800 border border-slate-700 focus:border-cyan-500 px-3 py-2 rounded font-mono text-sm outline-none">
+                   class="w-full bg-slate-800 border border-slate-700 focus:border-amber-500 px-3 py-2 rounded font-mono text-sm outline-none">
             <button type="button" id="case_dir_browse"
                     title="Browse existing cases"
                     class="bg-slate-700 hover:bg-slate-600 border border-slate-600 px-3 py-2 rounded text-slate-300 hover:text-white">
@@ -48,28 +48,28 @@
         <span class="text-slate-300 font-semibold">Case ID</span>
         <input type="text" name="case_id" placeholder="incident_2026_05"
                value="{{ form.case_id if form else '' }}"
-               class="mt-1 w-full bg-slate-800 border border-slate-700 focus:border-cyan-500 px-3 py-2 rounded font-mono text-sm outline-none">
+               class="mt-1 w-full bg-slate-800 border border-slate-700 focus:border-amber-500 px-3 py-2 rounded font-mono text-sm outline-none">
       </label>
 
       <label class="block text-sm">
         <span class="text-slate-300 font-semibold">Incident Commander</span>
         <input type="text" name="ic_name" placeholder="Your name"
                value="{{ form.ic_name if form else '' }}"
-               class="mt-1 w-full bg-slate-800 border border-slate-700 focus:border-cyan-500 px-3 py-2 rounded text-sm outline-none">
+               class="mt-1 w-full bg-slate-800 border border-slate-700 focus:border-amber-500 px-3 py-2 rounded text-sm outline-none">
       </label>
 
       <label class="block text-sm col-span-2">
         <span class="text-slate-300 font-semibold">Incident name</span>
         <input type="text" name="name" placeholder="Suspected lateral movement - Corp network"
                value="{{ form.name if form else '' }}"
-               class="mt-1 w-full bg-slate-800 border border-slate-700 focus:border-cyan-500 px-3 py-2 rounded text-sm outline-none">
+               class="mt-1 w-full bg-slate-800 border border-slate-700 focus:border-amber-500 px-3 py-2 rounded text-sm outline-none">
       </label>
 
       <label class="block text-sm col-span-2">
         <span class="text-slate-300 font-semibold">Initial briefing for the agent</span>
         <textarea name="context" rows="4"
                   placeholder="e.g. SIEM alerted on Win11-Victim for Posh-SSH module load at 14:38 UTC. We pulled a KAPE triage. At the same time, the water-treatment HMI started under-dosing chlorine - operator reported through the OT SCADA console. Treat the two as related until proven otherwise."
-                  class="mt-1 w-full bg-slate-800 border border-slate-700 focus:border-cyan-500 px-3 py-2 rounded text-sm outline-none resize-y">{{ form.context if form else '' }}</textarea>
+                  class="mt-1 w-full bg-slate-800 border border-slate-700 focus:border-amber-500 px-3 py-2 rounded text-sm outline-none resize-y">{{ form.context if form else '' }}</textarea>
         <span class="text-xs text-slate-500 mt-1 block">
           What the IC wants the agent to read on day one - alerts, evidence already pulled, what looks suspicious. The agent treats this as your initial hypothesis, then verifies against evidence. Optional but recommended.
         </span>
@@ -79,7 +79,7 @@
         <span class="text-slate-300 font-semibold">IC passphrase</span>
         <input type="password" name="passphrase" placeholder="Used to sign Authority Gates — choose something memorable"
                autocomplete="new-password"
-               class="mt-1 w-full bg-slate-800 border border-slate-700 focus:border-cyan-500 px-3 py-2 rounded text-sm outline-none">
+               class="mt-1 w-full bg-slate-800 border border-slate-700 focus:border-amber-500 px-3 py-2 rounded text-sm outline-none">
         <span class="text-xs text-slate-500 mt-1 block">
           Used to sign Incident Commander approvals. Never stored in plaintext. Cannot be recovered if lost — write it down.
         </span>
@@ -88,7 +88,7 @@
 
     <div class="pt-2 flex items-center gap-4">
       <button type="submit"
-              class="bg-emerald-700 hover:bg-emerald-600 px-6 py-2 rounded font-semibold">
+              class="bg-sky-700 hover:bg-sky-600 px-6 py-2 rounded font-semibold">
         Create case
       </button>
       {% if case %}
@@ -130,7 +130,7 @@
           data.dirs.forEach(function (d) {
             var li = document.createElement('li');
             li.textContent = d;
-            li.className = 'px-3 py-2 cursor-pointer hover:bg-slate-700 text-cyan-300';
+            li.className = 'px-3 py-2 cursor-pointer hover:bg-slate-700 text-amber-300';
             li.addEventListener('click', function () { input.value = d; closeDrop(); input.focus(); });
             drop.appendChild(li);
           });

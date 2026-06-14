@@ -57,7 +57,7 @@
         var el = targetSel
           ? (typeof targetSel === 'string' ? document.querySelector(targetSel) : targetSel)
           : null;
-        if (el) el.innerHTML = '<p class="text-rose-400">&#x26A0; Request failed — check connection.</p>';
+        if (el) el.innerHTML = '<p class="text-orange-400">&#x26A0; Request failed — check connection.</p>';
       })
       .finally(function () {
         if (trigger) trigger.disabled = false;

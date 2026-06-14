@@ -13,7 +13,7 @@
           <article id="gate-{{ req.request_id }}" class="bg-slate-900 border border-slate-700 rounded p-4">
             <header class="flex justify-between items-baseline">
               <h3 class="font-bold">
-                <span class="text-cyan-300">{{ req.gate }}</span>
+                <span class="text-amber-300">{{ req.gate }}</span>
                 <span class="text-slate-500 text-xs">{{ req.request_id }}</span>
               </h3>
               <span class="text-xs text-slate-500">{{ req.requested_at }}</span>
@@ -32,15 +32,15 @@
                 {% if req.safety %}
                   {% set sv = req.safety.verdict %}
                   <div class="rounded p-2
-                              {% if sv == 'hard_stop' %}bg-rose-950 border border-rose-700
-                              {% elif sv == 'caution' %}bg-amber-950 border border-amber-700
-                              {% else %}bg-emerald-950 border border-emerald-700{% endif %}">
+                              {% if sv == 'hard_stop' %}bg-orange-950 border border-orange-700
+                              {% elif sv == 'caution' %}bg-yellow-950 border border-yellow-700
+                              {% else %}bg-sky-950 border border-sky-700{% endif %}">
                     <div class="flex justify-between font-bold mb-1">
                       <span>Safety Officer</span>
                       <span class="uppercase tracking-wide
-                                    {% if sv == 'hard_stop' %}text-rose-300
-                                    {% elif sv == 'caution' %}text-amber-300
-                                    {% else %}text-emerald-300{% endif %}">{{ sv }}</span>
+                                    {% if sv == 'hard_stop' %}text-orange-300
+                                    {% elif sv == 'caution' %}text-yellow-300
+                                    {% else %}text-sky-300{% endif %}">{{ sv }}</span>
                     </div>
                     <details>
                       <summary class="text-slate-400 cursor-pointer hover:text-slate-200">5-dimension scores</summary>
@@ -48,8 +48,8 @@
                         {% for name, dim in req.safety.dimensions.items() %}
                           <li>
                             <span class="text-slate-500">{{ name }}:</span>
-                            <span class="{% if dim.score in ('critical','high') %}text-rose-300
-                                          {% elif dim.score == 'medium' %}text-amber-300
+                            <span class="{% if dim.score in ('critical','high') %}text-orange-300
+                                          {% elif dim.score == 'medium' %}text-yellow-300
                                           {% else %}text-slate-300{% endif %}">{{ dim.score }}</span>
                             {% if dim.rationale %}<span class="text-slate-500">— {{ dim.rationale }}</span>{% endif %}
                           </li>
@@ -66,21 +66,21 @@
                 {% else %}
                   <div class="rounded p-2 bg-slate-900 border border-slate-700 text-slate-400">
                     <div class="font-bold">Safety Officer</div>
-                    <div class="text-amber-300">not consulted yet</div>
+                    <div class="text-yellow-300">not consulted yet</div>
                   </div>
                 {% endif %}
                 {% if req.legal %}
                   {% set lv = req.legal.verdict %}
                   <div class="rounded p-2
-                              {% if lv == 'outside_counsel_required' %}bg-rose-950 border border-rose-700
-                              {% elif lv == 'caution' %}bg-amber-950 border border-amber-700
-                              {% else %}bg-emerald-950 border border-emerald-700{% endif %}">
+                              {% if lv == 'outside_counsel_required' %}bg-orange-950 border border-orange-700
+                              {% elif lv == 'caution' %}bg-yellow-950 border border-yellow-700
+                              {% else %}bg-sky-950 border border-sky-700{% endif %}">
                     <div class="flex justify-between font-bold mb-1">
                       <span>Legal Officer</span>
                       <span class="uppercase tracking-wide
-                                    {% if lv == 'outside_counsel_required' %}text-rose-300
-                                    {% elif lv == 'caution' %}text-amber-300
-                                    {% else %}text-emerald-300{% endif %}">{{ lv | replace('_',' ') }}</span>
+                                    {% if lv == 'outside_counsel_required' %}text-orange-300
+                                    {% elif lv == 'caution' %}text-yellow-300
+                                    {% else %}text-sky-300{% endif %}">{{ lv | replace('_',' ') }}</span>
                     </div>
                     <details>
                       <summary class="text-slate-400 cursor-pointer hover:text-slate-200">5-dimension scores</summary>
@@ -88,8 +88,8 @@
                         {% for name, dim in req.legal.dimensions.items() %}
                           <li>
                             <span class="text-slate-500">{{ name | replace('_',' ') }}:</span>
-                            <span class="{% if dim.score in ('critical','high') %}text-rose-300
-                                          {% elif dim.score == 'medium' %}text-amber-300
+                            <span class="{% if dim.score in ('critical','high') %}text-orange-300
+                                          {% elif dim.score == 'medium' %}text-yellow-300
                                           {% else %}text-slate-300{% endif %}">{{ dim.score }}</span>
                             {% if dim.rationale %}<span class="text-slate-500">— {{ dim.rationale }}</span>{% endif %}
                           </li>
@@ -97,21 +97,21 @@
                       </ul>
                     </details>
                     {% if req.legal.clocks_started %}
-                      <p class="mt-2 text-rose-300">⏱ clocks started:</p>
-                      <ul class="list-disc list-inside text-rose-200">
+                      <p class="mt-2 text-orange-300">⏱ clocks started:</p>
+                      <ul class="list-disc list-inside text-orange-200">
                         {% for c in req.legal.clocks_started %}
                           <li>{{ c.regime }} — {{ c.deadline_relative_hours }}h from {{ c.trigger_event }}</li>
                         {% endfor %}
                       </ul>
                     {% endif %}
                     {% if req.legal.counsel_loop_required %}
-                      <p class="mt-2 text-amber-300">⚖ outside counsel must be in the loop</p>
+                      <p class="mt-2 text-yellow-300">⚖ outside counsel must be in the loop</p>
                     {% endif %}
                   </div>
                 {% else %}
                   <div class="rounded p-2 bg-slate-900 border border-slate-700 text-slate-400">
                     <div class="font-bold">Legal Officer</div>
-                    <div class="text-amber-300">not consulted yet</div>
+                    <div class="text-yellow-300">not consulted yet</div>
                   </div>
                 {% endif %}
               </div>
@@ -126,15 +126,15 @@
                      required
                      class="flex-1 bg-slate-800 border border-slate-700 px-3 py-1.5 text-sm rounded">
               <button type="submit" name="action" value="approve"
-                      class="bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 text-sm rounded">
+                      class="bg-sky-600 hover:bg-sky-500 px-3 py-1.5 text-sm rounded">
                 Sign &amp; approve
               </button>
               <button type="submit" name="action" value="deny"
-                      class="bg-rose-700 hover:bg-rose-600 px-3 py-1.5 text-sm rounded">
+                      class="bg-orange-700 hover:bg-orange-600 px-3 py-1.5 text-sm rounded">
                 Deny
               </button>
             </form>
-            <div class="gate-error mt-2 text-xs text-rose-400 hidden"></div>
+            <div class="gate-error mt-2 text-xs text-orange-400 hidden"></div>
             <p class="mt-2 text-xs text-slate-500">
               Your passphrase derives a signing key locally — it is never sent over the network or written to any log.
             </p>
@@ -152,11 +152,11 @@
       <ul class="text-sm space-y-1">
         {% for a in recent %}
           <li class="flex gap-4 border-l-2 pl-2
-                     {% if a.decision == 'approved' %}border-emerald-500{% else %}border-rose-500{% endif %}">
+                     {% if a.decision == 'approved' %}border-sky-500{% else %}border-orange-500{% endif %}">
             <span class="text-slate-500">{{ a.decided_at }}</span>
             <span>{{ a.gate }}</span>
             <span class="text-slate-500">{{ a.request_id[:8] }}…</span>
-            <span class="ml-auto {% if a.decision == 'approved' %}text-emerald-400{% else %}text-rose-400{% endif %}">
+            <span class="ml-auto {% if a.decision == 'approved' %}text-sky-400{% else %}text-orange-400{% endif %}">
               {{ a.decision }}
             </span>
           </li>

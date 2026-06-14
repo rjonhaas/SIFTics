@@ -2,11 +2,11 @@
 {% block title %}Dashboard{% endblock %}
 {% block content %}
 {% if not case %}
-  <div class="bg-amber-900/40 border border-amber-700 p-4 rounded">
-    <p class="text-amber-300">No case loaded.</p>
+  <div class="bg-yellow-900/40 border border-yellow-700 p-4 rounded">
+    <p class="text-yellow-300">No case loaded.</p>
     <p class="text-sm text-slate-400 mt-1">
-      Go to <a href="{{ url_for('cases_list') }}" class="text-cyan-300 underline">Cases</a>
-      to open one, or <a href="{{ url_for('new_case_view') }}" class="text-cyan-300 underline">+ New case</a> to create one.
+      Go to <a href="{{ url_for('cases_list') }}" class="text-amber-300 underline">Cases</a>
+      to open one, or <a href="{{ url_for('new_case_view') }}" class="text-amber-300 underline">+ New case</a> to create one.
     </p>
   </div>
 {% else %}
@@ -28,12 +28,12 @@
       </p>
       {% if case and case.context %}
       <div class="bg-slate-800/70 border border-slate-700 rounded p-4 text-left text-sm text-slate-200 max-w-xl whitespace-pre-wrap leading-relaxed">
-        <div class="text-xs uppercase tracking-wide text-cyan-400 font-semibold mb-2">IC briefing</div>
+        <div class="text-xs uppercase tracking-wide text-amber-400 font-semibold mb-2">IC briefing</div>
         {{ case.context }}
       </div>
       {% endif %}
       <button id="begin-btn" onclick="beginInvestigation()"
-              class="mt-2 bg-cyan-700 hover:bg-cyan-600 px-8 py-3 rounded-lg font-semibold text-lg">
+              class="mt-2 bg-amber-700 hover:bg-amber-600 px-8 py-3 rounded-lg font-semibold text-lg">
         Begin Investigation
       </button>
       <p class="text-xs text-slate-600">You can direct the agent at any time using the box below</p>
@@ -55,10 +55,10 @@
           class="flex gap-2 p-3 border-t border-slate-700 flex-shrink-0">
       <textarea id="chat-input" rows="2"
                 placeholder="Direct the agent… (Ctrl+Enter to send)"
-                class="flex-1 bg-slate-800 border border-slate-700 focus:border-cyan-500
+                class="flex-1 bg-slate-800 border border-slate-700 focus:border-amber-500
                        px-3 py-2 rounded text-sm resize-none outline-none font-sans"></textarea>
       <button type="submit" id="send-btn"
-              class="bg-cyan-700 hover:bg-cyan-600 px-4 py-2 rounded text-sm font-semibold self-end">
+              class="bg-amber-700 hover:bg-amber-600 px-4 py-2 rounded text-sm font-semibold self-end">
         Send
       </button>
     </form>
@@ -125,8 +125,8 @@
   // ── Investigation status ──────────────────────────────────────────
   var STATE_STYLES = {
     fresh:    { cls: 'bg-slate-700 text-slate-300',     label: 'Ready' },
-    active:   { cls: 'bg-cyan-700 text-cyan-100',       label: 'Active' },
-    complete: { cls: 'bg-emerald-700 text-emerald-100', label: 'Complete' },
+    active:   { cls: 'bg-amber-700 text-amber-100',       label: 'Active' },
+    complete: { cls: 'bg-sky-700 text-sky-100', label: 'Complete' },
   };
   function refreshStatus() {
     fetch('/api/investigation/status').then(function(r){return r.json();}).then(function(d){
@@ -148,11 +148,11 @@
   setInterval(refreshStatus, 60000);
 
   // ── Activity feed ─────────────────────────────────────────────────
-  var TYPE_STYLES = { llm_call:'text-cyan-400', itq_answered:'text-emerald-400',
-    asr_appended:'text-rose-400', ic_request_approval:'text-orange-400',
-    briefing_posted:'text-slate-300', phase_complete:'text-emerald-300',
+  var TYPE_STYLES = { llm_call:'text-amber-400', itq_answered:'text-sky-400',
+    asr_appended:'text-orange-400', ic_request_approval:'text-orange-400',
+    briefing_posted:'text-slate-300', phase_complete:'text-sky-300',
     finding_recorded:'text-violet-400',
-    ioc_generated:'text-orange-400', intel_published:'text-emerald-400' };
+    ioc_generated:'text-orange-400', intel_published:'text-sky-400' };
   function refreshActivity() {
     fetch('/api/activity/feed').then(function(r){return r.json();}).then(function(evts){
       var feed = document.getElementById('activity-feed');
@@ -236,7 +236,7 @@
     var dot  = document.getElementById('agent-status-dot');
     var text = document.getElementById('agent-status-text');
     var send = document.getElementById('send-btn');
-    dot.className  = 'w-2 h-2 rounded-full ' + (running ? 'bg-cyan-400 animate-pulse' : 'bg-slate-600');
+    dot.className  = 'w-2 h-2 rounded-full ' + (running ? 'bg-amber-400 animate-pulse' : 'bg-slate-600');
     text.textContent = running ? 'agent working…' : 'idle';
     send.disabled  = running;
   }
@@ -279,7 +279,7 @@
       s = esc(s);
       s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
       s = s.replace(/\*([^*\n]+)\*/g,  '<em>$1</em>');
-      s = s.replace(/`([^`]+)`/g, '<code class="bg-slate-800 px-1 rounded text-xs font-mono text-emerald-300">$1</code>');
+      s = s.replace(/`([^`]+)`/g, '<code class="bg-slate-800 px-1 rounded text-xs font-mono text-sky-300">$1</code>');
       return s;
     }
     function tableRow(line) {
@@ -308,7 +308,7 @@
           i++;
         }
         i++; // consume closing ```
-        out += '<pre class="bg-slate-950 rounded p-2 text-xs font-mono text-emerald-300 overflow-x-auto my-1 whitespace-pre">' +
+        out += '<pre class="bg-slate-950 rounded p-2 text-xs font-mono text-sky-300 overflow-x-auto my-1 whitespace-pre">' +
                esc(codeLines.join('\n')) + '</pre>';
         continue;
       }
@@ -403,7 +403,7 @@ function streamAgent(url, formData) {
 
     fetch(url, {method:'POST', body: formData})
       .then(function(r) {
-        if (!r.ok) { appendMsg('error','border-rose-700').textContent='HTTP '+r.status; setRunning(false); return; }
+        if (!r.ok) { appendMsg('error','border-orange-700').textContent='HTTP '+r.status; setRunning(false); return; }
         var reader = r.body.getReader(), dec = new TextDecoder(), buf = '', cur = null;
         function pump() {
           return reader.read().then(function(chunk) {
@@ -431,7 +431,7 @@ function streamAgent(url, formData) {
                 cur = null;
                 (evt.message && evt.message.content || []).forEach(function(c) {
                   if (c.type === 'text' && c.text && c.text.trim()) {
-                    if (!cur) cur = appendMsg('agent', 'border-cyan-800');
+                    if (!cur) cur = appendMsg('agent', 'border-amber-800');
                     cur.innerHTML += renderMd(c.text);
                     transcript.scrollTop = transcript.scrollHeight;
                   }
@@ -442,18 +442,18 @@ function streamAgent(url, formData) {
               if (t === 'result') {
                 cur = null;
                 var cost = evt.total_cost_usd ? ' · $' + evt.total_cost_usd.toFixed(4) : '';
-                if (cost) appendMsg('turn complete' + cost, 'border-emerald-900');
+                if (cost) appendMsg('turn complete' + cost, 'border-sky-900');
                 snapshotTranscript();
                 continue;
               }
-              if (t === 'error') { cur = null; appendMsg('error','border-rose-700').textContent = evt.message||JSON.stringify(evt); }
+              if (t === 'error') { cur = null; appendMsg('error','border-orange-700').textContent = evt.message||JSON.stringify(evt); }
             }
             return pump();
           });
         }
         return pump();
       })
-      .catch(function(err){ appendMsg('error','border-rose-700').textContent='Connection failed: '+err.message; setRunning(false); });
+      .catch(function(err){ appendMsg('error','border-orange-700').textContent='Connection failed: '+err.message; setRunning(false); });
   }
 
   function beginInvestigation() {

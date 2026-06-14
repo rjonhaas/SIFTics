@@ -409,7 +409,7 @@ def create_app() -> Flask:
 
         def _fail(messages):
             html = "".join(
-                f'<p class="text-rose-400 font-semibold">&#x26A0; {m}</p>'
+                f'<p class="text-orange-400 font-semibold">&#x26A0; {m}</p>'
                 for m in messages
             )
             return Response(html, status=200, mimetype="text/html")
@@ -1412,7 +1412,7 @@ def _sign_request(decision: str) -> Response:
                                 quote=True)
         req_id_esc = _html.escape(str(request_id), quote=True)
         return Response(
-            f"<div class='text-emerald-400 p-2' "
+            f"<div class='text-sky-400 p-2' "
             f"data-signed='{decision}' "
             f"data-request-id='{req_id_esc}' "
             f"data-gate='{gate}' "

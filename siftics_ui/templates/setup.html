@@ -15,21 +15,21 @@
   <form method="POST" action="{{ url_for('setup_save') }}" class="space-y-3"
         hx-boost="false">
     {% for option in options %}
-      <label class="block bg-slate-900 border border-slate-700 hover:border-cyan-500 rounded p-4 cursor-pointer
-                    {% if option.value == current_runtime %}border-cyan-500{% endif %}">
+      <label class="block bg-slate-900 border border-slate-700 hover:border-amber-500 rounded p-4 cursor-pointer
+                    {% if option.value == current_runtime %}border-amber-500{% endif %}">
         <input type="radio" name="runtime" value="{{ option.value }}"
                {% if option.value == current_runtime %}checked{% endif %}
                class="mr-2">
-        <span class="font-bold text-cyan-300">{{ option.label }}</span>
+        <span class="font-bold text-amber-300">{{ option.label }}</span>
         {% if option.recommended %}
-          <span class="ml-2 text-xs bg-emerald-700 text-emerald-100 px-2 py-0.5 rounded">recommended</span>
+          <span class="ml-2 text-xs bg-sky-700 text-sky-100 px-2 py-0.5 rounded">recommended</span>
         {% endif %}
         {% if not option.detected %}
-          <span class="ml-2 text-xs bg-amber-700 text-amber-100 px-2 py-0.5 rounded">setup required</span>
+          <span class="ml-2 text-xs bg-yellow-700 text-yellow-100 px-2 py-0.5 rounded">setup required</span>
         {% endif %}
         <p class="text-sm text-slate-400 mt-1">{{ option.description }}</p>
         {% if option.status %}
-          <p class="text-xs mt-1 {% if option.detected %}text-emerald-400{% else %}text-rose-400{% endif %}">
+          <p class="text-xs mt-1 {% if option.detected %}text-sky-400{% else %}text-orange-400{% endif %}">
             ✓ {{ option.status }}
           </p>
         {% endif %}
@@ -43,16 +43,16 @@
         message — the running case keeps going, no restart needed.
       </p>
 
-      <label class="block bg-slate-800 border border-slate-700 hover:border-cyan-500 rounded p-3 cursor-pointer mb-2
-                    {% if current_auth_mode == 'subscription_oauth' %}border-cyan-500{% endif %}">
+      <label class="block bg-slate-800 border border-slate-700 hover:border-amber-500 rounded p-3 cursor-pointer mb-2
+                    {% if current_auth_mode == 'subscription_oauth' %}border-amber-500{% endif %}">
         <input type="radio" name="auth_mode" value="subscription_oauth"
                {% if current_auth_mode == 'subscription_oauth' %}checked{% endif %}
                class="mr-2">
-        <span class="font-bold text-cyan-300">Claude.ai subscription (Pro / Max / Team)</span>
+        <span class="font-bold text-amber-300">Claude.ai subscription (Pro / Max / Team)</span>
         {% if oauth_detected %}
-          <span class="ml-2 text-xs px-2 py-0.5 rounded bg-emerald-900 text-emerald-300">detected ✓</span>
+          <span class="ml-2 text-xs px-2 py-0.5 rounded bg-sky-900 text-sky-300">detected ✓</span>
         {% else %}
-          <span class="ml-2 text-xs px-2 py-0.5 rounded bg-amber-900 text-amber-300">run <code>claude login</code> first</span>
+          <span class="ml-2 text-xs px-2 py-0.5 rounded bg-yellow-900 text-yellow-300">run <code>claude login</code> first</span>
         {% endif %}
         <p class="text-xs text-slate-400 mt-1">
           Uses your existing claude CLI OAuth credentials at <code>~/.claude/</code>.
@@ -60,14 +60,14 @@
         </p>
       </label>
 
-      <label class="block bg-slate-800 border border-slate-700 hover:border-cyan-500 rounded p-3 cursor-pointer
-                    {% if current_auth_mode == 'api_key' %}border-cyan-500{% endif %}">
+      <label class="block bg-slate-800 border border-slate-700 hover:border-amber-500 rounded p-3 cursor-pointer
+                    {% if current_auth_mode == 'api_key' %}border-amber-500{% endif %}">
         <input type="radio" name="auth_mode" value="api_key"
                {% if current_auth_mode == 'api_key' %}checked{% endif %}
                class="mr-2">
-        <span class="font-bold text-cyan-300">Anthropic API key</span>
+        <span class="font-bold text-amber-300">Anthropic API key</span>
         {% if env_key_set %}
-          <span class="ml-2 text-xs px-2 py-0.5 rounded bg-emerald-900 text-emerald-300">key in env ✓</span>
+          <span class="ml-2 text-xs px-2 py-0.5 rounded bg-sky-900 text-sky-300">key in env ✓</span>
         {% endif %}
         <p class="text-xs text-slate-400 mt-1">
           Per-token billing on console.anthropic.com. Paste below to set or rotate.
@@ -93,13 +93,13 @@
         needed.
       </p>
 
-      <label class="block bg-slate-800 border border-slate-700 hover:border-cyan-500 rounded p-3 cursor-pointer mb-2
-                    {% if current_broker_mode == 'mock' %}border-cyan-500{% endif %}">
+      <label class="block bg-slate-800 border border-slate-700 hover:border-amber-500 rounded p-3 cursor-pointer mb-2
+                    {% if current_broker_mode == 'mock' %}border-amber-500{% endif %}">
         <input type="radio" name="broker_mode" value="mock"
                {% if current_broker_mode == 'mock' %}checked{% endif %}
                class="mr-2">
-        <span class="font-bold text-cyan-300">Standalone</span>
-        <span class="ml-2 text-xs px-2 py-0.5 rounded bg-emerald-900 text-emerald-300">no infrastructure</span>
+        <span class="font-bold text-amber-300">Standalone</span>
+        <span class="ml-2 text-xs px-2 py-0.5 rounded bg-sky-900 text-sky-300">no infrastructure</span>
         <p class="text-xs text-slate-400 mt-1">
           The response tools (<code>list_clients</code>,
           <code>start_hunt</code>, etc.) return a small sample
@@ -110,20 +110,20 @@
         </p>
       </label>
 
-      <label class="block bg-slate-800 border border-slate-700 hover:border-cyan-500 rounded p-3 cursor-pointer
-                    {% if current_broker_mode == 'real' %}border-cyan-500{% endif %}">
+      <label class="block bg-slate-800 border border-slate-700 hover:border-amber-500 rounded p-3 cursor-pointer
+                    {% if current_broker_mode == 'real' %}border-amber-500{% endif %}">
         <input type="radio" name="broker_mode" value="real"
                {% if current_broker_mode == 'real' %}checked{% endif %}
                class="mr-2">
-        <span class="font-bold text-cyan-300">Connected</span>
-        <span class="ml-2 text-xs px-2 py-0.5 rounded bg-amber-900 text-amber-300">requires Velociraptor mTLS</span>
+        <span class="font-bold text-amber-300">Connected</span>
+        <span class="ml-2 text-xs px-2 py-0.5 rounded bg-yellow-900 text-yellow-300">requires Velociraptor mTLS</span>
         <p class="text-xs text-slate-400 mt-1">
           The response tools talk to your own Velociraptor server. Set
           the URL + cert paths in <code>agent.yaml</code> under
           <code>response_targets.velociraptor</code> (v1 — per-target
           UI cards land in v1.1). The reference deployment is the
           sister <a href="https://github.com/rjonhaas/hunt_lab"
-          class="text-cyan-400 hover:text-cyan-300" target="_blank">hunt_lab</a>
+          class="text-amber-400 hover:text-amber-300" target="_blank">hunt_lab</a>
           repo; any Velociraptor server speaking the same API works.
         </p>
       </label>
@@ -145,7 +145,7 @@
     </fieldset>
 
     <div class="flex gap-2 pt-2">
-      <button type="submit" class="bg-cyan-600 hover:bg-cyan-500 px-4 py-2 rounded">
+      <button type="submit" class="bg-amber-600 hover:bg-amber-500 px-4 py-2 rounded">
         Save configuration
       </button>
       <a href="{{ url_for('dashboard') }}"
@@ -155,7 +155,7 @@
 
   <div class="mt-8 border-t border-slate-700 pt-4 text-sm">
     <a href="{{ url_for('new_case_view') }}"
-       class="text-emerald-400 hover:text-emerald-300">
+       class="text-sky-400 hover:text-sky-300">
       + Initialise a new case
     </a>
   </div>

@@ -1,14 +1,14 @@
 <h3 class="text-sm text-slate-400">Agent runtime</h3>
 <p class="text-sm mt-1">
-  <span class="text-cyan-300 font-bold">{{ runtime.runtime }}</span>
+  <span class="text-amber-300 font-bold">{{ runtime.runtime }}</span>
 </p>
 {% if runtime.budget_usd > 0 %}
   <div class="mt-2 text-xs flex justify-between text-slate-400">
     <span>${{ "%.2f" | format(runtime.spent_usd) }} / ${{ "%.2f" | format(runtime.budget_usd) }}</span>
-    <span class="{% if runtime.warn %}text-rose-400{% else %}text-slate-500{% endif %}">{{ runtime.pct }}%</span>
+    <span class="{% if runtime.warn %}text-orange-400{% else %}text-slate-500{% endif %}">{{ runtime.pct }}%</span>
   </div>
   <div class="w-full bg-slate-800 rounded h-2 mt-1 overflow-hidden">
-    <div class="h-2 {% if runtime.warn %}bg-rose-500{% else %}bg-emerald-500{% endif %}"
+    <div class="h-2 {% if runtime.warn %}bg-orange-500{% else %}bg-sky-500{% endif %}"
          style="width: {{ runtime.pct if runtime.pct <= 100 else 100 }}%"></div>
   </div>
 {% else %}

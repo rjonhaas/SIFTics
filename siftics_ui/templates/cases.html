@@ -6,7 +6,7 @@
   <div class="flex items-baseline justify-between mb-6">
     <h2 class="text-2xl font-bold">Cases</h2>
     <a href="{{ url_for('new_case_view') }}"
-       class="bg-emerald-700 hover:bg-emerald-600 px-4 py-2 rounded font-semibold text-sm">
+       class="bg-sky-700 hover:bg-sky-600 px-4 py-2 rounded font-semibold text-sm">
       + New case
     </a>
   </div>
@@ -19,13 +19,13 @@
   {% else %}
   <div class="space-y-3">
     {% for c in cases %}
-    <div class="bg-slate-900 border {% if c.active %}border-cyan-600{% else %}border-slate-700{% endif %} rounded-lg p-4 flex items-center gap-4">
+    <div class="bg-slate-900 border {% if c.active %}border-amber-600{% else %}border-slate-700{% endif %} rounded-lg p-4 flex items-center gap-4">
 
       <!-- impact dot -->
       <span class="w-2.5 h-2.5 rounded-full flex-shrink-0
-        {% if c.impact_level == 'critical' %}bg-rose-400
+        {% if c.impact_level == 'critical' %}bg-orange-600 ring-2 ring-orange-300
         {% elif c.impact_level == 'high' %}bg-orange-400
-        {% elif c.impact_level == 'moderate' %}bg-amber-400
+        {% elif c.impact_level == 'moderate' %}bg-yellow-400
         {% else %}bg-slate-500{% endif %}"></span>
 
       <!-- case info -->
@@ -33,7 +33,7 @@
         <div class="flex items-center gap-2">
           <span class="font-semibold text-slate-100 truncate">{{ c.name or c.case_id }}</span>
           {% if c.active %}
-          <span class="text-xs bg-cyan-900 text-cyan-300 px-2 py-0.5 rounded">active</span>
+          <span class="text-xs bg-amber-900 text-amber-300 px-2 py-0.5 rounded">active</span>
           {% endif %}
         </div>
         <div class="text-xs text-slate-400 mt-0.5 space-x-3">
@@ -50,14 +50,14 @@
           Evidence: {% for f in c.evidence_files %}<code class="text-slate-500">{{ f }}</code>{% if not loop.last %}, {% endif %}{% endfor %}
         </div>
         {% else %}
-        <div class="text-xs text-amber-800 mt-1">No evidence in {{ c.evidence_dir }} yet</div>
+        <div class="text-xs text-yellow-800 mt-1">No evidence in {{ c.evidence_dir }} yet</div>
         {% endif %}
       </div>
 
       <!-- open button -->
       {% if c.active %}
       <a href="{{ url_for('dashboard') }}"
-         class="flex-shrink-0 bg-cyan-800 hover:bg-cyan-700 px-4 py-1.5 rounded text-sm font-semibold">
+         class="flex-shrink-0 bg-amber-800 hover:bg-amber-700 px-4 py-1.5 rounded text-sm font-semibold">
         Dashboard
       </a>
       {% else %}
@@ -82,7 +82,7 @@
 </div>
 
 <div id="switch-error"
-     class="hidden mt-4 bg-rose-900/60 border border-rose-700 rounded-lg p-3 text-rose-300 text-sm">
+     class="hidden mt-4 bg-orange-900/60 border border-orange-700 rounded-lg p-3 text-orange-300 text-sm">
 </div>
 
 <script>

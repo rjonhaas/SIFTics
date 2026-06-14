@@ -23,35 +23,35 @@
   <header class="border-b border-slate-700 p-4 flex items-baseline gap-6">
     <h1 class="text-xl font-bold">
       {{ labels.case_header_name }}
-      {% if case %}— <span class="text-cyan-300">{{ case.name }}</span>{% endif %}
+      {% if case %}— <span class="text-amber-300">{{ case.name }}</span>{% endif %}
     </h1>
     <span class="text-xs text-slate-500 flex items-baseline gap-1"
           title="{{ agent_model_id }}">
       <span class="uppercase tracking-wide">model</span>
-      <span class="text-cyan-400 font-semibold">{{ agent_model_label }}</span>
+      <span class="text-amber-400 font-semibold">{{ agent_model_label }}</span>
     </span>
     {% if case %}
       <span class="text-sm text-slate-400">
         IC: <span class="text-slate-200">{{ case.incident_commander.name }}</span>
         · Impact:
-        <span class="text-{{ {'critical': 'rose-400', 'high': 'orange-400',
-                              'moderate': 'amber-400', 'low': 'slate-400'}.get(case.impact_level, 'slate-400') }}">
+        <span class="text-{{ {'critical': 'orange-600', 'high': 'orange-400',
+                              'moderate': 'yellow-400', 'low': 'slate-400'}.get(case.impact_level, 'slate-400') }}">
           {{ case.impact_level | upper }}
         </span>
       </span>
     {% endif %}
     <nav class="ml-auto flex gap-4 text-sm">
-      <a href="{{ url_for('dashboard') }}" class="hover:text-cyan-300">Dashboard</a>
-      <a href="{{ url_for('gates') }}" class="hover:text-cyan-300">
+      <a href="{{ url_for('dashboard') }}" class="hover:text-amber-300">Dashboard</a>
+      <a href="{{ url_for('gates') }}" class="hover:text-amber-300">
         Authority Gates
         <span id="pending-pill"></span>
       </a>
-      <a href="{{ url_for('report_view') }}" class="hover:text-cyan-300">Report</a>
-      <a href="{{ url_for('findings_view') }}" class="hover:text-cyan-300">Findings</a>
-      <a href="{{ url_for('intel_view') }}" class="hover:text-cyan-300">Intel</a>
-      <a href="{{ url_for('setup_view') }}" class="hover:text-cyan-300">Setup</a>
-      <a href="{{ url_for('cases_list') }}" class="hover:text-cyan-300 text-emerald-400">Cases</a>
-      <a href="{{ url_for('new_case_view') }}" class="hover:text-cyan-300 text-slate-300">+ New case</a>
+      <a href="{{ url_for('report_view') }}" class="hover:text-amber-300">Report</a>
+      <a href="{{ url_for('findings_view') }}" class="hover:text-amber-300">Findings</a>
+      <a href="{{ url_for('intel_view') }}" class="hover:text-amber-300">Intel</a>
+      <a href="{{ url_for('setup_view') }}" class="hover:text-amber-300">Setup</a>
+      <a href="{{ url_for('cases_list') }}" class="hover:text-amber-300 text-sky-400">Cases</a>
+      <a href="{{ url_for('new_case_view') }}" class="hover:text-amber-300 text-slate-300">+ New case</a>
     </nav>
   </header>
 
@@ -63,7 +63,7 @@
     {{ labels.framework_attribution }}
     <br>
     SIFTics &middot; SANS Find Evil! hackathon submission &middot;
-    audit chain: <span class="pulse-dot text-emerald-400">live</span>
+    audit chain: <span class="pulse-dot text-sky-400">live</span>
   </footer>
 
   <script>

@@ -13,7 +13,7 @@
   </div>
 
   {% if not header %}
-  <div class="bg-amber-900/40 border border-amber-700 p-4 rounded text-sm text-amber-300">
+  <div class="bg-yellow-900/40 border border-yellow-700 p-4 rounded text-sm text-yellow-300">
     No case loaded.
   </div>
   {% else %}
@@ -25,9 +25,9 @@
       <div><span class="text-slate-500">Case ID</span><span class="ml-3 text-slate-200">{{ header.case_id }}</span></div>
       <div><span class="text-slate-500">Impact</span>
         <span class="ml-3 font-bold
-          {% if header.impact_level == 'critical' %}text-rose-400
+          {% if header.impact_level == 'critical' %}text-orange-600
           {% elif header.impact_level == 'high' %}text-orange-400
-          {% elif header.impact_level == 'moderate' %}text-amber-400
+          {% elif header.impact_level == 'moderate' %}text-yellow-400
           {% else %}text-slate-400{% endif %}">
           {{ header.impact_level | upper }}
         </span>
@@ -45,8 +45,8 @@
        agent to maintain — the prose sharpens automatically as the
        investigation progresses. -->
   {% if exec_summary %}
-  <section class="bg-slate-900 border border-cyan-800 rounded-lg p-5 mb-6">
-    <h3 class="text-sm font-semibold text-cyan-400 uppercase tracking-wide mb-3">
+  <section class="bg-slate-900 border border-amber-800 rounded-lg p-5 mb-6">
+    <h3 class="text-sm font-semibold text-amber-400 uppercase tracking-wide mb-3">
       Executive Summary
     </h3>
     <div class="text-sm text-slate-200 leading-relaxed space-y-3">
@@ -67,9 +67,9 @@
         <div class="flex items-baseline justify-between mb-2">
           <span class="font-bold text-slate-100">{{ f.serial_no }} — {{ f.system_identifier }}</span>
           <span class="text-xs px-2 py-0.5 rounded-full
-            {% if f.impact_rating == 'critical' %}bg-rose-900 text-rose-300
+            {% if f.impact_rating == 'critical' %}bg-orange-950 text-orange-200 ring-1 ring-orange-700
             {% elif f.impact_rating == 'high' %}bg-orange-900 text-orange-300
-            {% else %}bg-amber-900 text-amber-300{% endif %}">
+            {% else %}bg-yellow-900 text-yellow-300{% endif %}">
             {{ f.impact_rating }}
           </span>
         </div>
@@ -109,7 +109,7 @@
   <div class="text-center py-16 text-slate-500">
     <p class="text-lg mb-2">No report content yet.</p>
     <p class="text-sm">Start an investigation from the
-      <a href="{{ url_for('dashboard') }}" class="text-cyan-400 underline">Dashboard</a>
+      <a href="{{ url_for('dashboard') }}" class="text-amber-400 underline">Dashboard</a>
       and findings will appear here as the agent records them.
     </p>
   </div>
