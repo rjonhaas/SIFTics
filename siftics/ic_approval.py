@@ -257,7 +257,7 @@ def request_approval(gate: str, summary: str, action: dict[str, Any],
         raise SafetyConsultRequired(
             f"Authority Gate {gate!r} requires a Safety Officer consult first. "
             f"Call mcp_case.consult_safety_officer with the assessment for "
-            f"action_hash={ah[:12]}…"
+            f"action_hash={ah}"
         )
     safety_verdict = (safety.get("payload") or {}).get("verdict")
     if safety_verdict == "hard_stop":
@@ -265,7 +265,7 @@ def request_approval(gate: str, summary: str, action: dict[str, Any],
                         .get("personnel_safety", {})
                         .get("rationale", ""))
         raise SafetyHardStop(
-            f"Safety Officer hard_stop for action_hash={ah[:12]}…: "
+            f"Safety Officer hard_stop for action_hash={ah}: "
             f"personnel_safety — {ps_rationale}"
         )
 
@@ -275,7 +275,7 @@ def request_approval(gate: str, summary: str, action: dict[str, Any],
         raise LegalConsultRequired(
             f"Authority Gate {gate!r} requires a Legal Officer consult first. "
             f"Call mcp_case.consult_legal_officer with the assessment for "
-            f"action_hash={ah[:12]}…"
+            f"action_hash={ah}"
         )
     legal_verdict = (legal.get("payload") or {}).get("verdict")
     if legal_verdict == "outside_counsel_required":
@@ -284,7 +284,7 @@ def request_approval(gate: str, summary: str, action: dict[str, Any],
         if not _counsel_acknowledged_for(matter_id):
             raise LegalCounselRequired(
                 f"Legal Officer requires outside counsel for "
-                f"action_hash={ah[:12]}…. Append a counsel_acknowledged "
+                f"action_hash={ah}. Append a counsel_acknowledged "
                 f"event via sift-counsel-acknowledge (or /gates UI) before "
                 f"re-requesting."
             )

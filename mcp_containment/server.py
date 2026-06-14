@@ -418,7 +418,7 @@ def _invoke_entra_revoke(entra, user_principal: str) -> dict:
         "step": "Revoke sign-in sessions",
         "target": "Entra ID (Graph API)",
         "user_principal": user_principal,
-        "tenant_id": entra.tenant_id[:8] + "..." if entra.tenant_id else "",
+        "tenant_id": entra.tenant_id or "",
         "client_secret_present": secret_present,
         "status": "stubbed_v1",
         "would_call": f"POST https://graph.microsoft.com/v1.0/users/{user_principal}/revokeSignInSessions",

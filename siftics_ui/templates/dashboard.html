@@ -193,7 +193,9 @@
         var lbl  = wrap.querySelector('div:first-child');
         var body = wrap.querySelector('div:last-child');
         var border = (wrap.className.match(/border-\S+/) || ['border-slate-700'])[0];
-        items.push({ role: lbl ? lbl.textContent : '', border: border,
+        // innerHTML on the label preserves the timestamp span styling
+        // across page navigations.
+        items.push({ labelHtml: lbl ? lbl.innerHTML : '', border: border,
                      html: body ? body.innerHTML : '' });
       });
       if (items.length > TX_MAX) items = items.slice(-TX_MAX);
@@ -209,7 +211,9 @@
         var wrap = document.createElement('div');
         wrap.className = 'border-l-2 pl-3 py-0.5 ' + m.border;
         var lbl = document.createElement('div');
-        lbl.className = 'text-xs text-slate-500 mb-0.5'; lbl.textContent = m.role;
+        lbl.className = 'text-xs text-slate-500 mb-0.5';
+        // Back-compat: older snapshots stored a plain `role` string.
+        lbl.innerHTML = m.labelHtml || m.role || '';
         var body = document.createElement('div');
         body.className = 'whitespace-pre-wrap leading-snug';
         body.innerHTML = m.html;
@@ -237,11 +241,25 @@
     send.disabled  = running;
   }
 
+  // UTC HH:MM:SS — DFIR convention is UTC, never local, for cross-host
+  // timeline reconstruction. The full ISO timestamp goes into the title
+  // attribute so an operator can hover for the date + millisecond detail
+  // without bloating the inline label.
+  function utcTimeStamp() {
+    var iso = new Date().toISOString();   // 2026-06-14T13:42:09.473Z
+    return { short: iso.substring(11, 19) + ' UTC', iso: iso };
+  }
+
   function appendMsg(role, borderCls) {
     var wrap = document.createElement('div');
     wrap.className = 'border-l-2 pl-3 py-0.5 ' + borderCls;
     var lbl = document.createElement('div');
-    lbl.className = 'text-xs text-slate-500 mb-0.5'; lbl.textContent = role;
+    lbl.className = 'text-xs text-slate-500 mb-0.5';
+    var ts = utcTimeStamp();
+    lbl.innerHTML =
+      '<span>' + role + '</span>' +
+      ' <span class="text-slate-600 font-mono ml-2" title="' + ts.iso + '">' +
+        ts.short + '</span>';
     var body = document.createElement('div');
     body.className = 'whitespace-pre-wrap leading-snug';
     wrap.appendChild(lbl); wrap.appendChild(body);
