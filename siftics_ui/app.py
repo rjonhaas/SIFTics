@@ -970,7 +970,12 @@ def _make_agent_cmd(case_path: Path, prompt: str,
     # Prompt must come before variadic flags (--mcp-config consumes subsequent args).
     # --dangerously-skip-permissions required: permission prompts block in the background
     # process and cannot be answered from the browser UI.
+    # Model pinned to Sonnet 4.6: tool-heavy DFIR workflows benefit from
+    # Sonnet's tighter outputs and lower latency over Opus's deeper deliberation,
+    # and the per-case budget stretches further. Override per-session with
+    # `claude /model <id>` is not honored — this flag wins.
     cmd = ["claude", "-p", prompt,
+           "--model", "claude-sonnet-4-6",
            "--output-format", "stream-json",
            "--verbose",
            "--dangerously-skip-permissions",

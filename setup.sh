@@ -39,6 +39,10 @@ OPTIONS
                            OS updates applied via apt before any pip work)
     --no-audit          Skip the pip-audit CVE scan after the venv is built
 
+  Maintenance
+    --kill-all          Stop siftics-ui and every mcp_* server, free port 8080,
+                        and exit. Equivalent to ./scripts/kill_all.sh.
+
   Misc
     -q, --quiet         Suppress verbose pip output
     -h, --help          Show this help and exit
@@ -55,6 +59,9 @@ EXAMPLES
 
   # Re-run after a partial install (safe, UI restarts too):
   ./setup.sh
+
+  # Reset: stop the UI + MCP servers, free port 8080, then re-run:
+  ./setup.sh --kill-all && ./setup.sh
 
 FILES
   .venv/                     Python virtual environment
@@ -109,6 +116,7 @@ while [[ $# -gt 0 ]]; do
         --no-security-updates) NO_SECURITY_UPDATES="yes"; shift ;;
         --no-audit)        NO_AUDIT="yes";         shift ;;
         -q|--quiet)        QUIET="yes";            shift ;;
+        --kill-all)        KILL_ALL="yes";         shift ;;
         -h|--help)         usage; exit 0 ;;
         *) echo "unknown arg: $1 (use --help)" >&2; exit 2 ;;
     esac
@@ -116,6 +124,12 @@ done
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$REPO_ROOT"
+
+# --kill-all short-circuits everything else: stop processes + free the port,
+# then exit so the operator can re-run setup cleanly.
+if [[ "${KILL_ALL:-no}" == "yes" ]]; then
+    exec ./scripts/kill_all.sh
+fi
 
 START_TS=$(date +%s)
 
