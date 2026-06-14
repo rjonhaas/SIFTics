@@ -30,6 +30,13 @@ from siftics import (
 from .labels import load_labels
 
 
+# Single source of truth for the agent model. _make_agent_cmd passes this to
+# every claude subprocess; the templates render the human label so operators
+# can confirm which model is actually running without diving into code.
+AGENT_MODEL = "claude-sonnet-4-6"
+AGENT_MODEL_LABEL = "Sonnet 4.6"
+
+
 def create_app() -> Flask:
     app = Flask(__name__,
                 template_folder=str(Path(__file__).parent / "templates"),
@@ -41,6 +48,11 @@ def create_app() -> Flask:
     @app.context_processor
     def _inject_labels() -> dict:
         return {"labels": app.config["LABELS"]}
+
+    @app.context_processor
+    def _inject_agent_model() -> dict:
+        return {"agent_model_id": AGENT_MODEL,
+                "agent_model_label": AGENT_MODEL_LABEL}
 
     @app.after_request
     def _no_cache(response):
@@ -975,7 +987,7 @@ def _make_agent_cmd(case_path: Path, prompt: str,
     # and the per-case budget stretches further. Override per-session with
     # `claude /model <id>` is not honored — this flag wins.
     cmd = ["claude", "-p", prompt,
-           "--model", "claude-sonnet-4-6",
+           "--model", AGENT_MODEL,
            "--output-format", "stream-json",
            "--verbose",
            "--dangerously-skip-permissions",
