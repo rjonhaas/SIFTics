@@ -23,7 +23,7 @@ Devpost submission item #9 - *Accuracy Report*.
 | Latest Szechuan hit-or-partial coverage | **22 / 29 = 75.9%** | same |
 | Latest Szechuan uncorrected FP / hallucinations | **0** | same |
 | Latest Szechuan corrected FP | **1** | F-017 superseded F-011 |
-| Constraint regression test pass rate | **17 / 17** | `tests/test_constraints.py` on SIFT VM, 2026-06-14 |
+| Constraint regression test pass rate | **17 / 17** | `tests/test_constraints.py` test functions in this package; T1 is a policy/documentation assertion in v1 |
 | Packaged Szechuan wall-clock | **84 min** | `score_card.md` operator timing |
 | Packaged Szechuan cost (Sonnet 4.6) | **$6.944945** | `forensic_audit.jsonl` `llm_call` event |
 | Cost percentile status | Not enough completed packaged runs for p95/p99 | one fully packaged current run |
@@ -411,7 +411,8 @@ unsupported by tool output. Example archetypes:
 - **No `eval()` or arbitrary file read** - the agent cannot "claim it ran X"
   without there being an audit event proving it ran X.
 - **Hash-chained provenance** - fabricated findings cannot be inserted into the
-  audit log without breaking the chain at `audit_verify.sh`.
+  audit log without breaking the chain verified by `siftics.audit.verify_chain()`
+  or an equivalent JSONL verifier.
 - **RAG-bounded enrichment** - evidence artifacts establish case facts; `mcp_rag`
   does not. RAG is used only to explain and classify facts already supported by
   artifact output: MITRE technique alignment, Sigma rule rationale, LOLBAS
@@ -478,14 +479,17 @@ SIFTics's answer: **the restriction is architectural and cannot be ignored.**
 
 | Risk | Architectural defence |
 |---|---|
-| Agent writes to original evidence | `verify_readonly_mounts.sh` runs at case start and fails closed; bind-mount with `ro` flag; MCP refuses to start if check fails |
+| Agent writes to original evidence | v1 treats source evidence as input-only and records hashes in `evidence_manifest.json`; packaged runs copied evidence into the case directory and did not modify source datasets. Full read-only mount preflight is tracked as a v2 hardening item. |
 | Agent overwrites a parser tool | No `install`, `pip`, or filesystem-write MCP function exists. Agent cannot mutate `phases/` or `mcp_*/` |
 | Agent fabricates audit events | Audit log is hash-chained over canonical event bytes; fabrication breaks the chain at verify time |
 | Agent runs an unapproved fleet action | Action MCP functions require typed `ICApproval`; missing approval → `TypeError` before body runs |
 | Agent exhausts API credits | `cost_tracker.check_budget_or_raise()` runs at the top of every chat call; raises `BudgetExceeded` |
 
-Tested for bypass: T1 through T8 (`tests/test_constraints.py`). **14 / 14 pass**
-in v1; T8 has 7 sub-tests covering the IC approval enforcement specifically.
+Tested for bypass and regression behavior in `tests/test_constraints.py`.
+The current package contains **17 / 17** passing test functions by source count:
+default ITQ seeding, T1-T10 coverage, and seven T8 sub-tests covering IC
+approval enforcement. T1 is a policy/documentation assertion in v1 rather than
+a live read-only mount harness.
 
 ---
 
@@ -645,19 +649,27 @@ cd SIFTics
 python -m venv .venv && source .venv/bin/activate
 pip install -e .
 
-# Pull the benchmark datasets (one-time, ~5-10 GB)
-./scripts/download_benchmarks.sh
+# Inspect the packaged Szechuan benchmark result
+ls examples/szechuan_sauce/runs/2026-06-14-szechuan_sauce_2026-06-14/
+sed -n '1,220p' examples/szechuan_sauce/runs/2026-06-14-szechuan_sauce_2026-06-14/score_card.md
 
-# Run the full accuracy benchmark - writes results to examples/benchmark_<date>/
-SIFTICS_ANTHROPIC_KEY=... sift-benchmark run --pin claude-sonnet-4-6
+# Verify the packaged audit chain with the library verifier
+SIFTICS_CASE_DIR="$PWD/examples/szechuan_sauce/runs/2026-06-14-szechuan_sauce_2026-06-14" \
+python - <<'PY'
+from siftics import audit
+ok, errors = audit.verify_chain()
+print("PASS" if ok else "FAIL")
+for err in errors:
+    print(err)
+PY
 
-# Re-run the bypass tests
+# Re-run the bypass tests after installing test dependencies
 python -m pytest tests/test_constraints.py -v
 ```
 
-All cost / token / accuracy numbers in this report are reproducible from the
-output of `sift-benchmark run` against the pinned model. If your run produces
-materially different numbers, open an issue at
+All cost / token / accuracy numbers in this report are reproduced from the
+packaged Szechuan run artifacts and the score card in `examples/`. If your
+independent review produces materially different numbers, open an issue at
 [`github.com/rjonhaas/SIFTics/issues`](https://github.com/rjonhaas/SIFTics/issues).
 
 ---
