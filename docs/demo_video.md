@@ -8,15 +8,36 @@ Devpost submission item #6.
 
 ## 1. Submission link
 
-**YouTube (unlisted, public-link-shareable):** *TBD - filled in 2026-06-14 after final recording.*
+**YouTube (unlisted, public-link-shareable):** *TBD - add after final recording.*
 
 Backup: Vimeo *TBD*.
 
 ---
 
-## 2. Storyboard - three-act arc (5:00 hard cap; aiming for 4:45)
+## 2. Recommended storyboard - hunt_lab OT fight-back loop
 
-The arc closes the "Detection got AI-speed, response is still human-speed because authority can't be delegated" gap, then proves that closing the gap doesn't mean losing control of *what* the agent authorises.
+This is the strongest demo path because it shows the full incident loop rather
+than another analysis-only agent: **Caldera attack -> ELK alert -> Velociraptor
+triage -> SIFTics investigation -> controlled response**.
+
+Keep the story to one OT incident. Do not turn the recording into a tour of
+Caldera, ELK, Velociraptor, and SIFTics. Each external tool gets one short proof
+beat, then SIFTics owns the rest of the video.
+
+| Beat | Time | Content | What's on screen | Spoken narration cue |
+|---|---|---|---|---|
+| **Attack** | 0:00 - 0:30 | Caldera launches the hunt_lab OT adversary profile | Caldera operation or terminal starting the scenario | *"This is not a canned prompt. Caldera is launching an OT intrusion from hunt_lab: recon, SSH brute force, HMI config access, and setpoint tamper."* |
+| **Alert** | 0:30 - 0:55 | ELK receives the detection | Kibana alert for OT-HMI brute force / config tamper | *"The SOC sees the alert first. SIFTics starts from the same handoff a human responder would get, not the answer key."* |
+| **Collect** | 0:55 - 1:20 | Velociraptor triage collection completes | Velociraptor collection or completed artifact bundle | *"Velociraptor gathers triage from the Windows pivot and OT HMI. The collection becomes the case evidence."* |
+| **Investigate** | 1:20 - 2:35 | SIFTics runs the case | COP dashboard with Agent Workbench, Evidence Ledger, ASR, Lines of Inquiry | *"The Investigation Section Chief builds the Common Operating Picture from real artifacts. Chat is not the record. Findings, ASR rows, gates, and audit events are."* |
+| **Trace** | 2:35 - 3:15 | Three findings traced back to evidence | Findings tab + audit/event references | *"Three claims are traceable: brute-force source, successful OT login, and config/setpoint tamper. Each one has a tool output behind it."* |
+| **Fight back** | 3:15 - 4:20 | SIFTics turns findings into actions | IOC draft, Velociraptor hunt proposal, containment/isolation proposal, `/gates` | *"Most agents stop at the report. SIFTics prepares the response: publish IOCs, push hunts, and propose isolation. The IC controls execution."* |
+| **Safety stop** | 4:20 - 4:45 | OT isolation is blocked or escalated | Red Safety Officer hard-stop / no approve button | *"This is the point: it can fight back, but it cannot bypass safety. Water-treatment isolation is not a normal endpoint action."* |
+| **Proof** | 4:45 - 5:00 | Verification | `pytest`, `audit.verify_chain()`, submission docs | *"The behavior is in the logs and tests, not just in the video."* |
+
+---
+
+## 3. Previous three-act storyboard
 
 | Act | Time | Content | What's on screen | Spoken narration cue |
 |---|---|---|---|---|
@@ -34,7 +55,7 @@ The arc closes the "Detection got AI-speed, response is still human-speed becaus
 
 ---
 
-## 3. Filming checklist
+## 4. Filming checklist
 
 ### Hardware / software
 
@@ -85,7 +106,7 @@ The arc closes the "Detection got AI-speed, response is still human-speed becaus
 
 ---
 
-## 4. Talking points to weave in (if natural)
+## 5. Talking points to weave in (if natural)
 
 These are bonus phrases that map to specific judging criteria - sprinkle them where they fit organically; don't force.
 
@@ -100,7 +121,7 @@ These are bonus phrases that map to specific judging criteria - sprinkle them wh
 
 ---
 
-## 5. What we will *not* show in the video
+## 6. What we will *not* show in the video
 
 Honest pre-decisions to keep the runtime tight and to set expectations:
 
@@ -111,7 +132,7 @@ Honest pre-decisions to keep the runtime tight and to set expectations:
 
 ---
 
-## 6. Backup plan if Anthropic API fails mid-recording
+## 7. Backup plan if Anthropic API fails mid-recording
 
 If the API has an outage during the take:
 
@@ -123,7 +144,7 @@ This contingency is itself part of the demo's strength (criterion #6).
 
 ---
 
-## 7. Final upload checklist
+## 8. Final upload checklist
 
 - [ ] YouTube unlisted link works in incognito browser (not just our own login)
 - [ ] Vimeo backup uploaded with same URL policy

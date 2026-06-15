@@ -22,6 +22,7 @@ rag-full = ["sentence-transformers>=2.7"]
 
 [project.scripts]
 sift-case-init = "siftics.cli:case_init_main"
+sift-case-ingest = "siftics.cli:case_ingest_main"
 sift-approve = "siftics.cli:approve_main"
 sift-counsel-acknowledge = "siftics.cli:counsel_acknowledge_main"
 siftics-ui = "siftics_ui.cli:run_main"

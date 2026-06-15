@@ -264,6 +264,14 @@ def request_approval(gate: str, summary: str, action: dict[str, Any],
         ps_rationale = (safety["payload"]["dimensions"]
                         .get("personnel_safety", {})
                         .get("rationale", ""))
+        append_event("authority_gate_blocked",
+                     {"gate": gate,
+                      "action_hash": ah,
+                      "summary_first_120": summary[:120],
+                      "blocked_by": "safety_officer",
+                      "reason": "personnel_safety_hard_stop",
+                      "rationale": ps_rationale},
+                     actor="safety-officer")
         raise SafetyHardStop(
             f"Safety Officer hard_stop for action_hash={ah}: "
             f"personnel_safety — {ps_rationale}"
@@ -449,10 +457,19 @@ def consume_approval(approval: dict[str, Any], execution_id: str,
                  actor=actor)
 
 
-def require_approval(approval: dict[str, Any], expected_gate: str) -> None:
-    """Call at the top of every action MCP function. Raises ApprovalInvalidError on any failure."""
-    if approval.get("gate") != expected_gate:
-        raise ApprovalInvalidError(f"gate mismatch: expected {expected_gate}, got {approval.get('gate')}")
+def require_approval(approval: dict[str, Any],
+                     expected_gate: "str | tuple[str, ...] | list[str]") -> None:
+    """Call at the top of every action MCP function. Raises ApprovalInvalidError on any failure.
+
+    `expected_gate` accepts either a single gate name or a tuple/list of names —
+    use the tuple form when one executor handles several gate types (e.g. the
+    containment executor servicing both `host_isolation` and
+    `user_account_response`)."""
+    allowed = (expected_gate,) if isinstance(expected_gate, str) else tuple(expected_gate)
+    if approval.get("gate") not in allowed:
+        raise ApprovalInvalidError(
+            f"gate mismatch: expected one of {allowed}, got {approval.get('gate')}"
+        )
     if approval.get("decision") != "approved":
         raise ApprovalInvalidError(f"decision={approval.get('decision')}")
     if not verify_approval(approval):

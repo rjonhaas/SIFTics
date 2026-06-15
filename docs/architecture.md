@@ -297,6 +297,38 @@ architectural completeness story holds.
 
 ---
 
+## 2b.1 Deterministic DFIR operations layer
+
+NIMS ICS is the command-and-authority model. It should not also be the raw
+artifact-ingest engine. SIFTics therefore puts a deterministic DFIR operations
+layer underneath the Investigation Section Chief:
+
+1. The UI runs `siftics.ingest.ensure_case_ingest()` before the first agent
+   turn.
+2. The ingest worker hashes each evidence file, classifies obvious artifact
+   containers, inspects ZIP central directories, safely extracts small
+   high-value PCAP/text members into `work/ingest/`, and writes:
+   - `evidence_manifest.json`
+   - `evidence_quicklook.md`
+3. The ingest completion is written to the hash-chained audit log as
+   `case_ingest_completed` with actor `dfir-operations`.
+4. The agent receives the quicklook in its first prompt and can reread the
+   manifest through `mcp_case.evidence_manifest()`.
+
+This is deliberately not a free-running swarm. The LLM remains the
+Investigation Section Chief: it prioritises, correlates facts, writes findings,
+answers ITQs, briefs the IC, and proposes Authority Gates. Deterministic workers
+do the repeatable setup work that should not consume the agent's first minutes
+on every case.
+
+The core `investigation-section-chief` skill is now also injected directly into
+the first agent prompt and audited as `agent_skill_context_injected` with the
+skill file hash. Slash skills remain useful for domain expansion, but the
+primary NIMS role doctrine is no longer dependent on best-effort slash-command
+loading.
+
+---
+
 ## 2c. Mapping to NIMS Incident Command System
 
 The canonical NIMS ICS organizational chart (FEMA-published) has one

@@ -10,7 +10,7 @@ import inspect
 import json
 from typing import Any, Callable
 
-from siftics import case_state, ic_approval
+from siftics import case_state, ic_approval, ingest
 
 # Lazy imports for the optional MCP servers — we don't want to require their
 # data files (baseline.sqlite, rag/index/) just to import the executor.
@@ -87,6 +87,8 @@ class InProcessToolExecutor:
     def __init__(self) -> None:
         self._tools: dict[str, Callable] = {
             "case_get_header":           case_state.case_get_header,
+            "evidence_manifest":         ingest.read_manifest,
+            "evidence_quicklook":        lambda max_chars=12000: ingest.read_quicklook(max_chars=max_chars),
             "case_update_header":        lambda fields: case_state.case_update_header(fields),
             "asr_open":                  case_state.asr_open,
             "asr_all":                   case_state.asr_all,
@@ -160,6 +162,14 @@ class InProcessToolExecutor:
             {"name": "case_get_header",
              "description": "Return the current Incident COP header.",
              "input_schema": {"type": "object", "properties": {}, "required": []}},
+            {"name": "evidence_manifest",
+             "description": "Return deterministic DFIR ingest manifest for this case.",
+             "input_schema": {"type": "object", "properties": {}, "required": []}},
+            {"name": "evidence_quicklook",
+             "description": "Return deterministic ingest quicklook markdown.",
+             "input_schema": {"type": "object",
+                              "properties": {"max_chars": {"type": "integer"}},
+                              "required": []}},
             {"name": "case_update_header",
              "description": "Update fields in the case header.",
              "input_schema": {"type": "object",
@@ -194,10 +204,12 @@ class InProcessToolExecutor:
                                            "impact_rating", "impact_description",
                                            "planned_action"]}},
             {"name": "itq_unanswered",
-             "description": "List open triage questions — primary driver for next-action selection.",
+             "description": ("List open Lines of Inquiry checks - legacy "
+                             "ITQ persistence API, primary driver for "
+                             "next-action selection."),
              "input_schema": {"type": "object", "properties": {}, "required": []}},
             {"name": "itq_answer",
-             "description": "Answer an ITQ question with evidence.",
+             "description": "Resolve a Line of Inquiry check with evidence.",
              "input_schema": {"type": "object",
                               "properties": {
                                   "question_id": {"type": "string"},
@@ -207,7 +219,7 @@ class InProcessToolExecutor:
                                   "resulting_task": {"type": "string"}},
                               "required": ["question_id", "answer"]}},
             {"name": "itq_progress",
-             "description": "Return {answered, total, pct} ITQ progress.",
+             "description": "Return {answered, total, pct} inquiry-check progress.",
              "input_schema": {"type": "object", "properties": {}, "required": []}},
             {"name": "briefing_post",
              "description": "Write a new briefing markdown into the case.",

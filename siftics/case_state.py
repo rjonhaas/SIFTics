@@ -1,4 +1,4 @@
-"""Case state — append-only JSONL files for the COP, ASR, CET, and ITQ.
+"""Case state - append-only JSONL files for the COP, ASR, CET, and inquiries.
 
 All write paths go through audit.append_event so every change is recorded in the
 hash-chained log. Reads return the latest version of each row (versioning via
@@ -18,12 +18,18 @@ from .audit import audit_path, append_event, case_dir, iter_events  # noqa: F401
 _CASE_HEADER = "case.json"
 _ASR = "suit.jsonl"          # generic label: "Affected Systems Register"
 _CET = "cca.jsonl"           # generic label: "Containment & Eradication Tracker"
-_ITQ = "grid.jsonl"          # generic label: "Initial Triage Questionnaire"
+_ITQ = "grid.jsonl"          # legacy storage for Lines of Inquiry checks
 _BRIEFINGS = "briefings"
 
 
 def _now_iso() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+
+def _default_itq_template_path() -> Path | None:
+    """Return the packaged Lines of Inquiry seed template when available."""
+    template = Path(__file__).resolve().parent / "templates" / "itq_questions.yaml"
+    return template if template.exists() else None
 
 
 def next_case_id(base_dir: str | Path = "~/Desktop/cases") -> str:
@@ -144,7 +150,7 @@ class AssetRow:
 
 @dataclass
 class Question:
-    """Initial Triage Questionnaire row (CIMTK: Starting Grid)."""
+    """Line of Inquiry check row (legacy ITQ / CIMTK Grid storage)."""
     question_id: str
     question: str
     category: str = "general"
@@ -350,7 +356,7 @@ def cet_update(cca_no: str, fields: dict[str, Any], actor: str = "mcp_server") -
 
 
 # ---------------------------------------------------------------------------
-# Initial Triage Questionnaire (ITQ)
+# Lines of Inquiry (legacy ITQ storage)
 # ---------------------------------------------------------------------------
 
 
@@ -537,6 +543,7 @@ def init_case(case_id: str, name: str, ic_name: str, ic_contact: str = "",
     append_event("case_initialised",
                  {"case_id": case_id, "ic_name": ic_name},
                  actor="case-init")
-    if itq_template:
-        itq_seed_from_template(itq_template, actor="case-init")
+    seed_template = Path(itq_template) if itq_template else _default_itq_template_path()
+    if seed_template:
+        itq_seed_from_template(seed_template, actor="case-init")
     return header

@@ -102,6 +102,19 @@ def _seed_clear_consults(action: dict) -> str:
     return ah
 
 
+def test_case_init_seeds_default_itq_template(tmp_path):
+    from siftics import audit, case_state as cs
+
+    cs.init_case(case_id="itq_seed_default", name="test", ic_name="tester")
+
+    progress = cs.itq_progress()
+    assert progress["total"] > 0
+    assert (tmp_path / "grid.jsonl").exists()
+    seeded = [ev for ev in audit.iter_events() if ev["type"] == "itq_seeded"]
+    assert seeded
+    assert seeded[-1]["payload"]["questions_written"] == progress["total"]
+
+
 # ===========================================================================
 # T1 — read-only mount verification
 # ===========================================================================
@@ -474,6 +487,13 @@ def test_t9_safety_hard_stop_blocks_gate(tmp_path):
     if pending_dir.exists():
         assert not list(pending_dir.iterdir()), \
             "request_approval must not persist a pending request on hard_stop"
+    blocked = [
+        ev for ev in audit.iter_events()
+        if ev["type"] == "authority_gate_blocked"
+    ]
+    assert blocked, "hard-stopped gates must still be visible in the audit chain"
+    assert blocked[-1]["payload"]["gate"] == "isolate_host"
+    assert blocked[-1]["payload"]["reason"] == "personnel_safety_hard_stop"
 
 
 # ===========================================================================

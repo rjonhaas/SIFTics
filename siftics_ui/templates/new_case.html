@@ -5,9 +5,9 @@
 
   <div class="mb-8 text-center">
     <h2 class="text-3xl font-bold mb-2">Start a new case</h2>
-    <p class="text-slate-400">
+    <p class="text-zinc-400">
       Creates a case folder with a tamper-evident audit log, a signing key for
-      approvals, and 43 triage questions pre-loaded to guide the investigation.
+      approvals, and a Lines of Inquiry board to keep the investigation moving.
     </p>
   </div>
 
@@ -20,67 +20,67 @@
   {% endif %}
 
   <form id="new-case-form" method="post" action="{{ url_for('setup_init_case') }}"
-        class="bg-slate-900 border border-slate-700 rounded-lg p-6 space-y-4">
+        class="bg-zinc-900 border border-zinc-700 rounded-lg p-6 space-y-4">
 
     <div class="grid grid-cols-2 gap-4">
       <div class="col-span-2">
-        <span class="text-slate-300 font-semibold text-sm">Case directory</span>
+        <span class="text-zinc-300 font-semibold text-sm">Case directory</span>
         <div class="relative mt-1">
           <div class="flex gap-2">
             <input type="text" name="case_dir" id="case_dir_input"
                    placeholder="~/Desktop/cases/incident_2026_05"
                    value="{{ form.case_dir if form else '' }}"
                    autofocus
-                   class="w-full bg-slate-800 border border-slate-700 focus:border-amber-500 px-3 py-2 rounded font-mono text-sm outline-none">
+                   class="w-full bg-zinc-800 border border-zinc-700 focus:border-amber-500 px-3 py-2 rounded font-mono text-sm outline-none">
             <button type="button" id="case_dir_browse"
                     title="Browse existing cases"
-                    class="bg-slate-700 hover:bg-slate-600 border border-slate-600 px-3 py-2 rounded text-slate-300 hover:text-white">
+                    class="bg-zinc-700 hover:bg-zinc-600 border border-zinc-600 px-3 py-2 rounded text-zinc-300 hover:text-white">
               &#128193;
             </button>
           </div>
           <ul id="case_dir_dropdown"
-              class="hidden absolute z-10 mt-1 w-full bg-slate-800 border border-slate-600 rounded shadow-lg max-h-48 overflow-y-auto text-sm font-mono">
+              class="hidden absolute z-10 mt-1 w-full bg-zinc-800 border border-zinc-600 rounded shadow-lg max-h-48 overflow-y-auto text-sm font-mono">
           </ul>
         </div>
       </div>
 
       <label class="block text-sm">
-        <span class="text-slate-300 font-semibold">Case ID</span>
+        <span class="text-zinc-300 font-semibold">Case ID</span>
         <input type="text" name="case_id" placeholder="incident_2026_05"
                value="{{ form.case_id if form else '' }}"
-               class="mt-1 w-full bg-slate-800 border border-slate-700 focus:border-amber-500 px-3 py-2 rounded font-mono text-sm outline-none">
+               class="mt-1 w-full bg-zinc-800 border border-zinc-700 focus:border-amber-500 px-3 py-2 rounded font-mono text-sm outline-none">
       </label>
 
       <label class="block text-sm">
-        <span class="text-slate-300 font-semibold">Incident Commander</span>
+        <span class="text-zinc-300 font-semibold">Incident Commander</span>
         <input type="text" name="ic_name" placeholder="Your name"
                value="{{ form.ic_name if form else '' }}"
-               class="mt-1 w-full bg-slate-800 border border-slate-700 focus:border-amber-500 px-3 py-2 rounded text-sm outline-none">
+               class="mt-1 w-full bg-zinc-800 border border-zinc-700 focus:border-amber-500 px-3 py-2 rounded text-sm outline-none">
       </label>
 
       <label class="block text-sm col-span-2">
-        <span class="text-slate-300 font-semibold">Incident name</span>
+        <span class="text-zinc-300 font-semibold">Incident name</span>
         <input type="text" name="name" placeholder="Suspected lateral movement - Corp network"
                value="{{ form.name if form else '' }}"
-               class="mt-1 w-full bg-slate-800 border border-slate-700 focus:border-amber-500 px-3 py-2 rounded text-sm outline-none">
+               class="mt-1 w-full bg-zinc-800 border border-zinc-700 focus:border-amber-500 px-3 py-2 rounded text-sm outline-none">
       </label>
 
       <label class="block text-sm col-span-2">
-        <span class="text-slate-300 font-semibold">Initial briefing for the agent</span>
+        <span class="text-zinc-300 font-semibold">Initial briefing for the agent</span>
         <textarea name="context" rows="4"
                   placeholder="e.g. SIEM alerted on Win11-Victim for Posh-SSH module load at 14:38 UTC. We pulled a KAPE triage. At the same time, the water-treatment HMI started under-dosing chlorine - operator reported through the OT SCADA console. Treat the two as related until proven otherwise."
-                  class="mt-1 w-full bg-slate-800 border border-slate-700 focus:border-amber-500 px-3 py-2 rounded text-sm outline-none resize-y">{{ form.context if form else '' }}</textarea>
-        <span class="text-xs text-slate-500 mt-1 block">
+                  class="mt-1 w-full bg-zinc-800 border border-zinc-700 focus:border-amber-500 px-3 py-2 rounded text-sm outline-none resize-y">{{ form.context if form else '' }}</textarea>
+        <span class="text-xs text-zinc-500 mt-1 block">
           What the IC wants the agent to read on day one - alerts, evidence already pulled, what looks suspicious. The agent treats this as your initial hypothesis, then verifies against evidence. Optional but recommended.
         </span>
       </label>
 
       <label class="block text-sm col-span-2">
-        <span class="text-slate-300 font-semibold">IC passphrase</span>
+        <span class="text-zinc-300 font-semibold">IC passphrase</span>
         <input type="password" name="passphrase" placeholder="Used to sign Authority Gates — choose something memorable"
                autocomplete="new-password"
-               class="mt-1 w-full bg-slate-800 border border-slate-700 focus:border-amber-500 px-3 py-2 rounded text-sm outline-none">
-        <span class="text-xs text-slate-500 mt-1 block">
+               class="mt-1 w-full bg-zinc-800 border border-zinc-700 focus:border-amber-500 px-3 py-2 rounded text-sm outline-none">
+        <span class="text-xs text-zinc-500 mt-1 block">
           Used to sign Incident Commander approvals. Never stored in plaintext. Cannot be recovered if lost — write it down.
         </span>
       </label>
@@ -92,7 +92,7 @@
         Create case
       </button>
       {% if case %}
-        <a href="{{ url_for('dashboard') }}" class="text-sm text-slate-400 hover:text-slate-200">
+        <a href="{{ url_for('dashboard') }}" class="text-sm text-zinc-400 hover:text-zinc-200">
           ← Back to dashboard
         </a>
       {% endif %}
@@ -101,9 +101,9 @@
 
   <div id="case-init-result" class="mt-4 text-sm"></div>
 
-  <div class="mt-8 text-center text-xs text-slate-600">
+  <div class="mt-8 text-center text-xs text-zinc-600">
     Already have a case? Start the UI with
-    <code class="text-slate-400">--case-dir ~/Desktop/cases/your_case</code>
+    <code class="text-zinc-400">--case-dir ~/Desktop/cases/your_case</code>
     and it will load automatically.
   </div>
 
@@ -125,12 +125,12 @@
       .then(function (data) {
         drop.innerHTML = '';
         if (!data.dirs.length) {
-          drop.innerHTML = '<li class="px-3 py-2 text-slate-500 italic">No existing cases in ~/Desktop/cases/</li>';
+          drop.innerHTML = '<li class="px-3 py-2 text-zinc-500 italic">No existing cases in ~/Desktop/cases/</li>';
         } else {
           data.dirs.forEach(function (d) {
             var li = document.createElement('li');
             li.textContent = d;
-            li.className = 'px-3 py-2 cursor-pointer hover:bg-slate-700 text-amber-300';
+            li.className = 'px-3 py-2 cursor-pointer hover:bg-zinc-700 text-amber-300';
             li.addEventListener('click', function () { input.value = d; closeDrop(); input.focus(); });
             drop.appendChild(li);
           });

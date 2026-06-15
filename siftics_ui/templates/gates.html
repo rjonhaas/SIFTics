@@ -3,27 +3,80 @@
 {% block content %}
 <div class="space-y-6">
 
+  {% set blocked = blocked|default([]) %}
+  {% if blocked %}
+    <section>
+      <h2 class="text-lg mb-3">Blocked Authority Gates</h2>
+      <div class="space-y-4">
+        {% for req in blocked %}
+          <article id="gate-{{ req.request_id }}" class="bg-orange-950/40 border border-orange-700 rounded p-4">
+            <header class="flex justify-between items-baseline">
+              <h3 class="font-bold">
+                <span class="text-orange-300">{{ req.gate }}</span>
+                <span class="text-zinc-500 text-xs">{{ req.request_id }}</span>
+              </h3>
+              <span class="text-xs text-zinc-500">{{ req.requested_at }}</span>
+            </header>
+            <p class="text-sm text-zinc-300 mt-2">{{ req.summary }}</p>
+            <p class="text-xs text-orange-300 mt-2">
+              Blocked by {{ req.blocked_by | replace('_',' ') }}:
+              {{ req.reason | replace('_',' ') }}
+            </p>
+            {% if req.rationale %}
+              <p class="text-xs text-zinc-400 mt-1">{{ req.rationale }}</p>
+            {% endif %}
+            {% if req.safety %}
+              <div class="mt-3 rounded p-2 bg-zinc-950 border border-orange-800 text-xs">
+                <div class="flex justify-between font-bold mb-1">
+                  <span>Safety Officer</span>
+                  <span class="text-orange-300 uppercase tracking-wide">{{ req.safety.verdict }}</span>
+                </div>
+                <ul class="mt-1 space-y-0.5 text-zinc-300">
+                  {% for name, dim in req.safety.dimensions.items() %}
+                    <li>
+                      <span class="text-zinc-500">{{ name }}:</span>
+                      <span class="{% if dim.score in ('critical','high') %}text-orange-300
+                                    {% elif dim.score == 'medium' %}text-yellow-300
+                                    {% else %}text-zinc-300{% endif %}">{{ dim.score }}</span>
+                      {% if dim.rationale %}<span class="text-zinc-500">— {{ dim.rationale }}</span>{% endif %}
+                    </li>
+                  {% endfor %}
+                </ul>
+                {% if req.safety.preconditions %}
+                  <p class="mt-2 text-zinc-400">Required before any action:</p>
+                  <ul class="list-disc list-inside text-zinc-300">
+                    {% for p in req.safety.preconditions %}<li>{{ p }}</li>{% endfor %}
+                  </ul>
+                {% endif %}
+              </div>
+            {% endif %}
+          </article>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
   <section>
     <h2 class="text-lg mb-3">Pending Authority Gates</h2>
     {% if not pending %}
-      <p class="text-slate-500">No gates awaiting IC decision.</p>
+      <p class="text-zinc-500">No gates awaiting IC decision.</p>
     {% else %}
       <div class="space-y-4">
         {% for req in pending %}
-          <article id="gate-{{ req.request_id }}" class="bg-slate-900 border border-slate-700 rounded p-4">
+          <article id="gate-{{ req.request_id }}" class="bg-zinc-900 border border-zinc-700 rounded p-4">
             <header class="flex justify-between items-baseline">
               <h3 class="font-bold">
                 <span class="text-amber-300">{{ req.gate }}</span>
-                <span class="text-slate-500 text-xs">{{ req.request_id }}</span>
+                <span class="text-zinc-500 text-xs">{{ req.request_id }}</span>
               </h3>
-              <span class="text-xs text-slate-500">{{ req.requested_at }}</span>
+              <span class="text-xs text-zinc-500">{{ req.requested_at }}</span>
             </header>
-            <p class="text-sm text-slate-300 mt-2">{{ req.summary }}</p>
+            <p class="text-sm text-zinc-300 mt-2">{{ req.summary }}</p>
             <details class="mt-2">
-              <summary class="text-xs text-slate-500 cursor-pointer hover:text-slate-300">
+              <summary class="text-xs text-zinc-500 cursor-pointer hover:text-zinc-300">
                 action params
               </summary>
-              <pre class="text-xs bg-slate-950 p-3 mt-1 overflow-auto rounded">{{ req.action | tojson(indent=2) }}</pre>
+              <pre class="text-xs bg-zinc-950 p-3 mt-1 overflow-auto rounded">{{ req.action | tojson(indent=2) }}</pre>
             </details>
 
             {# ------- Command Staff panel ------- #}
@@ -42,29 +95,29 @@
                                     {% elif sv == 'caution' %}text-yellow-300
                                     {% else %}text-sky-300{% endif %}">{{ sv }}</span>
                     </div>
-                    <details>
-                      <summary class="text-slate-400 cursor-pointer hover:text-slate-200">5-dimension scores</summary>
-                      <ul class="mt-1 space-y-0.5 text-slate-300">
+                    <details open>
+                      <summary class="text-zinc-400 cursor-pointer hover:text-zinc-200">5-dimension scores</summary>
+                      <ul class="mt-1 space-y-0.5 text-zinc-300">
                         {% for name, dim in req.safety.dimensions.items() %}
                           <li>
-                            <span class="text-slate-500">{{ name }}:</span>
+                            <span class="text-zinc-500">{{ name }}:</span>
                             <span class="{% if dim.score in ('critical','high') %}text-orange-300
                                           {% elif dim.score == 'medium' %}text-yellow-300
-                                          {% else %}text-slate-300{% endif %}">{{ dim.score }}</span>
-                            {% if dim.rationale %}<span class="text-slate-500">— {{ dim.rationale }}</span>{% endif %}
+                                          {% else %}text-zinc-300{% endif %}">{{ dim.score }}</span>
+                            {% if dim.rationale %}<span class="text-zinc-500">— {{ dim.rationale }}</span>{% endif %}
                           </li>
                         {% endfor %}
                       </ul>
                     </details>
                     {% if req.safety.preconditions %}
-                      <p class="mt-2 text-slate-400">Preconditions:</p>
-                      <ul class="list-disc list-inside text-slate-300">
+                      <p class="mt-2 text-zinc-400">Preconditions:</p>
+                      <ul class="list-disc list-inside text-zinc-300">
                         {% for p in req.safety.preconditions %}<li>{{ p }}</li>{% endfor %}
                       </ul>
                     {% endif %}
                   </div>
                 {% else %}
-                  <div class="rounded p-2 bg-slate-900 border border-slate-700 text-slate-400">
+                  <div class="rounded p-2 bg-zinc-900 border border-zinc-700 text-zinc-400">
                     <div class="font-bold">Safety Officer</div>
                     <div class="text-yellow-300">not consulted yet</div>
                   </div>
@@ -82,16 +135,16 @@
                                     {% elif lv == 'caution' %}text-yellow-300
                                     {% else %}text-sky-300{% endif %}">{{ lv | replace('_',' ') }}</span>
                     </div>
-                    <details>
-                      <summary class="text-slate-400 cursor-pointer hover:text-slate-200">5-dimension scores</summary>
-                      <ul class="mt-1 space-y-0.5 text-slate-300">
+                    <details open>
+                      <summary class="text-zinc-400 cursor-pointer hover:text-zinc-200">5-dimension scores</summary>
+                      <ul class="mt-1 space-y-0.5 text-zinc-300">
                         {% for name, dim in req.legal.dimensions.items() %}
                           <li>
-                            <span class="text-slate-500">{{ name | replace('_',' ') }}:</span>
+                            <span class="text-zinc-500">{{ name | replace('_',' ') }}:</span>
                             <span class="{% if dim.score in ('critical','high') %}text-orange-300
                                           {% elif dim.score == 'medium' %}text-yellow-300
-                                          {% else %}text-slate-300{% endif %}">{{ dim.score }}</span>
-                            {% if dim.rationale %}<span class="text-slate-500">— {{ dim.rationale }}</span>{% endif %}
+                                          {% else %}text-zinc-300{% endif %}">{{ dim.score }}</span>
+                            {% if dim.rationale %}<span class="text-zinc-500">— {{ dim.rationale }}</span>{% endif %}
                           </li>
                         {% endfor %}
                       </ul>
@@ -109,7 +162,7 @@
                     {% endif %}
                   </div>
                 {% else %}
-                  <div class="rounded p-2 bg-slate-900 border border-slate-700 text-slate-400">
+                  <div class="rounded p-2 bg-zinc-900 border border-zinc-700 text-zinc-400">
                     <div class="font-bold">Legal Officer</div>
                     <div class="text-yellow-300">not consulted yet</div>
                   </div>
@@ -124,7 +177,7 @@
                      placeholder="Incident Commander passphrase"
                      autocomplete="off"
                      required
-                     class="flex-1 bg-slate-800 border border-slate-700 px-3 py-1.5 text-sm rounded">
+                     class="flex-1 bg-zinc-800 border border-zinc-700 px-3 py-1.5 text-sm rounded">
               <button type="submit" name="action" value="approve"
                       class="bg-sky-600 hover:bg-sky-500 px-3 py-1.5 text-sm rounded">
                 Sign &amp; approve
@@ -135,7 +188,7 @@
               </button>
             </form>
             <div class="gate-error mt-2 text-xs text-orange-400 hidden"></div>
-            <p class="mt-2 text-xs text-slate-500">
+            <p class="mt-2 text-xs text-zinc-500">
               Your passphrase derives a signing key locally — it is never sent over the network or written to any log.
             </p>
           </article>
@@ -147,15 +200,15 @@
   <section>
     <h2 class="text-lg mb-3">Recently signed</h2>
     {% if not recent %}
-      <p class="text-slate-500">No approvals yet.</p>
+      <p class="text-zinc-500">No approvals yet.</p>
     {% else %}
       <ul class="text-sm space-y-1">
         {% for a in recent %}
           <li class="flex gap-4 border-l-2 pl-2
                      {% if a.decision == 'approved' %}border-sky-500{% else %}border-orange-500{% endif %}">
-            <span class="text-slate-500">{{ a.decided_at }}</span>
+            <span class="text-zinc-500">{{ a.decided_at }}</span>
             <span>{{ a.gate }}</span>
-            <span class="text-slate-500">{{ a.request_id[:8] }}…</span>
+            <span class="text-zinc-500">{{ a.request_id[:8] }}…</span>
             <span class="ml-auto {% if a.decision == 'approved' %}text-sky-400{% else %}text-orange-400{% endif %}">
               {{ a.decision }}
             </span>

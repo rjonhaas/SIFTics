@@ -108,6 +108,11 @@ of these decision points:
    compute on?"
 3. **Network isolation of a host.** This is the `isolate_host` gate. The
    IC's question is: "are we sure enough to interrupt user activity?"
+4. **OT/ICS process-safety containment.** This is the `containment_action`
+   path with a Safety Officer consult first. The IC's question is: "can we
+   safely contain this asset without endangering people or the physical
+   process?" If Safety returns `hard_stop`, the blocked gate is still a required
+   IC-visible outcome.
 
 When in doubt, **propose the gate**. The cost of an over-cautious
 proposal is one extra IC click. The cost of an over-bold action is

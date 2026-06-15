@@ -1,9 +1,9 @@
-<h3 class="text-sm text-slate-400">{{ labels.remediation_register }}</h3>
+<h3 class="text-sm text-zinc-400">{{ labels.remediation_register }}</h3>
 <div class="flex justify-between mt-2 text-sm">
-  <div><div class="text-2xl">{{ cet.total }}</div><div class="text-slate-500 text-xs">total</div></div>
-  <div><div class="text-2xl text-orange-400">{{ cet.pending }}</div><div class="text-slate-500 text-xs">pending</div></div>
-  <div><div class="text-2xl text-sky-400">{{ cet.remediated }}</div><div class="text-slate-500 text-xs">done</div></div>
-  <div><div class="text-2xl text-yellow-400">{{ cet.high_priority }}</div><div class="text-slate-500 text-xs">P≤3</div></div>
+  <div><div class="text-2xl">{{ cet.total }}</div><div class="text-zinc-500 text-xs">total</div></div>
+  <div><div class="text-2xl text-orange-400">{{ cet.pending }}</div><div class="text-zinc-500 text-xs">pending</div></div>
+  <div><div class="text-2xl text-sky-400">{{ cet.remediated }}</div><div class="text-zinc-500 text-xs">done</div></div>
+  <div><div class="text-2xl text-yellow-400">{{ cet.high_priority }}</div><div class="text-zinc-500 text-xs">P≤3</div></div>
 </div>
 {% if cet.recent %}
 <ul class="mt-3 text-xs space-y-1">
@@ -12,7 +12,7 @@
                {% if r.analysis_status == 'none_present_complete' %}border-sky-500
                {% else %}border-yellow-500{% endif %} pl-2">
       <span>{{ r.cca_no }} · {{ r.data_source[:30] }}</span>
-      <span class="text-slate-500">P{{ r.priority_order }}</span>
+      <span class="text-zinc-500">P{{ r.priority_order }}</span>
     </li>
   {% endfor %}
 </ul>

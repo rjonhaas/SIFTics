@@ -16,6 +16,7 @@ artifact generation, and audit chain are fully wired.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import uuid
 from typing import Any
@@ -83,6 +84,96 @@ def ioc_list(status: str = "") -> list[dict]:
     will be published.
     """
     return intel_lib.ioc_list(status=status)
+
+
+@mcp.tool()
+def propose_publish_intel(ioc_ids: list[str], rationale: str = "") -> dict:
+    """Open an Authority Gate asking the IC to approve pushing IOCs to the TIP.
+
+    Call this immediately after the last `generate_ioc()` in a batch. This is
+    step 7 of the Investigation Section Chief's operating loop — the "fight
+    evil" handoff: SIFTics found the indicators, the IC decides whether they
+    are mature enough to publish to other defenders.
+
+    Args:
+        ioc_ids:   list of IOC-NNN identifiers to publish (must already exist
+                   in intel.jsonl via prior generate_ioc() calls).
+        rationale: one-sentence justification the IC reads to decide. Example:
+                   "Verified perpetrator email from HTTP cookie; mature enough
+                   to circulate so other incident responders can pivot."
+
+    Returns the ApprovalRequest dict with request_id. The IC signs at /gates;
+    the agent then calls `publish_intel(ioc_ids, approval)` once approved.
+    """
+    from siftics import audit  # local import to keep top-of-module identical
+    if not ioc_ids:
+        return {"error": "ioc_ids must not be empty"}
+    iocs = intel_lib.ioc_list()
+    known = {row["ioc_id"] for row in iocs}
+    missing = [i for i in ioc_ids if i not in known]
+    if missing:
+        return {"error": f"unknown ioc_ids: {missing}. "
+                f"Call generate_ioc() for them first."}
+    # The signable action is the IOC batch, not the agent's prose rationale.
+    # Otherwise each wording tweak creates a new action_hash and forces fresh
+    # safety/legal consults for the same operational decision.
+    canonical_action = {
+        "action_class": "intel_publication",
+        "ioc_ids": sorted(ioc_ids),
+    }
+    ah = ic_approval.action_hash(canonical_action)
+
+    pending_dir = audit.case_dir() / "approvals" / "pending"
+    signed_dir = audit.case_dir() / "approvals" / "signed"
+    if pending_dir.exists():
+        for p in sorted(pending_dir.glob("*.json")):
+            if (signed_dir / p.name).exists():
+                continue
+            try:
+                existing = json.loads(p.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            if (existing.get("gate") == "publish_intel"
+                    and existing.get("action_hash") == ah):
+                return {
+                    "request_id": existing["request_id"],
+                    "ioc_ids": sorted(ioc_ids),
+                    "pending_approval_at": (
+                        f"approvals/pending/{existing['request_id']}.json"
+                    ),
+                    "status": "existing_pending_approval",
+                    "_workflow_note": (
+                        "An Authority Gate for this IOC batch is already "
+                        "pending. Visible at /gates."
+                    ),
+                }
+
+    summary = (f"Publish {len(ioc_ids)} IOC(s) to the threat-intel platform — "
+               f"{rationale or 'mature enough to circulate to other defenders'}")
+    approval_request = ic_approval.request_approval(
+        gate="publish_intel",
+        summary=summary,
+        action=canonical_action,
+        proposed_by="investigation-section-chief",
+    )
+    audit.append_event("intel_publication_proposed", {
+        "request_id": approval_request["request_id"],
+        "action_hash": ah,
+        "ioc_ids": sorted(ioc_ids),
+        "rationale": rationale,
+    }, actor="investigation-section-chief")
+    return {
+        "request_id": approval_request["request_id"],
+        "ioc_ids": sorted(ioc_ids),
+        "pending_approval_at": (
+            f"approvals/pending/{approval_request['request_id']}.json"
+        ),
+        "_workflow_note": (
+            "Pending Authority Gate opened. Visible at /gates and in the "
+            "dashboard's pending counter. Once the IC signs, call "
+            "publish_intel(ioc_ids, approval) to execute."
+        ),
+    }
 
 
 @mcp.tool()

@@ -7,7 +7,7 @@
   <div class="flex items-center justify-between mb-6">
     <h2 class="text-xl font-bold">Case Report</h2>
     <a href="{{ url_for('report_download') }}"
-       class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded text-sm font-semibold">
+       class="bg-zinc-700 hover:bg-zinc-600 px-4 py-2 rounded text-sm font-semibold">
       &#x2B07; Download Markdown
     </a>
   </div>
@@ -19,37 +19,37 @@
   {% else %}
 
   <!-- Case summary card -->
-  <div class="bg-slate-900 border border-slate-700 rounded-lg p-5 mb-6">
-    <h3 class="text-lg font-bold text-slate-100 mb-3">{{ header.name }}</h3>
+  <div class="bg-zinc-900 border border-zinc-700 rounded-lg p-5 mb-6">
+    <h3 class="text-lg font-bold text-zinc-100 mb-3">{{ header.name }}</h3>
     <div class="grid grid-cols-2 gap-x-8 gap-y-1 text-sm">
-      <div><span class="text-slate-500">Case ID</span><span class="ml-3 text-slate-200">{{ header.case_id }}</span></div>
-      <div><span class="text-slate-500">Impact</span>
+      <div><span class="text-zinc-500">Case ID</span><span class="ml-3 text-zinc-200">{{ header.case_id }}</span></div>
+      <div><span class="text-zinc-500">Impact</span>
         <span class="ml-3 font-bold
           {% if header.impact_level == 'critical' %}text-orange-600
           {% elif header.impact_level == 'high' %}text-orange-400
           {% elif header.impact_level == 'moderate' %}text-yellow-400
-          {% else %}text-slate-400{% endif %}">
+          {% else %}text-zinc-400{% endif %}">
           {{ header.impact_level | upper }}
         </span>
       </div>
-      <div><span class="text-slate-500">Commander</span><span class="ml-3 text-slate-200">{{ header.incident_commander.name }}</span></div>
-      <div><span class="text-slate-500">Opened</span><span class="ml-3 text-slate-200">{{ header.opened_at[:10] }}</span></div>
-      <div><span class="text-slate-500">Triage</span><span class="ml-3 text-slate-200">{{ itq.answered }} / {{ itq.total }} questions answered</span></div>
-      <div><span class="text-slate-500">Findings</span><span class="ml-3 text-slate-200">{{ findings | length }} affected system{{ 's' if findings | length != 1 else '' }}</span></div>
+      <div><span class="text-zinc-500">Commander</span><span class="ml-3 text-zinc-200">{{ header.incident_commander.name }}</span></div>
+      <div><span class="text-zinc-500">Opened</span><span class="ml-3 text-zinc-200">{{ header.opened_at[:10] }}</span></div>
+      <div><span class="text-zinc-500">Inquiry Coverage</span><span class="ml-3 text-zinc-200">{{ itq.answered }} / {{ itq.total }} checks resolved</span></div>
+      <div><span class="text-zinc-500">Findings</span><span class="ml-3 text-zinc-200">{{ findings | length }} affected system{{ 's' if findings | length != 1 else '' }}</span></div>
     </div>
   </div>
 
   <!-- Executive summary — derived from case state on every render.
        Paragraph form: composes a narrative briefing from existing
-       header / ASR / briefing / ITQ data. No separate field for the
+       header / ASR / briefing / inquiry data. No separate field for the
        agent to maintain — the prose sharpens automatically as the
        investigation progresses. -->
   {% if exec_summary %}
-  <section class="bg-slate-900 border border-amber-800 rounded-lg p-5 mb-6">
+  <section class="bg-zinc-900 border border-amber-800 rounded-lg p-5 mb-6">
     <h3 class="text-sm font-semibold text-amber-400 uppercase tracking-wide mb-3">
       Executive Summary
     </h3>
-    <div class="text-sm text-slate-200 leading-relaxed space-y-3">
+    <div class="text-sm text-zinc-200 leading-relaxed space-y-3">
       {% for para in exec_summary %}
       <p>{{ para }}</p>
       {% endfor %}
@@ -60,12 +60,12 @@
   <!-- Affected systems -->
   {% if findings %}
   <section class="mb-6">
-    <h3 class="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3">Affected Systems</h3>
+    <h3 class="text-sm font-semibold text-zinc-400 uppercase tracking-wide mb-3">Affected Systems</h3>
     <div class="space-y-3">
       {% for f in findings %}
-      <div class="bg-slate-900 border border-slate-700 rounded-lg p-4">
+      <div class="bg-zinc-900 border border-zinc-700 rounded-lg p-4">
         <div class="flex items-baseline justify-between mb-2">
-          <span class="font-bold text-slate-100">{{ f.serial_no }} — {{ f.system_identifier }}</span>
+          <span class="font-bold text-zinc-100">{{ f.serial_no }} — {{ f.system_identifier }}</span>
           <span class="text-xs px-2 py-0.5 rounded-full
             {% if f.impact_rating == 'critical' %}bg-orange-950 text-orange-200 ring-1 ring-orange-700
             {% elif f.impact_rating == 'high' %}bg-orange-900 text-orange-300
@@ -73,9 +73,9 @@
             {{ f.impact_rating }}
           </span>
         </div>
-        <p class="text-sm text-slate-300 mb-2">{{ f.impact_description }}</p>
+        <p class="text-sm text-zinc-300 mb-2">{{ f.impact_description }}</p>
         {% if f.how_determined %}
-        <p class="text-xs text-slate-500">{{ f.how_determined }}</p>
+        <p class="text-xs text-zinc-500">{{ f.how_determined }}</p>
         {% endif %}
       </div>
       {% endfor %}
@@ -83,21 +83,21 @@
   </section>
   {% endif %}
 
-  <!-- Triage Q&A -->
+  <!-- Lines of Inquiry -->
   {% if itq_answered %}
   <section class="mb-6">
-    <details class="bg-slate-900 border border-slate-700 rounded-lg">
-      <summary class="px-4 py-3 cursor-pointer text-sm text-slate-300 hover:text-slate-100">
-        Triage Questions — {{ itq_answered | length }} answered
+    <details class="bg-zinc-900 border border-zinc-700 rounded-lg">
+      <summary class="px-4 py-3 cursor-pointer text-sm text-zinc-300 hover:text-zinc-100">
+        Lines of Inquiry - {{ itq_answered | length }} checks resolved
       </summary>
       <div class="px-4 pb-4 space-y-3 mt-2">
         {% for q in itq_answered %}
-        <div class="border-l-2 border-slate-700 pl-3">
-          <p class="text-sm text-slate-200 font-medium mb-1">
-            <span class="text-slate-500">{{ q.question_id }}</span>
+        <div class="border-l-2 border-zinc-700 pl-3">
+          <p class="text-sm text-zinc-200 font-medium mb-1">
+            <span class="text-zinc-500">{{ q.question_id }}</span>
             <span class="ml-2">{{ q.question }}</span>
           </p>
-          <p class="text-sm text-slate-300 leading-relaxed">{{ q.answer }}</p>
+          <p class="text-sm text-zinc-300 leading-relaxed">{{ q.answer }}</p>
         </div>
         {% endfor %}
       </div>
@@ -106,7 +106,7 @@
   {% endif %}
 
   {% if not findings %}
-  <div class="text-center py-16 text-slate-500">
+  <div class="text-center py-16 text-zinc-500">
     <p class="text-lg mb-2">No report content yet.</p>
     <p class="text-sm">Start an investigation from the
       <a href="{{ url_for('dashboard') }}" class="text-amber-400 underline">Dashboard</a>

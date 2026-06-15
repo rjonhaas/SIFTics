@@ -21,7 +21,7 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
-from siftics import audit, case_state, findings as findings_lib
+from siftics import audit, case_state, findings as findings_lib, ingest
 
 mcp = FastMCP("siftics-case-state")
 
@@ -133,6 +133,28 @@ def case_get_header() -> dict:
     happened and what evidence was pulled; treat it as orientation, not as
     ground truth, and verify every claim against evidence."""
     return case_state.case_get_header()
+
+
+@mcp.tool()
+def evidence_manifest() -> dict:
+    """Return the deterministic DFIR operations manifest for this case.
+
+    The UI runs ingest before the first agent turn. This manifest is the
+    launchpad: evidence hashes, ZIP member inventory, controlled extracted
+    high-value artifacts, and quicklook paths. Use it before broad artifact
+    exploration, then verify factual claims against source evidence.
+    """
+    return ingest.read_manifest()
+
+
+@mcp.tool()
+def evidence_quicklook(max_chars: int = 12000) -> str:
+    """Return the deterministic ingest quicklook markdown, truncated.
+
+    This is a compact operator/agent summary of the evidence inventory and
+    any fast PCAP/text summaries created under work/ingest.
+    """
+    return ingest.read_quicklook(max_chars=max_chars)
 
 
 @mcp.tool()
@@ -619,14 +641,15 @@ def cet_pending() -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
-# Initial Triage Questionnaire (ITQ / Grid)
+# Lines of Inquiry (legacy ITQ / Grid storage)
 # ---------------------------------------------------------------------------
 
 
 @mcp.tool()
 def itq_unanswered() -> list[dict]:
-    """Return triage questions still open or in progress.
-    This is the primary 'what to drive next' surface for the agent.
+    """Return Lines of Inquiry checks still open or in progress.
+    The tool name is legacy; this is the primary "what to drive next"
+    surface for the agent.
     """
     return case_state.itq_unanswered()
 
@@ -634,10 +657,10 @@ def itq_unanswered() -> list[dict]:
 @mcp.tool()
 def itq_answer(question_id: str, answer: str, source: str = "agent",
                resulting_task: str = "") -> dict:
-    """Answer one ITQ question. Appends itq_answered audit event.
+    """Resolve one Line of Inquiry check. Appends itq_answered audit event.
 
     Args:
-        question_id: ITQ-NNN identifier.
+        question_id: legacy ITQ-NNN identifier.
         answer: free text answer.
         source: ic | agent | auto_tooling.
         resulting_task: optional task to record (overrides default_task).
@@ -649,7 +672,7 @@ def itq_answer(question_id: str, answer: str, source: str = "agent",
 
 @mcp.tool()
 def itq_progress() -> dict:
-    """Return {answered, total, pct} progress through the questionnaire."""
+    """Return {answered, total, pct} inquiry-check progress."""
     return case_state.itq_progress()
 
 
@@ -1015,7 +1038,7 @@ def consult_finance_officer(assessment: dict) -> dict:
     proposed action.
 
     The agent loads the ``/finance-officer`` skill, reviews the cost
-    tracker state + the remaining ITQ / open hypotheses / planned hunts,
+    tracker state + remaining Lines of Inquiry / open hypotheses / planned hunts,
     and produces the structured assessment per the skill's output schema.
     This tool validates the schema and writes a ``finance_assessment``
     audit event.

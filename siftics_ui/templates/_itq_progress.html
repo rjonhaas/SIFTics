@@ -1,10 +1,54 @@
-<h3 class="text-sm text-slate-400">{{ labels.triage_questionnaire }}</h3>
+{% set loi = loi|default({}) %}
+{% set lines = loi.lines|default([]) %}
+<h3 class="text-sm text-zinc-400">{{ labels.triage_questionnaire }}</h3>
 <div class="mt-2 text-sm">
   <div class="flex justify-between mb-1">
-    <span>{{ itq.answered }} / {{ itq.total }} answered</span>
-    <span class="text-slate-500">{{ itq.pct }}%</span>
+    <span>{{ loi.closed_lines|default(0) }} / {{ loi.total_lines|default(0) }} lines closed</span>
+    <span class="text-zinc-500">{{ itq.pct }}%</span>
   </div>
-  <div class="w-full bg-slate-800 rounded h-2 overflow-hidden">
+  <div class="w-full bg-zinc-800 h-2 overflow-hidden">
     <div class="bg-amber-500 h-2" style="width: {{ itq.pct }}%"></div>
   </div>
+  <p class="text-xs text-zinc-500 mt-1">
+    {{ itq.answered }} / {{ itq.total }} underlying checks resolved
+  </p>
 </div>
+
+{% if loi.evidence_drivers %}
+  <div class="mt-4">
+    <div class="text-xs text-zinc-500 uppercase tracking-wide mb-2">Evidence Drivers</div>
+    <div class="flex flex-wrap gap-1">
+      {% for driver in loi.evidence_drivers %}
+        <span class="border border-zinc-800 bg-zinc-900 px-2 py-1 text-xs text-zinc-300"
+              title="{{ driver.objective }}">
+          {{ driver.title }} {{ driver.count }}
+        </span>
+      {% endfor %}
+    </div>
+  </div>
+{% endif %}
+
+{% if lines %}
+  <div class="mt-4 space-y-2">
+    {% for line in lines[:5] %}
+      <article class="border border-zinc-800 bg-zinc-950 p-2">
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-semibold
+                       {% if line.status == 'closed' %}text-sky-300
+                       {% elif line.status == 'active' %}text-amber-300
+                       {% else %}text-zinc-500{% endif %}">
+            {{ line.status }}
+          </span>
+          <span class="text-xs text-zinc-200">{{ line.title }}</span>
+          <span class="ml-auto text-xs text-zinc-600">{{ line.answered }}/{{ line.total }}</span>
+        </div>
+        <p class="text-xs text-zinc-500 mt-1 leading-snug">{{ line.objective }}</p>
+        {% if line.current %}
+          <p class="text-xs text-zinc-400 mt-2 leading-snug">
+            Next: {{ line.current.question }}
+          </p>
+        {% endif %}
+      </article>
+    {% endfor %}
+  </div>
+{% endif %}

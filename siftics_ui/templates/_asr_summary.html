@@ -1,9 +1,9 @@
-<h3 class="text-sm text-slate-400">{{ labels.systems_register }}</h3>
+<h3 class="text-sm text-zinc-400">{{ labels.systems_register }}</h3>
 <div class="flex justify-between mt-2 text-sm">
-  <div><div class="text-2xl">{{ asr.total }}</div><div class="text-slate-500 text-xs">total</div></div>
-  <div><div class="text-2xl text-orange-400">{{ asr.open }}</div><div class="text-slate-500 text-xs">open</div></div>
-  <div><div class="text-2xl text-sky-400">{{ asr.safe }}</div><div class="text-slate-500 text-xs">safe</div></div>
-  <div><div class="text-2xl text-yellow-400">{{ asr.critical }}</div><div class="text-slate-500 text-xs">critical</div></div>
+  <div><div class="text-2xl">{{ asr.total }}</div><div class="text-zinc-500 text-xs">total</div></div>
+  <div><div class="text-2xl text-orange-400">{{ asr.open }}</div><div class="text-zinc-500 text-xs">open</div></div>
+  <div><div class="text-2xl text-sky-400">{{ asr.safe }}</div><div class="text-zinc-500 text-xs">safe</div></div>
+  <div><div class="text-2xl text-yellow-400">{{ asr.critical }}</div><div class="text-zinc-500 text-xs">critical</div></div>
 </div>
 {% if asr.recent %}
 <ul class="mt-3 text-xs space-y-1">
@@ -13,7 +13,7 @@
                {% elif r.impact_rating == 'critical' %}border-orange-500
                {% else %}border-yellow-500{% endif %} pl-2">
       <span>{{ r.serial_no }} · {{ r.system_identifier }}</span>
-      <span class="text-slate-500">{{ r.impact_rating }}</span>
+      <span class="text-zinc-500">{{ r.impact_rating }}</span>
     </li>
   {% endfor %}
 </ul>

@@ -1,8 +1,8 @@
-# Initial Triage Questionnaire seed template.
+# Lines of Inquiry seed template.
 #
 # Universal IR-doctrine phrasing; aligns with NIST SP 800-61 §3.2 (Detection
-# and Analysis) and FEMA ICS scoping methodology. The agent answers from Phase
-# outputs where possible; unanswered questions become tasks surfaced to the IC.
+# and Analysis) and FEMA ICS scoping methodology. The agent resolves checks
+# from evidence where possible; unresolved checks become tasks surfaced to the IC.
 #
 # Categories are ordered roughly by when the agent should drive them:
 #   scope             — bound the incident in time/space

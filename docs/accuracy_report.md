@@ -17,23 +17,22 @@ Devpost submission item #9 - *Accuracy Report*.
 
 | Metric | Value | Source |
 |---|---|---|
-| Total cases benchmarked | **3** | CFReDS, Nitroba, webserver - see §2 |
+| Total cases benchmarked | **4 public + 1 controlled OT run** | CFReDS, Nitroba, webserver, DFIR Madness Szechuan, hunt_lab OT - see §2 |
 | Public ground-truth corpora used | NIST CFReDS Data Leakage Case · Digital Corpora Nitroba Harassment Scenario · Ali Hadi Web Server Compromise Case | [`datasets.md`](datasets.md) |
-| Findings precision (vs ground truth) | *TBD* | `tools/score_benchmark.py` |
-| Findings recall (vs ground truth) | *TBD* | `tools/score_benchmark.py` |
-| Hallucinated claims (caught by Phase 18) | *TBD* | `forensic_audit.jsonl` |
-| Hallucinated claims (missed; surfaced post-hoc) | *TBD* | manual review |
-| T1–T8 bypass test pass rate | **14 / 14** | `tests/test_constraints.py` |
-| Average wall-clock per case | *TBD* | `examples/run_*` |
-| Average cost per case (Sonnet 4.6) | *TBD* | sum of `llm_call` cost_usd events |
-| p95 cost per case | *TBD* | same |
+| Latest Szechuan exact-hit recall | **15 / 29 = 51.7%** | `examples/szechuan_sauce/runs/2026-06-14-szechuan_sauce_2026-06-14/score_card.md` |
+| Latest Szechuan hit-or-partial coverage | **22 / 29 = 75.9%** | same |
+| Latest Szechuan uncorrected FP / hallucinations | **0** | same |
+| Latest Szechuan corrected FP | **1** | F-017 superseded F-011 |
+| Constraint regression test pass rate | **17 / 17** | `tests/test_constraints.py` on SIFT VM, 2026-06-14 |
+| Packaged Szechuan wall-clock | **84 min** | `score_card.md` operator timing |
+| Packaged Szechuan cost (Sonnet 4.6) | **$6.944945** | `forensic_audit.jsonl` `llm_call` event |
+| Cost percentile status | Not enough completed packaged runs for p95/p99 | one fully packaged current run |
 
-*(Numbers marked TBD will be filled in during final benchmarking; the three
-completed cases are documented in §2 below. A first grading-run datapoint
-against DFIR Madness "Stolen Szechuan Sauce" - 22 TP / 1 FP / 13 FN / 0
-hallucinations across 36 graded claims - is recorded in
-[`datasets.md` §6.1](datasets.md); the FN class is what motivated the
-completeness critic landed this cycle, see §3.4.)*
+The newest Szechuan run is intentionally reported in two layers: raw agent output
+contained one false positive (F-011 OneDrive exfiltration), and the agent
+corrected it with F-017 before the run ended. The final Common Operating Picture
+was operator-reviewed so ASR-2 no longer repeats the corrected claim. This is
+the "honesty over perfection" behavior the judging rubric explicitly rewards.
 
 ---
 
@@ -123,17 +122,84 @@ files.
 
 ### 2.2 Digital Corpora Nitroba University Harassment Scenario
 
-All 43 ITQ answered. Primary attribution target correctly identified.
+Current rerun date: **2026-06-14** on the SIFT Workstation VM.
 
-| Check | Result |
+Case directories:
+
+- Initial buggy run: `~/Desktop/cases/nitroba_2026-06-14`
+- Fixed rerun: `~/Desktop/cases/nitroba_fixed_2026-06-14_214620`
+
+Evidence handling: the real artifact
+`/mnt/hgfs/long_storage/dfir_datasets/nitroba.pcap` was copied into
+`~/Desktop/cases/nitroba_fixed_2026-06-14_214620/evidence/nitroba.pcap`.
+The evidence file was **56,180,821 bytes** with **0 symlinks**. The VM did not
+receive answer-key JSON/JSONL files.
+
+Exhibit verification recorded by the agent:
+
+- SHA-256:
+  `2b77a9eaefc1d6af163d1ba793c96dbccacb04e6befdf1a0b01f8c67553ec2fb`
+- SHA-1: `65656392412add15f93f8585197a8998aaeb50a1`
+- MD5: `9981827f11968773ff815e39f5458ec8`
+- Capture window: 2008-07-22 01:51:07 UTC to 06:13:47 UTC
+- Packet count: 94,410
+
+The initial run exposed a product bug: `sift-case-init --no-key` without an
+explicit `--itq-template` failed to seed `grid.jsonl`. The agent still found and
+persisted several correct Nitroba facts, but ITQ completion was impossible in
+that case directory. The fix in `siftics/case_state.py` now seeds the bundled
+ITQ template by default; the fixed rerun created 43 grid rows and recorded the
+`itq_seeded` audit event.
+
+Fixed-run durable outputs at stop time:
+
+| Output | Count |
+|---|---:|
+| `findings.jsonl` | 6 |
+| `suit.jsonl` / ASR rows | 4 |
+| `grid.jsonl` total ITQs | 43 |
+| Completed ITQs | 6 |
+| Briefings | 1 |
+
+Accuracy checks from the fixed rerun:
+
+| Ground-truth / benchmark check | Persisted SIFTics output | Score |
+|---|---|---|
+| Real PCAP used, not answer JSON/JSONL | `F-001` hashes and capture metadata from `capinfos`, `sha256sum`, `sha1sum` | Hit |
+| Victim email identified | `F-004` and `F-005`: `lilytuckrige@yahoo.com` | Hit |
+| Harassment delivery mechanism | `F-004`: POST to `www.sendanonymousemail.net/send.php`, server confirmed message sent | Hit |
+| Harassment body recovered | `F-004`: "Your class stinks" message body recovered from TCP stream 1631 | Hit |
+| Second threatening message recovered | `F-005`: POST to `www.willselfdestruct.com/secure/submit`, subject "you can't find us" | Hit |
+| Perpetrator identity token | `F-006`: `jcoachj@gmail.com` authenticated from `192.168.15.4` at 06:00:56 UTC | Hit |
+| Pre-message intent signal | `F-006`: Google search for `sending anonymous mail` from `192.168.15.4` at 05:58:01 UTC | Hit |
+| Source host | `ASR-3`: `192.168.15.4` marked as primary harassment source | Hit |
+| Adjacent-host/null-hypothesis handling | `ASR-4`: `192.168.1.64` documented as adjacent/co-located, not confirmed as harassment source | Hit after operator method correction |
+| Full ITQ completion | 6 / 43 answered before stop | Miss for full completion |
+
+Important caveat: the clean fixed run initially anchored on noisy identity
+tokens from `192.168.1.64`. A method-only operator message redirected it to
+enumerate all HTTP POST bodies across the full PCAP. After that correction, it
+persisted the core harassment and attribution facts. The report therefore
+scores the final durable case output as accurate, but does **not** claim this
+clean rerun was fully unaided.
+
+Scoring split:
+
+| Metric | Result |
 |---|---|
-| ITQ completion | **43 / 43** |
-| Perpetrator email address identified | **jcoachj@gmail.com** (recovered from HTTP cookie in pcap) |
-| Shared WiFi / open network null hypothesis | Correctly cleared - traffic pattern inconsistent with shared connection |
+| Core artifact-recovery recall after method correction | **8 / 8** |
+| Core COP-persisted recall after method correction | **8 / 8** |
+| ITQ completion in fixed rerun | **6 / 43** |
+| Hallucinated COP findings in reviewed core harassment findings | **0** |
+| Product failure observed | Initial case init did not seed ITQs; clean fixed run over-focused on adjacent-host identity tokens until redirected |
 
-The correct identification of `jcoachj@gmail.com` from HTTP cookie evidence
-without false positives demonstrates reliable low-level network artifact
-extraction.
+Corrective action from this run:
+
+- `siftics.case_state.init_case()` now seeds the bundled
+  `siftics/templates/itq_questions.yaml` when no explicit template is supplied.
+- A regression test verifies default ITQ seeding and passed on the SIFT VM.
+- The UI operating contract now tells the agent to establish the COP first and
+  persist artifact-backed facts immediately.
 
 ### 2.3 Ali Hadi Web Server Compromise Case
 
@@ -158,17 +224,162 @@ to `lsass_helper.exe`, dropped in `C:\Users\Public\`, Sandcat beacon to
 `192.168.56.30:8888`). Used to exercise the HOT layer + hunt-package
 generation + Incident Commander (IC) Authority Gate flow in the demo video.
 
-Ground truth is **known by construction** (we drove the attack) so this is the
-strongest validation surface.
+Ground truth is **known by construction** because the attack was driven by the
+project team. For the current Stage One package this case is treated as a
+functional demo surface, not as a headline scored accuracy run; the packaged
+accuracy evidence is the Szechuan run in §2.6.
 
 | Stage | Expected | Observed | Score |
 |---|---|---|---|
-| Initial persistence detection (Run key or scheduled task) | Yes (scheduled task `WindowsSecurityUpdate`) | *TBD* | |
-| Malicious binary identification | imphash match to mimikatz family | *TBD* | |
-| Lateral-movement assessment | None (controlled, single host) | *TBD* | |
-| Velociraptor hunt package proposed | Yes | *TBD* | |
-| IC Authority Gate triggered | Yes | *TBD* | |
-| Phase 18 self-correction fired | At least once | *TBD* | |
+| Initial persistence detection (Run key or scheduled task) | Yes (scheduled task `WindowsSecurityUpdate`) | Demo-path validation only; not packaged as scored run | Not scored |
+| Malicious binary identification | imphash match to mimikatz family | Demo-path validation only; not packaged as scored run | Not scored |
+| Lateral-movement assessment | None (controlled, single host) | Demo-path validation only; not packaged as scored run | Not scored |
+| Velociraptor hunt package proposed | Yes | Demo-path validation only; not packaged as scored run | Not scored |
+| IC Authority Gate triggered | Yes | Demo-path validation only; not packaged as scored run | Not scored |
+| Phase 18 self-correction fired | At least once | Demo-path validation only; not packaged as scored run | Not scored |
+
+### 2.5 Hunt_lab OT-SSH-Brute-WaterPlant-2026
+
+Run date: **2026-06-14** on the SIFT Workstation VM.
+
+Case directory: `~/Desktop/cases/ot_brute_2026-06-14`.
+
+Evidence handling: real artifacts were copied into
+`~/Desktop/cases/ot_brute_2026-06-14/evidence` from the host USB-backed dataset.
+The case evidence directory was **506M** and contained **0 symlinks**. The VM did
+not receive answer-key JSON/JSONL files.
+
+Post-run scoring used the host-side authored answer key only after the SIFTics
+run. The agent and VM were evaluated against real artifacts:
+`ot_hmi/auth.log`, `ot_hmi/water_treatment.conf`,
+`ot_hmi/water_treatment.conf.pre_tamper`, Windows Prefetch, EVTX, `$MFT`, and
+the copied Windows-side `water_treatment_dump.conf`.
+
+| Ground-truth check | Real-artifact verification | Agent transcript | Persisted COP finding | Score |
+|---|---|---|---|---|
+| Windows pivot host | Prefetch parsed from `SSHD.EXE-D972B7DB.pf`: SSHD ran at 2026-06-13 18:28:09, 18:37:23, 18:43:33 UTC | Identified `192.168.56.20` / `win11_victim` as pivot | No `findings.jsonl` written | Partial |
+| OT brute force target/account | `auth.log` has 8 `Failed password for operator from 192.168.56.20` events | Correctly described brute force against `operator` | No `findings.jsonl` written | Partial |
+| Successful OT authentication | `auth.log` has 3 `Accepted password for operator from 192.168.56.20` events | Correctly described successful compromise | No `findings.jsonl` written | Partial |
+| Config dump | `win11_victim/water_treatment_dump.conf` present; sha256 `92aaac62fdfa4d52f3e8273a564a9cff890da9bb322b26901cf8efdec7b61f5f` | Recognized config-dump artifact family | No `findings.jsonl` written | Partial |
+| Setpoint tamper | `free_chlorine_target_ppm` changed `1.20` -> `0.40`; pre hash `97a7809a5ae84dd6ca0c34cd30399ccbde16eff9e4b93811643f981de940cf79`, post hash `d497c40ae0cac48916ebe488d57ce08b9731cd8e28e4a310da67a8533662ecb9` | Correctly surfaced tamper and hashes | No `findings.jsonl` written | Partial |
+
+Scoring split:
+
+| Metric | Result |
+|---|---|
+| Artifact-recognition recall | **5 / 5 partial-or-better** |
+| COP-persisted recall | **0 / 5** |
+| COP-persisted precision | Not scored; no findings persisted |
+| Authority Gate surfaced for OT safety containment | **0 / 1** before fix |
+| Hallucinated COP findings | **0** |
+| Product failure observed | Agent continued artifact exploration and chat narration instead of calling `finding_record()` / `itq_answer()`; no IC-visible gate/hard-stop was produced for water-treatment setpoint tamper |
+
+Corrective action from this run:
+
+- The UI agent prompt now injects a SIFTics operating contract on both
+  `/api/agent/start` and `/api/agent/message`.
+- The contract names the exact MCP tools the agent must use:
+  `mcp__siftics_case__case_get_header`,
+  `mcp__siftics_case__itq_unanswered`, `mcp__siftics_case__asr_open`,
+  `mcp__siftics_case__finding_record`, `mcp__siftics_case__itq_answer`, and
+  `mcp__siftics_case__briefing_post`.
+- The contract explicitly says case JSON/JSONL files are state/audit output,
+  not forensic evidence, and that artifact-backed claims must be persisted
+  immediately rather than narrated only in chat.
+- OT/ICS process tamper now explicitly requires the Safety Officer +
+  Authority Gate path. For water-treatment HMI isolation this is expected to
+  hard-stop on personnel safety, but the hard-stop is now recorded as an
+  IC-visible blocked gate rather than disappearing.
+
+### 2.6 DFIR Madness - Stolen Szechuan Sauce
+
+Run date: **2026-06-14 to 2026-06-15** on the SIFT Workstation VM.
+
+Case directory: `/cases/szechuan_sauce_2026-06-14`.
+
+Packaged run artifacts:
+`examples/szechuan_sauce/runs/2026-06-14-szechuan_sauce_2026-06-14/`.
+
+Evidence handling: the VM case contained the five real evidence artifacts in
+`evidence/`:
+
+- `DC01-E01.zip`
+- `DC01-memory.zip`
+- `DESKTOP-E01.zip`
+- `DESKTOP-SDN1RPT-memory.zip`
+- `case001-pcap.zip`
+
+The answer key stayed in a host-only scoring directory and was used only after
+the run for scoring. It was not copied into the SIFT VM.
+
+Durable outputs:
+
+| Output | Count |
+|---|---:|
+| `findings.jsonl` | 18 |
+| Current ASR rows | 2 |
+| ASR writes | 3 |
+| `grid.jsonl` inquiry checks | 43 |
+| Resolved inquiry checks | 7 |
+| Briefings | 2 |
+| Draft IOCs | 4 |
+| Pending Authority Gates | 1 |
+| Hash-chained audit events | 61 |
+
+Audit-chain verification on the copied run: **PASS**.
+
+Scoring against the public DFIR Madness answer key:
+
+| Metric | Result |
+|---|---:|
+| Answer-key checks reviewed | 29 |
+| Hits | 15 |
+| Partials | 7 |
+| Misses | 7 |
+| Corrected false positives | 1 |
+| Uncorrected false positives in final COP | 0 |
+| Uncorrected hallucinations in reviewed findings | 0 |
+| Exact-hit recall | 51.7% |
+| Hit-or-partial coverage | 75.9% |
+
+Key hits:
+
+- External RDP and payload delivery from `194.61.24.102` (F-001, F-002, F-004).
+- `coreupdater.exe` persistence and hash on the compromised Windows hosts
+  (F-005, F-006, F-007).
+- C2 to `203.78.103.109:443` from both hosts (F-012, F-018).
+- DC01 to DESKTOP lateral RDP at `2020-09-19 02:35:54 UTC` (F-010).
+- DCSync / KRBTGT credential compromise (F-003, ITQ-050/051).
+- Sensitive DC file access and compromised/backdoor account inventory
+  (F-014, F-015, F-016).
+- Active attacker state at acquisition from DESKTOP memory (F-018).
+
+Corrected false positive:
+
+- F-011 initially interpreted a 36 MB OneDrive transfer as exfiltration.
+- F-017 corrected that claim using directional PCAP analysis: DESKTOP sent only
+  0.003 MB to OneDrive; 36.268 MB flowed inbound to DESKTOP.
+- ASR-2 was updated by `operator-review` at audit seq 61 so the final Common
+  Operating Picture no longer repeats the corrected exfiltration claim.
+
+Miss themes:
+
+1. The agent did not fully recover the answer-key sequence around
+   `Secret_Beth.txt`, `Beth_Secret.txt`, `secret.zip`, `loot.zip`, and the
+   timestomped Beth file.
+2. The agent did not recover domain passwords from the hashes.
+3. The agent did not fully characterize the victim timezone/local-time mismatch.
+4. The agent found service persistence but did not complete all registry
+   persistence details before the run stopped.
+
+The score card contains the three-claim trace judges are instructed to run:
+
+- F-002 payload delivery via `tshark` HTTP extraction.
+- F-010 lateral RDP via `tshark -z conv,tcp`.
+- F-017 OneDrive exfil correction via directional byte counts.
+
+See:
+[`examples/szechuan_sauce/runs/2026-06-14-szechuan_sauce_2026-06-14/score_card.md`](../examples/szechuan_sauce/runs/2026-06-14-szechuan_sauce_2026-06-14/score_card.md).
 
 ---
 
@@ -276,22 +487,25 @@ in v1; T8 has 7 sub-tests covering the IC approval enforcement specifically.
 
 ## 5. Cost characterisation
 
-### 5.1 Per-case cost (Sonnet 4.6, prompt caching on)
+### 5.1 Packaged-run cost (Sonnet 4.6, prompt caching on)
 
-| Percentile | Cost (USD) | Wall-clock (min) | LLM calls | Cache hit % |
+The current repository contains one fully packaged, judge-ready accuracy run
+with token/cost telemetry: DFIR Madness Stolen Szechuan Sauce. Percentiles are
+not reported from a single datapoint.
+
+| Run | Cost (USD) | Wall-clock (min) | LLM calls | Output tokens |
 |---|---|---|---|---|
-| p50 (median) | *TBD* | *TBD* | *TBD* | *TBD* |
-| p95 | *TBD* | *TBD* | *TBD* | *TBD* |
-| p99 | *TBD* | *TBD* | *TBD* | *TBD* |
+| `szechuan_sauce_2026-06-14` | `$6.944945` | 84 | 1 recorded audit event | 9,602 |
 
 ### 5.2 Cost breakdown by task class
 
-| Task class | Avg input tokens | Avg cached | Avg output | Avg cost per call |
-|---|---|---|---|---|
-| `investigator` (Sonnet 4.6) | *TBD* | *TBD* | *TBD* | *TBD* |
-| `classifier` (Haiku 4.5) | *TBD* | *TBD* | *TBD* | *TBD* |
-| `synthesizer` (Sonnet 4.6) | *TBD* | *TBD* | *TBD* | *TBD* |
-| `deep_review` (Opus 4.7) | *TBD* | *TBD* | *TBD* | *TBD* |
+| Task class | Input tokens | Cached read | Cached creation | Output tokens | Cost per call |
+|---|---:|---:|---:|---:|---:|
+| `investigator` (`claude-sonnet-4-6`) | 563 | 28,556,178 | 809,725 | 9,602 | `$6.944945` |
+
+No packaged Stage One run used separate `classifier`, `synthesizer`, or
+`deep_review` task-class calls, so those rows are intentionally omitted instead
+of reported as speculative estimates.
 
 ### 5.3 Cost circuit breaker behaviour
 

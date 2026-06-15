@@ -267,11 +267,13 @@ def propose_user_account_response(user_principal: str, severity: str = "high",
         "checklist_steps": len(checklist),
     }, actor="investigation-section-chief")
 
-    # Authority Gate — same pattern as propose_host_isolation
+    # Authority Gate — uses the dedicated `user_account_response` gate so the
+    # gate name in /gates reads as the operator expects, rather than the
+    # generic `containment_action` shared with host isolation.
     summary = (f"Account response for {user_principal} ({severity}) — "
                f"{rationale or 'compromised user account'}")
     approval_request = ic_approval.request_approval(
-        gate="containment_action",
+        gate="user_account_response",
         summary=summary,
         action=canonical_action,
         proposed_by="investigation-section-chief",
@@ -326,7 +328,13 @@ def containment_action(action_id: str, action_class: str,
     "logged for manual execution" and the IC's approval is the documented
     authorisation for the human action.
     """
-    ic_approval.require_approval(approval, expected_gate="containment_action")
+    # Accept either the legacy unified gate or the dedicated per-class gates.
+    # The executor's branch on action_class still does the work; this lets the
+    # gate name match the action class in the UI without forking the executor.
+    ic_approval.require_approval(
+        approval,
+        expected_gate=("containment_action", "host_isolation", "user_account_response"),
+    )
 
     tgt = _targets()
     execution_id = f"exec_{uuid.uuid4().hex[:8]}"

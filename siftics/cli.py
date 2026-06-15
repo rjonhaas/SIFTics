@@ -8,7 +8,7 @@ import os
 import sys
 from pathlib import Path
 
-from . import case_state, ic_approval
+from . import case_state, ic_approval, ingest
 
 
 def case_init_main(argv: list[str] | None = None) -> int:
@@ -27,7 +27,8 @@ def case_init_main(argv: list[str] | None = None) -> int:
                         "The agent reads it for orientation but verifies "
                         "against evidence - it's not ground truth.")
     p.add_argument("--itq-template", default=None, type=Path,
-                   help="Path to siftics/templates/itq_questions.yaml.")
+                   help=("Path to the Lines of Inquiry seed template "
+                         "(legacy itq_questions.yaml)."))
     p.add_argument("--no-key", action="store_true",
                    help="Skip IC key initialisation (rare — only for tests).")
     args = p.parse_args(argv)
@@ -56,6 +57,35 @@ def case_init_main(argv: list[str] | None = None) -> int:
         print(f"[case-init] IC key fingerprint: {meta['key_fingerprint_sha256'][:16]}…")
         print(f"[case-init] PBKDF2 iterations: {meta['iterations']}")
     print("[case-init] done.")
+    return 0
+
+
+def case_ingest_main(argv: list[str] | None = None) -> int:
+    p = argparse.ArgumentParser(description="Run deterministic SIFTics evidence ingest.")
+    p.add_argument("--case-dir", required=True, type=Path,
+                   help="Path to the initialized case directory.")
+    p.add_argument("--max-extract-mb", type=int, default=512,
+                   help="Per-ZIP-member extraction ceiling for PCAP/text quicklook artifacts.")
+    p.add_argument("--force", action="store_true",
+                   help="Rebuild even if evidence_manifest.json is current.")
+    args = p.parse_args(argv)
+
+    case_dir = args.case_dir.expanduser().resolve()
+    os.environ["SIFTICS_CASE_DIR"] = str(case_dir)
+    if args.force:
+        manifest = ingest.run_case_ingest(
+            case_dir, max_extract_bytes=args.max_extract_mb * 1024 * 1024)
+    else:
+        manifest = ingest.ensure_case_ingest(
+            case_dir, max_extract_bytes=args.max_extract_mb * 1024 * 1024)
+    print(f"[case-ingest] manifest: {case_dir / 'evidence_manifest.json'}")
+    print(f"[case-ingest] quicklook: {case_dir / 'evidence_quicklook.md'}")
+    print(f"[case-ingest] evidence files: {manifest.get('evidence_file_count', 0)}")
+    print(f"[case-ingest] pcap quicklooks: {len(manifest.get('pcap_quicklooks', []))}")
+    if manifest.get("errors"):
+        print("[case-ingest] warnings:")
+        for err in manifest["errors"]:
+            print(f"  - {err}")
     return 0
 
 

@@ -1,0 +1,340 @@
+{
+  "audit_seq": 14,
+  "case_dir": "/cases/szechuan_sauce_2026-06-14",
+  "errors": [],
+  "evidence": [
+    {
+      "kind": "zip_container",
+      "mtime": 1780626077,
+      "name": "DC01-E01.zip",
+      "path": "/cases/szechuan_sauce_2026-06-14/evidence/DC01-E01.zip",
+      "sha256": "efe06d12388dbc000fa4ae306746ddaca3893a6cdbd55311b52f5833e717acd9",
+      "size": 4836649413,
+      "zip": {
+        "extracted": [
+          {
+            "kind": "unknown",
+            "member": "E01-DC01/20200918_0347_CDrive.E01.txt",
+            "path": "/cases/szechuan_sauce_2026-06-14/work/ingest/extracted/DC01-E01/E01-DC01/20200918_0347_CDrive.E01.txt",
+            "sha256": "af08169bc8c32b27fbaa85f26646f8c1bb9f5f71f0ee04a759f9064928c8ca79",
+            "size": 1399
+          }
+        ],
+        "member_count": 4,
+        "member_type_counts": {
+          "disk_image": 2,
+          "memory_image": 0,
+          "network_capture": 0,
+          "ntfs_metadata": 0,
+          "text": 0,
+          "unknown": 1,
+          "windows_artifact": 0
+        },
+        "members_preview": [
+          {
+            "compressed_size": 2515844960,
+            "crc": "ff0ce1a7",
+            "kind": "disk_image",
+            "name": "E01-DC01/20200918_0347_CDrive.E01",
+            "size": 2524848357
+          },
+          {
+            "compressed_size": 650,
+            "crc": "c294f543",
+            "kind": "unknown",
+            "name": "E01-DC01/20200918_0347_CDrive.E01.txt",
+            "size": 1399
+          },
+          {
+            "compressed_size": 2320803033,
+            "crc": "2817dbe2",
+            "kind": "disk_image",
+            "name": "E01-DC01/20200918_0347_CDrive.E02",
+            "size": 2347582840
+          }
+        ],
+        "pcap_quicklooks": [],
+        "total_uncompressed_bytes": 4872432596
+      }
+    },
+    {
+      "kind": "zip_container",
+      "mtime": 1780626430,
+      "name": "DC01-memory.zip",
+      "path": "/cases/szechuan_sauce_2026-06-14/evidence/DC01-memory.zip",
+      "sha256": "86658d85d8254e8d30dccc4f50d9c2a8b550a101d2e78a6d932316849e37ad80",
+      "size": 561424278,
+      "zip": {
+        "extracted": [],
+        "member_count": 1,
+        "member_type_counts": {
+          "disk_image": 0,
+          "memory_image": 1,
+          "network_capture": 0,
+          "ntfs_metadata": 0,
+          "text": 0,
+          "unknown": 0,
+          "windows_artifact": 0
+        },
+        "members_preview": [
+          {
+            "compressed_size": 561424114,
+            "crc": "8590361c",
+            "kind": "memory_image",
+            "name": "citadeldc01.mem",
+            "size": 2147483648
+          }
+        ],
+        "pcap_quicklooks": [],
+        "total_uncompressed_bytes": 2147483648
+      }
+    },
+    {
+      "kind": "zip_container",
+      "mtime": 1780626401,
+      "name": "DESKTOP-E01.zip",
+      "path": "/cases/szechuan_sauce_2026-06-14/evidence/DESKTOP-E01.zip",
+      "sha256": "ade4c11a695bdcbe89d76ca0949ac918456549fcca9e4558502ffc286c8d16ad",
+      "size": 6843484923,
+      "zip": {
+        "extracted": [
+          {
+            "kind": "unknown",
+            "member": "20200918_0417_DESKTOP-SDN1RPT.E01.txt",
+            "path": "/cases/szechuan_sauce_2026-06-14/work/ingest/extracted/DESKTOP-E01/20200918_0417_DESKTOP-SDN1RPT.E01.txt",
+            "sha256": "6eafe246269b02390d028388d95fb908511f63bcb52f87aa505fb4a5a47c4229",
+            "size": 1608
+          }
+        ],
+        "member_count": 5,
+        "member_type_counts": {
+          "disk_image": 4,
+          "memory_image": 0,
+          "network_capture": 0,
+          "ntfs_metadata": 0,
+          "text": 0,
+          "unknown": 1,
+          "windows_artifact": 0
+        },
+        "members_preview": [
+          {
+            "compressed_size": 2137998230,
+            "crc": "f1ecd0f7",
+            "kind": "disk_image",
+            "name": "20200918_0417_DESKTOP-SDN1RPT.E01",
+            "size": 2147291154
+          },
+          {
+            "compressed_size": 677,
+            "crc": "aeab321b",
+            "kind": "unknown",
+            "name": "20200918_0417_DESKTOP-SDN1RPT.E01.txt",
+            "size": 1608
+          },
+          {
+            "compressed_size": 2142928082,
+            "crc": "88d60695",
+            "kind": "disk_image",
+            "name": "20200918_0417_DESKTOP-SDN1RPT.E02",
+            "size": 2147330394
+          },
+          {
+            "compressed_size": 2139869020,
+            "crc": "da2d5d1a",
+            "kind": "disk_image",
+            "name": "20200918_0417_DESKTOP-SDN1RPT.E03",
+            "size": 2147392052
+          },
+          {
+            "compressed_size": 422687906,
+            "crc": "bc3b9066",
+            "kind": "disk_image",
+            "name": "20200918_0417_DESKTOP-SDN1RPT.E04",
+            "size": 422953421
+          }
+        ],
+        "pcap_quicklooks": [],
+        "total_uncompressed_bytes": 6864968629
+      }
+    },
+    {
+      "kind": "zip_container",
+      "mtime": 1780626467,
+      "name": "DESKTOP-SDN1RPT-memory.zip",
+      "path": "/cases/szechuan_sauce_2026-06-14/evidence/DESKTOP-SDN1RPT-memory.zip",
+      "sha256": "fce1bdd584cd52d7830f7f9a209e960ca151ce174ebdef3fad03205ab7e33d01",
+      "size": 802767348,
+      "zip": {
+        "extracted": [],
+        "member_count": 1,
+        "member_type_counts": {
+          "disk_image": 0,
+          "memory_image": 1,
+          "network_capture": 0,
+          "ntfs_metadata": 0,
+          "text": 0,
+          "unknown": 0,
+          "windows_artifact": 0
+        },
+        "members_preview": [
+          {
+            "compressed_size": 802767176,
+            "crc": "9cd75538",
+            "kind": "memory_image",
+            "name": "DESKTOP-SDN1RPT.mem",
+            "size": 2147483648
+          }
+        ],
+        "pcap_quicklooks": [],
+        "total_uncompressed_bytes": 2147483648
+      }
+    },
+    {
+      "kind": "zip_container",
+      "mtime": 1780626481,
+      "name": "case001-pcap.zip",
+      "path": "/cases/szechuan_sauce_2026-06-14/evidence/case001-pcap.zip",
+      "sha256": "ea8eee228cdf82b1f534a2daab88dfb1d928d2ef2d5b469c189242d8c901f0ec",
+      "size": 151610116,
+      "zip": {
+        "extracted": [
+          {
+            "kind": "network_capture",
+            "member": "case001.pcap",
+            "path": "/cases/szechuan_sauce_2026-06-14/work/ingest/extracted/case001-pcap/case001.pcap",
+            "sha256": "09abf49efea1852e047987d92907704d47f36d75f6c8056e2cafa6cc027791cb",
+            "size": 197583252
+          }
+        ],
+        "member_count": 1,
+        "member_type_counts": {
+          "disk_image": 0,
+          "memory_image": 0,
+          "network_capture": 1,
+          "ntfs_metadata": 0,
+          "text": 0,
+          "unknown": 0,
+          "windows_artifact": 0
+        },
+        "members_preview": [
+          {
+            "compressed_size": 151609958,
+            "crc": "4756f289",
+            "kind": "network_capture",
+            "name": "case001.pcap",
+            "size": 197583252
+          }
+        ],
+        "pcap_quicklooks": [
+          {
+            "capinfos": {
+              "available": true,
+              "command": [
+                "capinfos",
+                "/cases/szechuan_sauce_2026-06-14/work/ingest/extracted/case001-pcap/case001.pcap"
+              ],
+              "output": "File name:           /cases/szechuan_sauce_2026-06-14/work/ingest/extracted/case001-pcap/case001.pcap\nFile type:           Wireshark/... - pcapng\nFile encapsulation:  Ethernet\nFile timestamp precision:  microseconds (6)\nPacket size limit:   file hdr: (not set)\nNumber of packets:   411 k\nFile size:           197 MB\nData size:           183 MB\nCapture duration:    27650.358197 seconds\nFirst packet time:   2020-09-18 21:58:07.470323\nLast packet time:    2020-09-19 05:38:57.828520\nData byte rate:      6649 bytes/s\nData bit rate:       53 kbps\nAverage packet size: 446.47 bytes\nAverage packet rate: 14 packets/s\nSHA256:              09abf49efea1852e047987d92907704d47f36d75f6c8056e2cafa6cc027791cb\nSHA1:                ab2deca8c7881187806856c6baeb215abc990d2b\nStrict time order:   True\nCapture oper-sys:    Linux 5.8.0-kali1-amd64\nCapture application: Mergecap (Wireshark) 3.2.6 (Git v3.2.6 packaged as 3.2.6-1)\nNumber of interfaces in file: 1\nInterface #0 info:\n                     Encapsulation = Ethernet (1 - ether)\n                     Capture length = 262144\n                     Time precision = microseconds (6)\n                     Time ticks per second = 1000000\n                     Number of stat entries = 0\n                     Number of packets = 411797\n",
+              "returncode": 0
+            },
+            "conversations": {
+              "available": true,
+              "command": [
+                "tshark",
+                "-r",
+                "/cases/szechuan_sauce_2026-06-14/work/ingest/extracted/case001-pcap/case001.pcap",
+                "-q",
+                "-z",
+                "conv,ip"
+              ],
+              "output": "2 bytes   173.232174000       181.3666\n10.42.85.115         <-> 52.37.173.24               6 1220 bytes      22 1764 bytes      28 2984 bytes   173.315499000       184.8433\n10.42.85.115         <-> 52.114.36.3               16 5387 bytes      12 2687 bytes      28 8074 bytes  19784.957407000         0.7255\n10.42.85.115         <-> 104.126.209.182           17 13 kB          11 1178 bytes      28 14 kB      26705.409267000         1.2308\n10.42.85.115         <-> 224.0.0.22                 0 0 bytes        27 1638 bytes      27 1638 bytes    91.879448000     15225.7317\n10.42.85.115         <-> 52.114.88.28              15 5259 bytes      12 6583 bytes      27 11 kB      17596.439015000         0.8560\n10.42.85.115         <-> 52.114.128.69             13 7724 bytes      13 2963 bytes      26 10 kB       224.072764000         1.9814\n10.42.85.115         <-> 13.249.64.49              13 3697 bytes      13 1509 bytes      26 5206 bytes   415.878168000       138.4470\n10.42.85.115         <-> 52.230.222.68             14 1583 bytes      12 1211 bytes      26 2794 bytes  9482.558981000      1107.9203\n10.42.85.115         <-> 52.148.151.26             14 7176 bytes      12 1447 bytes      26 8623 bytes  15484.992505000         0.6672\n10.42.85.115         <-> 157.55.212.205            14 9370 bytes      12 2722 bytes      26 12 kB      15490.726858000         0.4417\n10.42.85.115         <-> 52.114.75.78              15 5619 bytes      11 4861 bytes      26 10 kB      25185.344277000         1.3016\n10.42.85.115         <-> 13.88.23.8                14 9391 bytes      12 2722 bytes      26 12 kB      25454.276764000         0.3009\n10.42.85.115         <-> 52.184.216.226            14 3953 bytes      12 1374 bytes      26 5327 bytes  26731.852457000         0.4146\n10.42.85.115         <-> 65.52.198.70              14 9370 bytes      11 2662 bytes      25 12 kB      23512.810162000         0.2955\n10.42.85.115         <-> 10.42.85.255               0 0 bytes        24 2640 bytes      24 2640 bytes    91.982665000     15227.4887\n10.42.85.115         <-> 8.253.200.120             12 4654 bytes      12 1565 bytes      24 6219 bytes  26735.402805000        28.0770\n10.42.85.10          <-> 23.60.139.27              11 6762 bytes      12 1409 bytes      23 8171 bytes  21841.011897000        20.3435\n10.42.85.115         <-> 40.116.120.16             14 13 kB           9 1034 bytes      23 14 kB      23510.381360000         1.1578\n10.42.85.115         <-> 52.114.74.45              13 5151 bytes      10 3740 bytes      23 8891 bytes  27631.538149000         0.9348\n10.42.85.115         <-> 239.255.255.250            0 0 bytes        21 3759 bytes      21 3759 bytes   112.046598000     26731.0558\n10.42.85.115         <-> 184.25.204.8              10 4142 bytes      11 1156 bytes      21 5298 bytes   291.861258000       329.7970\n10.42.85.115         <-> 52.114.128.43             12 5095 bytes       9 2268 bytes      21 7363 bytes  15472.970685000         0.2625\n10.42.85.115         <-> 13.89.202.241             12 5095 bytes       9 2268 bytes      21 7363 bytes  16700.100292000         0.2793\n10.42.85.115         <-> 52.114.7.38               12 5095 bytes       9 2707 bytes      21 7802 bytes  21584.980001000         1.1546\n10.42.85.115         <-> 104.121.197.197           10 6383 bytes       9 1201 bytes      19 7584 bytes   352.220155000        52.6648\n10.42.85.115         <-> 104.18.25.243              8 5468 bytes      10 1080 bytes      18 6548 bytes   125.937838000     17079.7035\n10.42.85.115         <-> 23.61.187.27               8 4578 bytes      10 1067 bytes      18 5645 bytes  25703.460443000        27.1867\n10.42.85.115         <-> 104.69.125.175             8 5067 bytes       7 633 bytes      15 5700 bytes   218.784293000        90.5336\n10.42.85.115         <-> 8.252.215.126              7 1069 bytes       7 984 bytes      14 2053 bytes  15402.096115000        60.1928\n10.42.85.115         <-> 224.0.0.251                0 0 bytes        12 1200 bytes      12 1200 bytes    92.004102000     15225.1049\n10.42.85.115         <-> 23.199.51.138              6 3784 bytes       6 549 bytes      12 4333 bytes  25699.233146000        31.4149\n10.42.85.115         <-> 104.124.63.145             6 2232 bytes       6 785 bytes      12 3017 bytes  26743.935319000        30.0403\n10.42.85.115         <-> 8.252.107.126              5 1279 bytes       6 781 bytes      11 2060 bytes  26746.726960000        26.7205\n10.42.85.115         <-> 143.204.26.213             5 2433 bytes       5 550 bytes      10 2983 bytes   173.876500000       171.6435\n10.42.85.115         <-> 13.225.41.147              4 2258 bytes       5 555 bytes       9 2813 bytes   174.014663000       171.5054\n10.42.85.115         <-> 13.249.64.218              4 2214 bytes       5 543 bytes       9 2757 bytes   174.150775000       171.3690\n10.42.85.115         <-> 104.18.20.226              4 2422 bytes       5 544 bytes       9 2966 bytes   351.022162000        53.8627\n10.42.85.10          <-> 23.32.45.37                4 2356 bytes       5 488 bytes       9 2844 bytes  21843.128473000        18.2270\n10.42.85.115         <-> 143.204.26.146             3 1342 bytes       5 414 bytes       8 1756 bytes   173.650331000       171.8690\n10.42.85.115         <-> 184.25.204.49              3 1079 bytes       5 554 bytes       8 1633 bytes   358.793878000        46.0966\n10.42.85.115         <-> 104.111.89.205             4 278 bytes       4 240 bytes       8 518 bytes  9461.559249000         0.0688\n10.42.85.115         <-> 224.0.0.252                0 0 bytes         6 450 bytes       6 450 bytes    92.034114000     15225.0743\n10.42.85.115         <-> 72.21.81.240               2 108 bytes       2 120 bytes       4 228 bytes  9401.557281000         0.0125\n10.42.85.10          <-> 224.0.0.22                 0 0 bytes         3 180 bytes       3 180 bytes     3.001443000         0.4985\n================================================================================\n",
+              "returncode": 0
+            },
+            "http_requests": {
+              "available": true,
+              "command": [
+                "tshark",
+                "-r",
+                "/cases/szechuan_sauce_2026-06-14/work/ingest/extracted/case001-pcap/case001.pcap",
+                "-Y",
+                "http.request",
+                "-T",
+                "fields",
+                "-e",
+                "frame.time_epoch",
+                "-e",
+                "ip.src",
+                "-e",
+                "ip.dst",
+                "-e",
+                "http.host",
+                "-e",
+                "http.request.uri"
+              ],
+              "output": "\n1600491991.167680000\t10.42.85.115\t23.61.187.27\tsf.symcd.com\t/MFEwTzBNMEswSTAJBgUrDgMCGgUABBTSqZMG5M8TA9rdzkbCnNwuMAd5VgQUz5mp6nsm9EvJjo%2FX8AUm7%2BPSp50CEFkECVfyCEMwK6Uqofarzu8%3D\n1600492369.580590000\t10.42.85.115\t104.92.247.90\ttile-service.weather.microsoft.com\t/en-US/livetile/preinstall?region=US&appid=C98EA5B0842DBB9405BBF071E1DA76512D21FE36&FORM=Threshold\n1600493020.635439000\t10.42.85.115\t205.185.216.10\tdl.delivery.mp.microsoft.com\t/filestreamingservice/files/f0aaf762-c7ce-4613-a7b8-b4157cba425d/pieceshash\n1600493020.704825000\t10.42.85.115\t205.185.216.42\t9.tlu.dl.delivery.mp.microsoft.com\t/filestreamingservice/files/f0aaf762-c7ce-4613-a7b8-b4157cba425d?P1=1600476086&P2=402&P3=2&P4=f5amSNTnuKWhvlCiFoYvK8VL6hdc7gjkF4XzTpFwdWXaeK2jOfBV6F9AxQ33%2fHdnGKTVa7s%2fFughRgk64PcarQ%3d%3d\n1600493020.710054000\t10.42.85.115\t205.185.216.10\t9.tlu.dl.delivery.mp.microsoft.com\t/filestreamingservice/files/f0aaf762-c7ce-4613-a7b8-b4157cba425d?P1=1600476086&P2=402&P3=2&P4=f5amSNTnuKWhvlCiFoYvK8VL6hdc7gjkF4XzTpFwdWXaeK2jOfBV6F9AxQ33%2fHdnGKTVa7s%2fFughRgk64PcarQ%3d%3d\n1600493022.885434000\t10.42.85.115\t8.240.65.254\ttlu.dl.delivery.mp.microsoft.com\t/filestreamingservice/files/f0aaf762-c7ce-4613-a7b8-b4157cba425d?P1=1600493662&P2=402&P3=2&P4=A3cW0RsCilJtpHQ8DaqOcwVaxrewRfHu%2fuE6x%2bam9nQanH271tyc11bczgFZ6fN4ZUGioS47%2bw1Djcu5AlNFGg%3d%3d\n1600493022.890458000\t10.42.85.115\t8.253.200.120\ttlu.dl.delivery.mp.microsoft.com\t/filestreamingservice/files/f0aaf762-c7ce-4613-a7b8-b4157cba425d?P1=1600493662&P2=402&P3=2&P4=A3cW0RsCilJtpHQ8DaqOcwVaxrewRfHu%2fuE6x%2bam9nQanH271tyc11bczgFZ6fN4ZUGioS47%2bw1Djcu5AlNFGg%3d%3d\n1600493023.327125000\t10.42.85.115\t8.240.65.254\ttlu.dl.delivery.mp.microsoft.com\t/filestreamingservice/files/f0aaf762-c7ce-4613-a7b8-b4157cba425d?P1=1600493662&P2=402&P3=2&P4=A3cW0RsCilJtpHQ8DaqOcwVaxrewRfHu%2fuE6x%2bam9nQanH271tyc11bczgFZ6fN4ZUGioS47%2bw1Djcu5AlNFGg%3d%3d\n1600493029.776640000\t10.42.85.115\t23.37.117.182\twww.microsoft.com\t/pkiops/certs/Microsoft%20ECC%20Update%20Secure%20Server%20CA%202.1.crt\n1600493030.560051000\t10.42.85.115\t205.185.216.10\tdl.delivery.mp.microsoft.com\t/filestreamingservice/fi ** (tshark:21795) 23:36:20.008181 [Epan WARNING] -- Dissector bug, protocol CLDAP, in packet 411695: ./epan/dissectors/packet-ldap.c:2180: failed assertion \"recursion_depth <= 100\"\nles/3b79c97b-09ea-41fb-92f1-4589f4e2f3c3/pieceshash\n1600493030.612772000\t10.42.85.115\t8.252.174.254\ttlu.dl.delivery.mp.microsoft.com\t/filestreamingservice/files/3b79c97b-09ea-41fb-92f1-4589f4e2f3c3?P1=1600493649&P2=402&P3=2&P4=dybMOALUBpuQjbzcgON2xBkv8Er4yik3rRfLgrJ3sfa4yBctkWahmOL%2bP4Nca6IVJUoCc4Yl3aPiu20SaNbAAQ%3d%3d\n1600493030.614565000\t10.42.85.115\t8.253.200.120\ttlu.dl.delivery.mp.microsoft.com\t/filestreamingservice/files/3b79c97b-09ea-41fb-92f1-4589f4e2f3c3?P1=1600493649&P2=402&P3=2&P4=dybMOALUBpuQjbzcgON2xBkv8Er4yik3rRfLgrJ3sfa4yBctkWahmOL%2bP4Nca6IVJUoCc4Yl3aPiu20SaNbAAQ%3d%3d\n1600493031.218732000\t10.42.85.115\t205.185.216.10\tdl.delivery.mp.microsoft.com\t/filestreamingservice/files/f7ded4c4-f468-4bdc-96f0-03fd60c5ae81/pieceshash\n1600493031.436438000\t10.42.85.115\t104.124.63.145\t2.tlu.dl.delivery.mp.microsoft.com\t/filestreamingservice/files/f7ded4c4-f468-4bdc-96f0-03fd60c5ae81?P1=1600493649&P2=402&P3=2&P4=D2udPgTcv5JiS%2bY4M03x5egxGIC11z006R8ryiOSHeGSNEpTHldKkktqtOhThyO7sW%2fJNrhrhoEVvdD9gxijjQ%3d%3d\n1600493031.436538000\t10.42.85.115\t104.124.63.155\t2.tlu.dl.delivery.mp.microsoft.com\t/filestreamingservice/files/f7ded4c4-f468-4bdc-96f0-03fd60c5ae81?P1=1600493649&P2=402&P3=2&P4=D2udPgTcv5JiS%2bY4M03x5egxGIC11z006R8ryiOSHeGSNEpTHldKkktqtOhThyO7sW%2fJNrhrhoEVvdD9gxijjQ%3d%3d\n1600493031.817596000\t10.42.85.115\t8.252.174.254\ttlu.dl.delivery.mp.microsoft.com\t/filestreamingservice/files/3b79c97b-09ea-41fb-92f1-4589f4e2f3c3?P1=1600493649&P2=402&P3=2&P4=dybMOALUBpuQjbzcgON2xBkv8Er4yik3rRfLgrJ3sfa4yBctkWahmOL%2bP4Nca6IVJUoCc4Yl3aPiu20SaNbAAQ%3d%3d\n1600493031.998978000\t10.42.85.115\t104.124.63.155\t2.tlu.dl.delivery.mp.microsoft.com\t/filestreamingservice/files/f7ded4c4-f468-4bdc-96f0-03fd60c5ae81?P1=1600493649&P2=402&P3=2&P4=D2udPgTcv5JiS%2bY4M03x5egxGIC11z006R8ryiOSHeGSNEpTHldKkktqtOhThyO7sW%2fJNrhrhoEVvdD9gxijjQ%3d%3d\n1600493033.515135000\t10.42.85.115\t205.185.216.42\t9.tlu.dl.delivery.mp.microsoft.com\t/filestreamingservice/files/3b79c97b-09ea-41fb-92f1-4589f4e2f3c3?P1=1600493649&P2=402&P3=2&P4=dybMOALUBpuQjbzcgON2xBkv8Er4yik3rRfLgrJ3sfa4yBctkWahmOL%2bP4Nca6IVJUoCc4Yl3aPiu20SaNbAAQ%3d%3d\n1600493033.515162000\t10.42.85.115\t205.185.216.10\t9.tlu.dl.delivery.mp.microsoft.com\t/filestreamingservice/files/3b79c97b-09ea-41fb-92f1-4589f4e2f3c3?P1=1600493649&P2=402&P3=2&P4=dybMOALUBpuQjbzcgON2xBkv8Er4yik3rRfLgrJ3sfa4yBctkWahmOL%2bP4Nca6IVJUoCc4Yl3aPiu20SaNbAAQ%3d%3d\n1600493034.207482000\t10.42.85.115\t8.252.107.126\ttlu.dl.delivery.mp.microsoft.com\t/filestreamingservice/files/3b79c97b-09ea-41fb-92f1-4589f4e2f3c3?P1=1600493649&P2=402&P3=2&P4=dybMOALUBpuQjbzcgON2xBkv8Er4yik3rRfLgrJ3sfa4yBctkWahmOL%2bP4Nca6IVJUoCc4Yl3aPiu20SaNbAAQ%3d%3d\n1600493034.213405000\t10.42.85.115\t8.253.203.126\ttlu.dl.delivery.mp.microsoft.com\t/filestreamingservice/files/3b79c97b-09ea-41fb-92f1-4589f4e2f3c3?P1=1600493649&P2=402&P3=2&P4=dybMOALUBpuQjbzcgON2xBkv8Er4yik3rRfLgrJ3sfa4yBctkWahmOL%2bP4Nca6IVJUoCc4Yl3aPiu20SaNbAAQ%3d%3d\n1600493034.362079000\t10.42.85.115\t8.253.203.126\ttlu.dl.delivery.mp.microsoft.com\t/filestreamingservice/files/3b79c97b-09ea-41fb-92f1-4589f4e2f3c3?P1=1600493649&P2=402&P3=2&P4=dybMOALUBpuQjbzcgON2xBkv8Er4yik3rRfLgrJ3sfa4yBctkWahmOL%2bP4Nca6IVJUoCc4Yl3aPiu20SaNbAAQ%3d%3d\n1600493037.070217000\t10.42.85.115\t104.124.63.155\t2.tlu.dl.delivery.mp.microsoft.com\t/filestreamingservice/files/f7ded4c4-f468-4bdc-96f0-03fd60c5ae81?P1=1600493649&P2=402&P3=2&P4=D2udPgTcv5JiS%2bY4M03x5egxGIC11z006R8ryiOSHeGSNEpTHldKkktqtOhThyO7sW%2fJNrhrhoEVvdD9gxijjQ%3d%3d\n1600493124.560479000\t10.42.85.115\t239.255.255.250\t239.255.255.250:1900\t*\n1600493127.556073000\t10.42.85.115\t239.255.255.250\t239.255.255.250:1900\t*\n1600493130.572765000\t10.42.85.115\t239.255.255.250\t239.255.255.250:1900\t*\n",
+              "returncode": 0
+            },
+            "path": "/cases/szechuan_sauce_2026-06-14/work/ingest/extracted/case001-pcap/case001.pcap"
+          }
+        ],
+        "total_uncompressed_bytes": 197583252
+      }
+    }
+  ],
+  "evidence_dir": "/cases/szechuan_sauce_2026-06-14/evidence",
+  "evidence_file_count": 5,
+  "generated_at": "2026-06-14T23:35:46Z",
+  "max_extract_bytes": 536870912,
+  "pcap_quicklooks": [
+    {
+      "capinfos": {
+        "available": true,
+        "command": [
+          "capinfos",
+          "/cases/szechuan_sauce_2026-06-14/work/ingest/extracted/case001-pcap/case001.pcap"
+        ],
+        "output": "File name:           /cases/szechuan_sauce_2026-06-14/work/ingest/extracted/case001-pcap/case001.pcap\nFile type:           Wireshark/... - pcapng\nFile encapsulation:  Ethernet\nFile timestamp precision:  microseconds (6)\nPacket size limit:   file hdr: (not set)\nNumber of packets:   411 k\nFile size:           197 MB\nData size:           183 MB\nCapture duration:    27650.358197 seconds\nFirst packet time:   2020-09-18 21:58:07.470323\nLast packet time:    2020-09-19 05:38:57.828520\nData byte rate:      6649 bytes/s\nData bit rate:       53 kbps\nAverage packet size: 446.47 bytes\nAverage packet rate: 14 packets/s\nSHA256:              09abf49efea1852e047987d92907704d47f36d75f6c8056e2cafa6cc027791cb\nSHA1:                ab2deca8c7881187806856c6baeb215abc990d2b\nStrict time order:   True\nCapture oper-sys:    Linux 5.8.0-kali1-amd64\nCapture application: Mergecap (Wireshark) 3.2.6 (Git v3.2.6 packaged as 3.2.6-1)\nNumber of interfaces in file: 1\nInterface #0 info:\n                     Encapsulation = Ethernet (1 - ether)\n                     Capture length = 262144\n                     Time precision = microseconds (6)\n                     Time ticks per second = 1000000\n                     Number of stat entries = 0\n                     Number of packets = 411797\n",
+        "returncode": 0
+      },
+      "conversations": {
+        "available": true,
+        "command": [
+          "tshark",
+          "-r",
+          "/cases/szechuan_sauce_2026-06-14/work/ingest/extracted/case001-pcap/case001.pcap",
+          "-q",
+          "-z",
+          "conv,ip"
+        ],
+        "output": "2 bytes   173.232174000       181.3666\n10.42.85.115         <-> 52.37.173.24               6 1220 bytes      22 1764 bytes      28 2984 bytes   173.315499000       184.8433\n10.42.85.115         <-> 52.114.36.3               16 5387 bytes      12 2687 bytes      28 8074 bytes  19784.957407000         0.7255\n10.42.85.115         <-> 104.126.209.182           17 13 kB          11 1178 bytes      28 14 kB      26705.409267000         1.2308\n10.42.85.115         <-> 224.0.0.22                 0 0 bytes        27 1638 bytes      27 1638 bytes    91.879448000     15225.7317\n10.42.85.115         <-> 52.114.88.28              15 5259 bytes      12 6583 bytes      27 11 kB      17596.439015000         0.8560\n10.42.85.115         <-> 52.114.128.69             13 7724 bytes      13 2963 bytes      26 10 kB       224.072764000         1.9814\n10.42.85.115         <-> 13.249.64.49              13 3697 bytes      13 1509 bytes      26 5206 bytes   415.878168000       138.4470\n10.42.85.115         <-> 52.230.222.68             14 1583 bytes      12 1211 bytes      26 2794 bytes  9482.558981000      1107.9203\n10.42.85.115         <-> 52.148.151.26             14 7176 bytes      12 1447 bytes      26 8623 bytes  15484.992505000         0.6672\n10.42.85.115         <-> 157.55.212.205            14 9370 bytes      12 2722 bytes      26 12 kB      15490.726858000         0.4417\n10.42.85.115         <-> 52.114.75.78              15 5619 bytes      11 4861 bytes      26 10 kB      25185.344277000         1.3016\n10.42.85.115         <-> 13.88.23.8                14 9391 bytes      12 2722 bytes      26 12 kB      25454.276764000         0.3009\n10.42.85.115         <-> 52.184.216.226            14 3953 bytes      12 1374 bytes      26 5327 bytes  26731.852457000         0.4146\n10.42.85.115         <-> 65.52.198.70              14 9370 bytes      11 2662 bytes      25 12 kB      23512.810162000         0.2955\n10.42.85.115         <-> 10.42.85.255               0 0 bytes        24 2640 bytes      24 2640 bytes    91.982665000     15227.4887\n10.42.85.115         <-> 8.253.200.120             12 4654 bytes      12 1565 bytes      24 6219 bytes  26735.402805000        28.0770\n10.42.85.10          <-> 23.60.139.27              11 6762 bytes      12 1409 bytes      23 8171 bytes  21841.011897000        20.3435\n10.42.85.115         <-> 40.116.120.16             14 13 kB           9 1034 bytes      23 14 kB      23510.381360000         1.1578\n10.42.85.115         <-> 52.114.74.45              13 5151 bytes      10 3740 bytes      23 8891 bytes  27631.538149000         0.9348\n10.42.85.115         <-> 239.255.255.250            0 0 bytes        21 3759 bytes      21 3759 bytes   112.046598000     26731.0558\n10.42.85.115         <-> 184.25.204.8              10 4142 bytes      11 1156 bytes      21 5298 bytes   291.861258000       329.7970\n10.42.85.115         <-> 52.114.128.43             12 5095 bytes       9 2268 bytes      21 7363 bytes  15472.970685000         0.2625\n10.42.85.115         <-> 13.89.202.241             12 5095 bytes       9 2268 bytes      21 7363 bytes  16700.100292000         0.2793\n10.42.85.115         <-> 52.114.7.38               12 5095 bytes       9 2707 bytes      21 7802 bytes  21584.980001000         1.1546\n10.42.85.115         <-> 104.121.197.197           10 6383 bytes       9 1201 bytes      19 7584 bytes   352.220155000        52.6648\n10.42.85.115         <-> 104.18.25.243              8 5468 bytes      10 1080 bytes      18 6548 bytes   125.937838000     17079.7035\n10.42.85.115         <-> 23.61.187.27               8 4578 bytes      10 1067 bytes      18 5645 bytes  25703.460443000        27.1867\n10.42.85.115         <-> 104.69.125.175             8 5067 bytes       7 633 bytes      15 5700 bytes   218.784293000        90.5336\n10.42.85.115         <-> 8.252.215.126              7 1069 bytes       7 984 bytes      14 2053 bytes  15402.096115000        60.1928\n10.42.85.115         <-> 224.0.0.251                0 0 bytes        12 1200 bytes      12 1200 bytes    92.004102000     15225.1049\n10.42.85.115         <-> 23.199.51.138              6 3784 bytes       6 549 bytes      12 4333 bytes  25699.233146000        31.4149\n10.42.85.115         <-> 104.124.63.145             6 2232 bytes       6 785 bytes      12 3017 bytes  26743.935319000        30.0403\n10.42.85.115         <-> 8.252.107.126              5 1279 bytes       6 781 bytes      11 2060 bytes  26746.726960000        26.7205\n10.42.85.115         <-> 143.204.26.213             5 2433 bytes       5 550 bytes      10 2983 bytes   173.876500000       171.6435\n10.42.85.115         <-> 13.225.41.147              4 2258 bytes       5 555 bytes       9 2813 bytes   174.014663000       171.5054\n10.42.85.115         <-> 13.249.64.218              4 2214 bytes       5 543 bytes       9 2757 bytes   174.150775000       171.3690\n10.42.85.115         <-> 104.18.20.226              4 2422 bytes       5 544 bytes       9 2966 bytes   351.022162000        53.8627\n10.42.85.10          <-> 23.32.45.37                4 2356 bytes       5 488 bytes       9 2844 bytes  21843.128473000        18.2270\n10.42.85.115         <-> 143.204.26.146             3 1342 bytes       5 414 bytes       8 1756 bytes   173.650331000       171.8690\n10.42.85.115         <-> 184.25.204.49              3 1079 bytes       5 554 bytes       8 1633 bytes   358.793878000        46.0966\n10.42.85.115         <-> 104.111.89.205             4 278 bytes       4 240 bytes       8 518 bytes  9461.559249000         0.0688\n10.42.85.115         <-> 224.0.0.252                0 0 bytes         6 450 bytes       6 450 bytes    92.034114000     15225.0743\n10.42.85.115         <-> 72.21.81.240               2 108 bytes       2 120 bytes       4 228 bytes  9401.557281000         0.0125\n10.42.85.10          <-> 224.0.0.22                 0 0 bytes         3 180 bytes       3 180 bytes     3.001443000         0.4985\n================================================================================\n",
+        "returncode": 0
+      },
+      "http_requests": {
+        "available": true,
+        "command": [
+          "tshark",
+          "-r",
+          "/cases/szechuan_sauce_2026-06-14/work/ingest/extracted/case001-pcap/case001.pcap",
+          "-Y",
+          "http.request",
+          "-T",
+          "fields",
+          "-e",
+          "frame.time_epoch",
+          "-e",
+          "ip.src",
+          "-e",
+          "ip.dst",
+          "-e",
+          "http.host",
+          "-e",
+          "http.request.uri"
+        ],
+        "output": "\n1600491991.167680000\t10.42.85.115\t23.61.187.27\tsf.symcd.com\t/MFEwTzBNMEswSTAJBgUrDgMCGgUABBTSqZMG5M8TA9rdzkbCnNwuMAd5VgQUz5mp6nsm9EvJjo%2FX8AUm7%2BPSp50CEFkECVfyCEMwK6Uqofarzu8%3D\n1600492369.580590000\t10.42.85.115\t104.92.247.90\ttile-service.weather.microsoft.com\t/en-US/livetile/preinstall?region=US&appid=C98EA5B0842DBB9405BBF071E1DA76512D21FE36&FORM=Threshold\n1600493020.635439000\t10.42.85.115\t205.185.216.10\tdl.delivery.mp.microsoft.com\t/filestreamingservice/files/f0aaf762-c7ce-4613-a7b8-b4157cba425d/pieceshash\n1600493020.704825000\t10.42.85.115\t205.185.216.42\t9.tlu.dl.delivery.mp.microsoft.com\t/filestreamingservice/files/f0aaf762-c7ce-4613-a7b8-b4157cba425d?P1=1600476086&P2=402&P3=2&P4=f5amSNTnuKWhvlCiFoYvK8VL6hdc7gjkF4XzTpFwdWXaeK2jOfBV6F9AxQ33%2fHdnGKTVa7s%2fFughRgk64PcarQ%3d%3d\n1600493020.710054000\t10.42.85.115\t205.185.216.10\t9.tlu.dl.delivery.mp.microsoft.com\t/filestreamingservice/files/f0aaf762-c7ce-4613-a7b8-b4157cba425d?P1=1600476086&P2=402&P3=2&P4=f5amSNTnuKWhvlCiFoYvK8VL6hdc7gjkF4XzTpFwdWXaeK2jOfBV6F9AxQ33%2fHdnGKTVa7s%2fFughRgk64PcarQ%3d%3d\n1600493022.885434000\t10.42.85.115\t8.240.65.254\ttlu.dl.delivery.mp.microsoft.com\t/filestreamingservice/files/f0aaf762-c7ce-4613-a7b8-b4157cba425d?P1=1600493662&P2=402&P3=2&P4=A3cW0RsCilJtpHQ8DaqOcwVaxrewRfHu%2fuE6x%2bam9nQanH271tyc11bczgFZ6fN4ZUGioS47%2bw1Djcu5AlNFGg%3d%3d\n1600493022.890458000\t10.42.85.115\t8.253.200.120\ttlu.dl.delivery.mp.microsoft.com\t/filestreamingservice/files/f0aaf762-c7ce-4613-a7b8-b4157cba425d?P1=1600493662&P2=402&P3=2&P4=A3cW0RsCilJtpHQ8DaqOcwVaxrewRfHu%2fuE6x%2bam9nQanH271tyc11bczgFZ6fN4ZUGioS47%2bw1Djcu5AlNFGg%3d%3d\n1600493023.327125000\t10.42.85.115\t8.240.65.254\ttlu.dl.delivery.mp.microsoft.com\t/filestreamingservice/files/f0aaf762-c7ce-4613-a7b8-b4157cba425d?P1=1600493662&P2=402&P3=2&P4=A3cW0RsCilJtpHQ8DaqOcwVaxrewRfHu%2fuE6x%2bam9nQanH271tyc11bczgFZ6fN4ZUGioS47%2bw1Djcu5AlNFGg%3d%3d\n1600493029.776640000\t10.42.85.115\t23.37.117.182\twww.microsoft.com\t/pkiops/certs/Microsoft%20ECC%20Update%20Secure%20Server%20CA%202.1.crt\n1600493030.560051000\t10.42.85.115\t205.185.216.10\tdl.delivery.mp.microsoft.com\t/filestreamingservice/fi ** (tshark:21795) 23:36:20.008181 [Epan WARNING] -- Dissector bug, protocol CLDAP, in packet 411695: ./epan/dissectors/packet-ldap.c:2180: failed assertion \"recursion_depth <= 100\"\nles/3b79c97b-09ea-41fb-92f1-4589f4e2f3c3/pieceshash\n1600493030.612772000\t10.42.85.115\t8.252.174.254\ttlu.dl.delivery.mp.microsoft.com\t/filestreamingservice/files/3b79c97b-09ea-41fb-92f1-4589f4e2f3c3?P1=1600493649&P2=402&P3=2&P4=dybMOALUBpuQjbzcgON2xBkv8Er4yik3rRfLgrJ3sfa4yBctkWahmOL%2bP4Nca6IVJUoCc4Yl3aPiu20SaNbAAQ%3d%3d\n1600493030.614565000\t10.42.85.115\t8.253.200.120\ttlu.dl.delivery.mp.microsoft.com\t/filestreamingservice/files/3b79c97b-09ea-41fb-92f1-4589f4e2f3c3?P1=1600493649&P2=402&P3=2&P4=dybMOALUBpuQjbzcgON2xBkv8Er4yik3rRfLgrJ3sfa4yBctkWahmOL%2bP4Nca6IVJUoCc4Yl3aPiu20SaNbAAQ%3d%3d\n1600493031.218732000\t10.42.85.115\t205.185.216.10\tdl.delivery.mp.microsoft.com\t/filestreamingservice/files/f7ded4c4-f468-4bdc-96f0-03fd60c5ae81/pieceshash\n1600493031.436438000\t10.42.85.115\t104.124.63.145\t2.tlu.dl.delivery.mp.microsoft.com\t/filestreamingservice/files/f7ded4c4-f468-4bdc-96f0-03fd60c5ae81?P1=1600493649&P2=402&P3=2&P4=D2udPgTcv5JiS%2bY4M03x5egxGIC11z006R8ryiOSHeGSNEpTHldKkktqtOhThyO7sW%2fJNrhrhoEVvdD9gxijjQ%3d%3d\n1600493031.436538000\t10.42.85.115\t104.124.63.155\t2.tlu.dl.delivery.mp.microsoft.com\t/filestreamingservice/files/f7ded4c4-f468-4bdc-96f0-03fd60c5ae81?P1=1600493649&P2=402&P3=2&P4=D2udPgTcv5JiS%2bY4M03x5egxGIC11z006R8ryiOSHeGSNEpTHldKkktqtOhThyO7sW%2fJNrhrhoEVvdD9gxijjQ%3d%3d\n1600493031.817596000\t10.42.85.115\t8.252.174.254\ttlu.dl.delivery.mp.microsoft.com\t/filestreamingservice/files/3b79c97b-09ea-41fb-92f1-4589f4e2f3c3?P1=1600493649&P2=402&P3=2&P4=dybMOALUBpuQjbzcgON2xBkv8Er4yik3rRfLgrJ3sfa4yBctkWahmOL%2bP4Nca6IVJUoCc4Yl3aPiu20SaNbAAQ%3d%3d\n1600493031.998978000\t10.42.85.115\t104.124.63.155\t2.tlu.dl.delivery.mp.microsoft.com\t/filestreamingservice/files/f7ded4c4-f468-4bdc-96f0-03fd60c5ae81?P1=1600493649&P2=402&P3=2&P4=D2udPgTcv5JiS%2bY4M03x5egxGIC11z006R8ryiOSHeGSNEpTHldKkktqtOhThyO7sW%2fJNrhrhoEVvdD9gxijjQ%3d%3d\n1600493033.515135000\t10.42.85.115\t205.185.216.42\t9.tlu.dl.delivery.mp.microsoft.com\t/filestreamingservice/files/3b79c97b-09ea-41fb-92f1-4589f4e2f3c3?P1=1600493649&P2=402&P3=2&P4=dybMOALUBpuQjbzcgON2xBkv8Er4yik3rRfLgrJ3sfa4yBctkWahmOL%2bP4Nca6IVJUoCc4Yl3aPiu20SaNbAAQ%3d%3d\n1600493033.515162000\t10.42.85.115\t205.185.216.10\t9.tlu.dl.delivery.mp.microsoft.com\t/filestreamingservice/files/3b79c97b-09ea-41fb-92f1-4589f4e2f3c3?P1=1600493649&P2=402&P3=2&P4=dybMOALUBpuQjbzcgON2xBkv8Er4yik3rRfLgrJ3sfa4yBctkWahmOL%2bP4Nca6IVJUoCc4Yl3aPiu20SaNbAAQ%3d%3d\n1600493034.207482000\t10.42.85.115\t8.252.107.126\ttlu.dl.delivery.mp.microsoft.com\t/filestreamingservice/files/3b79c97b-09ea-41fb-92f1-4589f4e2f3c3?P1=1600493649&P2=402&P3=2&P4=dybMOALUBpuQjbzcgON2xBkv8Er4yik3rRfLgrJ3sfa4yBctkWahmOL%2bP4Nca6IVJUoCc4Yl3aPiu20SaNbAAQ%3d%3d\n1600493034.213405000\t10.42.85.115\t8.253.203.126\ttlu.dl.delivery.mp.microsoft.com\t/filestreamingservice/files/3b79c97b-09ea-41fb-92f1-4589f4e2f3c3?P1=1600493649&P2=402&P3=2&P4=dybMOALUBpuQjbzcgON2xBkv8Er4yik3rRfLgrJ3sfa4yBctkWahmOL%2bP4Nca6IVJUoCc4Yl3aPiu20SaNbAAQ%3d%3d\n1600493034.362079000\t10.42.85.115\t8.253.203.126\ttlu.dl.delivery.mp.microsoft.com\t/filestreamingservice/files/3b79c97b-09ea-41fb-92f1-4589f4e2f3c3?P1=1600493649&P2=402&P3=2&P4=dybMOALUBpuQjbzcgON2xBkv8Er4yik3rRfLgrJ3sfa4yBctkWahmOL%2bP4Nca6IVJUoCc4Yl3aPiu20SaNbAAQ%3d%3d\n1600493037.070217000\t10.42.85.115\t104.124.63.155\t2.tlu.dl.delivery.mp.microsoft.com\t/filestreamingservice/files/f7ded4c4-f468-4bdc-96f0-03fd60c5ae81?P1=1600493649&P2=402&P3=2&P4=D2udPgTcv5JiS%2bY4M03x5egxGIC11z006R8ryiOSHeGSNEpTHldKkktqtOhThyO7sW%2fJNrhrhoEVvdD9gxijjQ%3d%3d\n1600493124.560479000\t10.42.85.115\t239.255.255.250\t239.255.255.250:1900\t*\n1600493127.556073000\t10.42.85.115\t239.255.255.250\t239.255.255.250:1900\t*\n1600493130.572765000\t10.42.85.115\t239.255.255.250\t239.255.255.250:1900\t*\n",
+        "returncode": 0
+      },
+      "path": "/cases/szechuan_sauce_2026-06-14/work/ingest/extracted/case001-pcap/case001.pcap"
+    }
+  ],
+  "schema_version": 1,
+  "work_dir": "/cases/szechuan_sauce_2026-06-14/work/ingest"
+}

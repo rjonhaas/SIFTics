@@ -49,7 +49,7 @@ pip install -e .
 # ./scripts/build_baseline_db.sh --full
 
 # Initialise a case directory
-export SIFTICS_CASE_DIR=~/cases/demo
+export SIFTICS_CASE_DIR=~/Desktop/cases/demo
 sift-case-init \
     --case-dir "$SIFTICS_CASE_DIR" \
     --case-id  demo_2026_06 \

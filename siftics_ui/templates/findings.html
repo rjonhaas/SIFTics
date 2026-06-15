@@ -1,60 +1,107 @@
 {% extends "base.html" %}
 {% block title %}Findings{% endblock %}
 {% block content %}
-<div class="flex items-baseline gap-4 mb-4">
-  <h2 class="text-lg font-bold">Evidence Findings</h2>
-  <span class="text-slate-500 text-sm">{{ findings|length }} recorded</span>
-</div>
+{% set linked_itqs = findings | selectattr("linked_itq") | list %}
+{% set linked_asrs = findings | selectattr("linked_asr") | list %}
 
-{% if not findings %}
-  <p class="text-slate-500 text-sm">No findings recorded yet. The agent writes a finding for every factual claim via <code>finding_record()</code>.</p>
-{% else %}
 <div class="space-y-4">
-{% for f in findings %}
-<div class="bg-slate-900 rounded-lg p-4 border border-slate-800">
-  <div class="flex items-baseline gap-3 mb-2">
-    <span class="text-xs font-bold text-violet-400 font-mono">{{ f.finding_id }}</span>
-    {% if f.linked_itq %}
-      <span class="text-xs text-slate-500">→ {{ f.linked_itq }}</span>
-    {% endif %}
-    {% if f.linked_asr %}
-      <span class="text-xs text-slate-500">→ {{ f.linked_asr }}</span>
-    {% endif %}
-    <span class="ml-auto text-xs text-slate-600">{{ f.recorded_at }}</span>
-  </div>
-
-  <p class="text-sm text-slate-100 mb-3">{{ f.claim }}</p>
-
-  <div class="grid grid-cols-2 gap-x-6 gap-y-1 text-xs mb-3">
-    <div>
-      <span class="text-slate-500">Artifact</span>
-      <p class="font-mono text-slate-300 break-all">{{ f.artifact_path }}</p>
+  <section class="border border-zinc-800 bg-zinc-950">
+    <div class="p-4 flex flex-col gap-4 lg:flex-row lg:items-end">
+      <div class="min-w-0">
+        <div class="text-xs text-zinc-500 uppercase tracking-wide">Evidence Ledger</div>
+        <h2 class="text-xl font-bold text-zinc-100 mt-1">Artifact-backed findings</h2>
+      </div>
+      <div class="grid grid-cols-3 gap-4 lg:ml-auto text-sm min-w-full lg:min-w-[28rem]">
+        <div>
+          <div class="text-zinc-500 text-xs uppercase tracking-wide">Recorded</div>
+          <div class="text-2xl text-violet-300">{{ findings|length }}</div>
+        </div>
+        <div>
+          <div class="text-zinc-500 text-xs uppercase tracking-wide">Inquiry Links</div>
+          <div class="text-2xl text-amber-300">{{ linked_itqs|length }}</div>
+        </div>
+        <div>
+          <div class="text-zinc-500 text-xs uppercase tracking-wide">ASR Links</div>
+          <div class="text-2xl text-sky-300">{{ linked_asrs|length }}</div>
+        </div>
+      </div>
     </div>
-    <div>
-      <span class="text-slate-500">Source image</span>
-      <p class="font-mono text-slate-300">{{ f.artifact_source }}</p>
-    </div>
-    <div class="mt-1">
-      <span class="text-slate-500">Tool</span>
-      <p class="font-mono text-amber-400">{{ f.tool }}</p>
-    </div>
-    <div class="mt-1">
-      <span class="text-slate-500">Recorded by</span>
-      <p class="text-slate-400">{{ f.recorded_by }}</p>
-    </div>
-  </div>
+  </section>
 
-  <div class="mb-2">
-    <span class="text-xs text-slate-500">Command</span>
-    <pre class="mt-0.5 bg-slate-950 rounded p-2 text-xs font-mono text-sky-300 overflow-x-auto whitespace-pre-wrap break-all">{{ f.command }}</pre>
-  </div>
+  {% if not findings %}
+    <section class="border border-zinc-800 bg-zinc-950 p-10 text-center">
+      <p class="text-zinc-500 text-sm">
+        No findings recorded yet. The agent writes factual claims through
+        <code class="bg-zinc-900 px-1 text-sky-300">finding_record()</code>.
+      </p>
+    </section>
+  {% else %}
+    <section class="border border-zinc-800 bg-zinc-950 overflow-hidden">
+      <div class="hidden lg:grid grid-cols-[7rem_1fr_11rem_12rem_9rem] gap-3 px-4 py-2 border-b border-zinc-800 text-xs text-zinc-500 uppercase tracking-wide">
+        <div>ID / Time</div>
+        <div>Claim</div>
+        <div>Evidence Links</div>
+        <div>Source</div>
+        <div>Tool</div>
+      </div>
 
-  <div>
-    <span class="text-xs text-slate-500">Output excerpt</span>
-    <pre class="mt-0.5 bg-slate-950 rounded p-2 text-xs font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap">{{ f.output_excerpt }}</pre>
-  </div>
+      <div class="divide-y divide-zinc-800">
+        {% for f in findings|reverse %}
+          <article class="px-4 py-3 hover:bg-zinc-900/50">
+            <div class="grid grid-cols-1 lg:grid-cols-[7rem_1fr_11rem_12rem_9rem] gap-3">
+              <div>
+                <div class="font-bold text-violet-300 text-sm">{{ f.finding_id }}</div>
+                <div class="text-xs text-zinc-600">{{ f.recorded_at[11:19] if f.recorded_at else "" }} UTC</div>
+              </div>
+
+              <div class="min-w-0">
+                <p class="text-sm text-zinc-100 leading-snug">{{ f.claim }}</p>
+                <div class="mt-2 text-xs text-zinc-500 lg:hidden">
+                  {{ f.artifact_source }} · {{ f.tool }}
+                </div>
+              </div>
+
+              <div class="flex flex-wrap gap-1 content-start">
+                {% if f.linked_itq %}
+                  <span class="border border-amber-900 bg-amber-950/40 text-amber-300 px-2 py-0.5 text-xs">{{ f.linked_itq }}</span>
+                {% endif %}
+                {% if f.linked_asr %}
+                  <span class="border border-sky-900 bg-sky-950/40 text-sky-300 px-2 py-0.5 text-xs">{{ f.linked_asr }}</span>
+                {% endif %}
+                {% if not f.linked_itq and not f.linked_asr %}
+                  <span class="text-xs text-zinc-600">unlinked</span>
+                {% endif %}
+              </div>
+
+              <div class="text-xs text-zinc-300 font-mono break-all hidden lg:block">{{ f.artifact_source }}</div>
+              <div class="text-xs text-amber-300 font-mono break-all hidden lg:block">{{ f.tool }}</div>
+            </div>
+
+            <details class="mt-3">
+              <summary class="text-xs text-sky-300 cursor-pointer">Reproduction detail</summary>
+              <div class="mt-3 grid grid-cols-1 xl:grid-cols-2 gap-3 text-xs">
+                <div>
+                  <div class="text-zinc-500 uppercase tracking-wide mb-1">Artifact Path</div>
+                  <div class="bg-zinc-950 border border-zinc-800 p-2 font-mono text-zinc-300 break-all">{{ f.artifact_path }}</div>
+                </div>
+                <div>
+                  <div class="text-zinc-500 uppercase tracking-wide mb-1">Recorded By</div>
+                  <div class="bg-zinc-950 border border-zinc-800 p-2 text-zinc-300">{{ f.recorded_by }}</div>
+                </div>
+                <div class="xl:col-span-2">
+                  <div class="text-zinc-500 uppercase tracking-wide mb-1">Command</div>
+                  <pre class="bg-zinc-950 border border-zinc-800 p-2 font-mono text-sky-300 overflow-x-auto whitespace-pre-wrap break-all">{{ f.command }}</pre>
+                </div>
+                <div class="xl:col-span-2">
+                  <div class="text-zinc-500 uppercase tracking-wide mb-1">Output Excerpt</div>
+                  <pre class="bg-zinc-950 border border-zinc-800 p-2 font-mono text-zinc-300 overflow-x-auto whitespace-pre-wrap">{{ f.output_excerpt }}</pre>
+                </div>
+              </div>
+            </details>
+          </article>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
 </div>
-{% endfor %}
-</div>
-{% endif %}
 {% endblock %}

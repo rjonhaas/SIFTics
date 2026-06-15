@@ -19,29 +19,29 @@
     }
   </style>
 </head>
-<body class="bg-slate-950 text-slate-100 font-mono min-h-screen flex flex-col">
-  <header class="border-b border-slate-700 p-4 flex items-baseline gap-6">
+<body class="bg-zinc-950 text-zinc-100 font-mono min-h-screen flex flex-col">
+  <header class="border-b border-zinc-700 p-4 flex items-baseline gap-6">
     <h1 class="text-xl font-bold">
       {{ labels.case_header_name }}
       {% if case %}— <span class="text-amber-300">{{ case.name }}</span>{% endif %}
     </h1>
-    <span class="text-xs text-slate-500 flex items-baseline gap-1"
+    <span class="text-xs text-zinc-500 flex items-baseline gap-1"
           title="{{ agent_model_id }}">
       <span class="uppercase tracking-wide">model</span>
       <span class="text-amber-400 font-semibold">{{ agent_model_label }}</span>
     </span>
     {% if case %}
-      <span class="text-sm text-slate-400">
-        IC: <span class="text-slate-200">{{ case.incident_commander.name }}</span>
+      <span class="text-sm text-zinc-400">
+        IC: <span class="text-zinc-200">{{ case.incident_commander.name }}</span>
         · Impact:
         <span class="text-{{ {'critical': 'orange-600', 'high': 'orange-400',
-                              'moderate': 'yellow-400', 'low': 'slate-400'}.get(case.impact_level, 'slate-400') }}">
+                              'moderate': 'yellow-400', 'low': 'zinc-400'}.get(case.impact_level, 'zinc-400') }}">
           {{ case.impact_level | upper }}
         </span>
       </span>
     {% endif %}
     <nav class="ml-auto flex gap-4 text-sm">
-      <a href="{{ url_for('dashboard') }}" class="hover:text-amber-300">Dashboard</a>
+      <a href="{{ url_for('dashboard') }}" class="hover:text-amber-300">COP</a>
       <a href="{{ url_for('gates') }}" class="hover:text-amber-300">
         Authority Gates
         <span id="pending-pill"></span>
@@ -51,7 +51,7 @@
       <a href="{{ url_for('intel_view') }}" class="hover:text-amber-300">Intel</a>
       <a href="{{ url_for('setup_view') }}" class="hover:text-amber-300">Setup</a>
       <a href="{{ url_for('cases_list') }}" class="hover:text-amber-300 text-sky-400">Cases</a>
-      <a href="{{ url_for('new_case_view') }}" class="hover:text-amber-300 text-slate-300">+ New case</a>
+      <a href="{{ url_for('new_case_view') }}" class="hover:text-amber-300 text-zinc-300">+ New case</a>
     </nav>
   </header>
 
@@ -59,7 +59,7 @@
     {% block content %}{% endblock %}
   </main>
 
-  <footer class="text-xs text-slate-500 p-3 border-t border-slate-800 leading-snug">
+  <footer class="text-xs text-zinc-500 p-3 border-t border-zinc-800 leading-snug">
     {{ labels.framework_attribution }}
     <br>
     SIFTics &middot; SANS Find Evil! hackathon submission &middot;

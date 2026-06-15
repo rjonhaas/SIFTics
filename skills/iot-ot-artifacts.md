@@ -217,3 +217,35 @@ the device make/model and protocol name if known.
 - [ ] For logs: parse timestamps to UTC, build timeline, identify anomalous events
 - [ ] Flag any engineering workstation connection to a PLC outside normal change windows
 - [ ] Document what tools were available and what couldn't be parsed - invoke Daedalus for gaps
+
+---
+
+## Authority Gate trigger - process safety impact
+
+OT/ICS findings that affect physical process state are not ordinary endpoint
+findings. If evidence shows any of the following, surface an Authority Gate path
+immediately after recording the finding:
+
+- water-treatment chemistry setpoint changed outside baseline
+- PLC/HMI control value modified by an unauthorized user or pivot host
+- operator visibility, alarming, dosing, pressure, temperature, HVAC, medical, or
+  building-control safety function may be affected
+
+Required sequence:
+
+1. Record the artifact-backed finding with `finding_record()`.
+2. Load `/safety-officer` and call `consult_safety_officer()` for the proposed
+   containment action. For a water-treatment HMI, personnel safety is normally
+   `high` or `critical`; a `hard_stop` is expected unless plant operations has
+   confirmed a safe manual fallback.
+3. Attempt the Authority Gate path anyway through
+   `mcp_containment.propose_host_isolation()` or `request_approval()` using
+   `gate="containment_action"`. If Safety hard-stops it, that blocked gate is
+   still a required IC-visible event.
+4. Post a briefing that states whether the gate is pending or blocked, the
+   Safety Officer rationale, and the operational preconditions before any
+   containment.
+
+Never silently continue after finding OT process tamper. The IC needs an
+explicit decision surface even when the correct answer is "do not isolate until
+plant operations confirms it is safe."

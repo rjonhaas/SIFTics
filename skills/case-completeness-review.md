@@ -104,6 +104,21 @@ The list above is starting fuel, not a checklist. The case might demand
 none of these, all of these, or others entirely (firmware analysis,
 S3 bucket access logs, FIDO2 attestation chains, container layer diffs).
 
+### Mandatory category when IOCs have been generated
+
+If `ioc_generated` events are present in the audit chain, you MUST include
+the category `intel_publication_proposal` in your enumeration. Coverage is
+satisfied **only** by a matching `ic_request_approval` event with
+`gate=publish_intel` that cites those IOC IDs. If the IOCs exist but no
+publish_intel gate has been proposed, set
+`gap_severity: high` with the rationale *"IOCs generated without
+publish_intel proposal — SIFTics found evil but the IC was never asked to
+fight evil. Closing the case without proposing this gate violates the
+operating loop's step 7."* This is the only category whose presence is
+determined by the case state mechanically rather than by your judgement;
+it exists because IOC generation without the corresponding fight-evil gate
+is the dominant LLM half-execution failure mode for this loop.
+
 ### Pass 3: Per-category coverage assessment
 
 For each category in your enumeration (first run) or the locked list

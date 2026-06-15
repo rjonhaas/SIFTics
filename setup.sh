@@ -67,6 +67,7 @@ FILES
   .venv/                     Python virtual environment
   mcp_baseline/baseline.sqlite  Rathbun known-good Windows baseline DB
   mcp_rag/index/             Forensic RAG index (Sigma + ATT&CK + LOLBAS + Atomic Red Team)
+  ~/Desktop/cases/           Canonical local case/evidence root used by the UI
   /tmp/siftics-ui.log        Web UI stdout / stderr
   /tmp/siftics_*.log         Per-step log files for baseline build
 
@@ -125,6 +126,8 @@ done
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$REPO_ROOT"
 
+DEFAULT_CASE_ROOT="$HOME/Desktop/cases"
+
 # --kill-all short-circuits everything else: stop processes + free the port,
 # then exit so the operator can re-run setup cleanly.
 if [[ "${KILL_ALL:-no}" == "yes" ]]; then
@@ -150,6 +153,32 @@ ok()    { green "ok${1:+ ($1)}"; }
 skip()  { cyan "skip${1:+ ($1)}"; }
 warn()  { yel  "warn${1:+ ($1)}"; }
 die()   { red  "fail${1:+ ($1)}"; echo; red "$2"; exit 1; }
+
+ensure_case_root() {
+    mkdir -p "$HOME/Desktop" "$DEFAULT_CASE_ROOT"
+
+    local canonical_root
+    canonical_root="$(readlink -f "$DEFAULT_CASE_ROOT")"
+
+    # A surprising root-level /Desktop/cases tree creates two different places
+    # for evidence: the UI defaults to ~/Desktop/cases, while an operator typing
+    # /Desktop/cases lands elsewhere. Stop early instead of silently splitting
+    # case state from evidence.
+    if [[ -e /Desktop/cases ]]; then
+        local root_level
+        root_level="$(readlink -f /Desktop/cases)"
+        if [[ "$root_level" != "$canonical_root" ]]; then
+            die "" "Detected a separate /Desktop/cases tree, but SIFTics uses ~/Desktop/cases.
+       Canonical case root: $DEFAULT_CASE_ROOT -> $canonical_root
+       Conflicting path:     /Desktop/cases -> $root_level
+
+       Move that evidence under ~/Desktop/cases, then remove /Desktop/cases.
+       This guard prevents evidence from being staged in a path the UI will not show."
+        fi
+    fi
+
+    export SIFTICS_CASE_BASE="$DEFAULT_CASE_ROOT"
+}
 
 # Run a command in the background while showing an animated spinner.
 # Usage: _progress_install "Label" cmd [args...]
@@ -183,6 +212,8 @@ TOTAL_STEPS=7
 # ---------------------------------------------------------------------------
 
 step 1 "$TOTAL_STEPS" "checking system prereqs"
+
+ensure_case_root
 
 if ! command -v python3 >/dev/null; then
     die "" "python3 is required. Install with: sudo apt install python3"

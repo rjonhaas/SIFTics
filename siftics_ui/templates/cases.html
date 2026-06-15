@@ -12,42 +12,42 @@
   </div>
 
   {% if not cases %}
-  <div class="bg-slate-900 border border-slate-700 rounded-lg p-8 text-center text-slate-400">
-    <p class="mb-2">No cases found in <code class="text-slate-300">{{ base }}</code></p>
+  <div class="bg-zinc-900 border border-zinc-700 rounded-lg p-8 text-center text-zinc-400">
+    <p class="mb-2">No cases found in <code class="text-zinc-300">{{ base }}</code></p>
     <p class="text-sm">Create your first case with <strong>+ New case</strong> above.</p>
   </div>
   {% else %}
   <div class="space-y-3">
     {% for c in cases %}
-    <div class="bg-slate-900 border {% if c.active %}border-amber-600{% else %}border-slate-700{% endif %} rounded-lg p-4 flex items-center gap-4">
+    <div class="bg-zinc-900 border {% if c.active %}border-amber-600{% else %}border-zinc-700{% endif %} rounded-lg p-4 flex items-center gap-4">
 
       <!-- impact dot -->
       <span class="w-2.5 h-2.5 rounded-full flex-shrink-0
         {% if c.impact_level == 'critical' %}bg-orange-600 ring-2 ring-orange-300
         {% elif c.impact_level == 'high' %}bg-orange-400
         {% elif c.impact_level == 'moderate' %}bg-yellow-400
-        {% else %}bg-slate-500{% endif %}"></span>
+        {% else %}bg-zinc-500{% endif %}"></span>
 
       <!-- case info -->
       <div class="flex-1 min-w-0">
         <div class="flex items-center gap-2">
-          <span class="font-semibold text-slate-100 truncate">{{ c.name or c.case_id }}</span>
+          <span class="font-semibold text-zinc-100 truncate">{{ c.name or c.case_id }}</span>
           {% if c.active %}
           <span class="text-xs bg-amber-900 text-amber-300 px-2 py-0.5 rounded">active</span>
           {% endif %}
         </div>
-        <div class="text-xs text-slate-400 mt-0.5 space-x-3">
-          <span>ID: <code class="text-slate-300">{{ c.case_id }}</code></span>
+        <div class="text-xs text-zinc-400 mt-0.5 space-x-3">
+          <span>ID: <code class="text-zinc-300">{{ c.case_id }}</code></span>
           <span>Commander: {{ c.ic_name or '—' }}</span>
           <span>Impact: {{ c.impact_level }}</span>
           {% if c.opened_at %}
           <span>Opened: {{ c.opened_at[:10] }}</span>
           {% endif %}
         </div>
-        <div class="text-xs text-slate-500 mt-0.5 font-mono truncate">{{ c.path }}</div>
+        <div class="text-xs text-zinc-500 mt-0.5 font-mono truncate">{{ c.path }}</div>
         {% if c.evidence_files %}
-        <div class="text-xs text-slate-600 mt-1">
-          Evidence: {% for f in c.evidence_files %}<code class="text-slate-500">{{ f }}</code>{% if not loop.last %}, {% endif %}{% endfor %}
+        <div class="text-xs text-zinc-600 mt-1">
+          Evidence: {% for f in c.evidence_files %}<code class="text-zinc-500">{{ f }}</code>{% if not loop.last %}, {% endif %}{% endfor %}
         </div>
         {% else %}
         <div class="text-xs text-yellow-800 mt-1">No evidence in {{ c.evidence_dir }} yet</div>
@@ -64,7 +64,7 @@
       <form class="switch-form" method="post" action="{{ url_for('cases_switch') }}">
         <input type="hidden" name="case_path" value="{{ c.path }}">
         <button type="submit"
-                class="flex-shrink-0 bg-slate-700 hover:bg-slate-600 px-4 py-1.5 rounded text-sm font-semibold">
+                class="flex-shrink-0 bg-zinc-700 hover:bg-zinc-600 px-4 py-1.5 rounded text-sm font-semibold">
           Open
         </button>
       </form>
@@ -74,7 +74,7 @@
   </div>
   {% endif %}
 
-  <p class="text-xs text-slate-600 mt-6">
+  <p class="text-xs text-zinc-600 mt-6">
     Scanning <code>{{ base }}</code> for case directories.
     Cases without a <code>case.json</code> are not shown.
   </p>

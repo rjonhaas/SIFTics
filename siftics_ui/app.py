@@ -6,9 +6,12 @@ Run via: siftics-ui run   (preferred)
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import os
 import queue
+import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -24,6 +27,7 @@ from siftics import (
     case_state,
     cost_tracker,
     ic_approval,
+    ingest,
     runtime_config,
 )
 
@@ -35,6 +39,84 @@ from .labels import load_labels
 # can confirm which model is actually running without diving into code.
 AGENT_MODEL = "claude-sonnet-4-6"
 AGENT_MODEL_LABEL = "Sonnet 4.6"
+
+
+def _agent_operating_contract() -> str:
+    return (
+        "SIFTics operating contract:\n"
+        "- Source evidence is only under the evidence directory. Do not treat "
+        "case JSON/JSONL files as forensic evidence.\n"
+        "- The deterministic DFIR operations layer runs before you start. "
+        "Read `evidence_manifest.json` / `evidence_quicklook.md` and call "
+        "mcp__siftics_case__evidence_manifest before broad exploration. "
+        "Use those outputs as launch pivots, not as replacements for source evidence.\n"
+        "- Before broad artifact exploration, establish the COP with "
+        "mcp__siftics_case__case_get_header, mcp__siftics_case__itq_unanswered, "
+        "and mcp__siftics_case__asr_open. The itq_* tools are the legacy "
+        "persistence API for Lines of Inquiry: use them as case-specific "
+        "investigation objectives and sub-checks, not as a rote questionnaire.\n"
+        "- Every artifact-backed factual claim must be persisted immediately "
+        "with mcp__siftics_case__finding_record(claim, artifact_path, "
+        "artifact_source, tool, command, output_excerpt, linked_itq, linked_asr). "
+        "Do not merely narrate findings in chat.\n"
+        "- After recording findings, close directly supported Lines of Inquiry "
+        "with mcp__siftics_case__itq_answer and post a short "
+        "mcp__siftics_case__briefing_post update. Skip or mark non-applicable "
+        "checks only when the evidence type or case scope makes them irrelevant.\n"
+        "- OT/ICS process tamper, unsafe setpoint changes, or water/medical/"
+        "building-control impact must surface an Authority Gate path: record "
+        "the finding, consult the Safety Officer, then propose containment via "
+        "mcp_containment.propose_host_isolation or "
+        "mcp__siftics_ic_approval__request_approval. If Safety hard-stops the "
+        "gate, brief that blocked gate immediately.\n"
+        "- If a slash skill is unavailable, read the matching markdown under "
+        "the repo skills/ directory and continue.\n"
+    )
+
+
+def _skill_context_block(skill_names: tuple[str, ...] = ("investigation-section-chief",)) -> str:
+    """Inline critical role skills and audit the exact hashes injected.
+
+    Slash skills are useful when the CLI supports them, but the product should
+    not depend on a best-effort slash command for its core NIMS role doctrine.
+    """
+    repo_root = Path(__file__).parent.parent
+    blocks: list[str] = []
+    injected: list[dict] = []
+    for name in skill_names:
+        path = repo_root / "skills" / f"{name}.md"
+        try:
+            text = path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            continue
+        digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        injected.append({
+            "name": name,
+            "path": str(path.relative_to(repo_root)),
+            "sha256": digest,
+            "bytes": len(text.encode("utf-8")),
+        })
+        blocks.append(
+            f"--- BEGIN REQUIRED SIFTICS SKILL: {name} sha256={digest} ---\n"
+            f"{text}\n"
+            f"--- END REQUIRED SIFTICS SKILL: {name} ---"
+        )
+    if injected:
+        try:
+            audit.append_event("agent_skill_context_injected",
+                               {"skills": injected},
+                               actor="dfir-operations")
+        except Exception:
+            pass
+    if not blocks:
+        return ""
+    return (
+        "Required SIFTics role skill context is inlined below. Treat this as "
+        "the active Investigation Section Chief doctrine for this run; do not "
+        "wait for slash-skill loading before following it.\n\n"
+        + "\n\n".join(blocks)
+        + "\n"
+    )
 
 
 def create_app() -> Flask:
@@ -91,17 +173,23 @@ def create_app() -> Flask:
 
     @app.route("/dashboard/itq-progress")
     def dashboard_itq_progress():
-        return render_template("_itq_progress.html", itq=case_state.itq_progress())
+        return render_template("_itq_progress.html",
+                               itq=case_state.itq_progress(),
+                               loi=_cop_snapshot().get("loi", {}))
 
     @app.route("/gates")
     def gates():
         pending = _list_pending_gates()
+        blocked = _list_blocked_gates()
         recent = _list_signed_gates(limit=10)
-        return render_template("gates.html", pending=pending, recent=recent)
+        return render_template("gates.html", pending=pending, blocked=blocked,
+                               recent=recent)
 
     @app.route("/gates/pending-count")
     def gates_pending_count():
-        return render_template("_pending_gates.html", pending=_list_pending_gates())
+        return render_template("_pending_gates.html",
+                               pending=_list_pending_gates(),
+                               blocked=_list_blocked_gates())
 
     @app.route("/gates/sign", methods=["POST"])
     def gates_sign():
@@ -204,9 +292,9 @@ def create_app() -> Flask:
                 lines.append(f.get('impact_description', '') + "\n")
 
         if itq_answered:
-            lines.append("---\n## Triage Questions\n")
+            lines.append("---\n## Lines of Inquiry\n")
             for q in itq_answered:
-                lines.append(f"**{q.get('question_id')}** — {q.get('question', '')}")
+                lines.append(f"**{q.get('question_id')}** - {q.get('question', '')}")
                 lines.append(f"> {q.get('answer', '')}\n")
 
         for b in briefings:
@@ -628,8 +716,11 @@ def create_app() -> Flask:
 
     @app.route("/dashboard/gates-summary")
     def dashboard_gates_summary():
+        pending = _list_pending_gates()
+        blocked = _list_blocked_gates()
         return render_template("_gates_summary.html",
-                                pending_gate_count=len(_list_pending_gates()))
+                                pending_gate_count=len(pending),
+                                blocked_gate_count=len(blocked))
 
     # -----------------------------------------------------------------
     # Claude Code agent — subprocess integration
@@ -641,9 +732,29 @@ def create_app() -> Flask:
             case_path = audit.case_dir()
         except Exception:
             return Response("No case loaded.", status=400)
+        budget_error = _budget_error_response()
+        if budget_error is not None:
+            return budget_error
         evidence_dir = case_path / "evidence"
         evidence_files = sorted(evidence_dir.iterdir()) if evidence_dir.exists() else []
         evidence_list = "\n".join(f"  - {f.name}" for f in evidence_files) if evidence_files else "  (no files yet - drop evidence into the evidence/ folder)"
+        try:
+            manifest = ingest.ensure_case_ingest(case_path)
+            quicklook = ingest.read_quicklook(case_path, max_chars=14000)
+            ingest_block = (
+                "Deterministic DFIR operations layer completed before this turn.\n"
+                f"Manifest: {case_path / 'evidence_manifest.json'}\n"
+                f"Quicklook: {case_path / 'evidence_quicklook.md'}\n"
+                f"Evidence files inventoried: {manifest.get('evidence_file_count', 0)}\n\n"
+                f"{quicklook}\n"
+            )
+        except Exception as exc:
+            ingest_block = (
+                "Deterministic DFIR operations layer failed before this turn. "
+                f"Treat this as a product issue and proceed carefully from source evidence only. "
+                f"Error: {exc}\n"
+            )
+        skill_block = _skill_context_block()
         # Pull the IC briefing from the case header so we can lead with it.
         # Treat absence as fine - many cases won't have one.
         try:
@@ -663,9 +774,15 @@ def create_app() -> Flask:
             f"Evidence is in: {evidence_dir}\n"
             f"Evidence files:\n{evidence_list}\n\n"
             f"Case directory: {case_path}\n\n"
+            f"{ingest_block}\n"
+            f"{skill_block}\n"
+            f"{_agent_operating_contract()}\n"
             f"Introduce yourself briefly, confirm what evidence you can see, "
-            f"read the open triage questions, state your initial plan, then begin working. "
-            f"Use /investigation-section-chief to guide your workflow — it lists all available "
+            f"confirm you read the deterministic ingest manifest, "
+            f"read the open Lines of Inquiry, create/open the first affected-system row, "
+            f"record initial evidence-backed findings as soon as you prove them, "
+            f"then begin deeper work. "
+            f"The inlined Investigation Section Chief skill lists all available "
             f"domain skills (/windows-artifacts, /linux-server-artifacts, /macos-artifacts, "
             f"/iot-ot-artifacts, /malware-triage, /timeline-reconstruction, "
             f"/anti-forensics-detection, /reporting-conventions, /daedalus). "
@@ -687,6 +804,9 @@ def create_app() -> Flask:
             case_path = audit.case_dir()
         except Exception:
             return Response("No case loaded.", status=400)
+        budget_error = _budget_error_response()
+        if budget_error is not None:
+            return budget_error
         message = request.form.get("message", "").strip()
         if not message:
             return Response("Empty message.", status=400)
@@ -702,12 +822,49 @@ def create_app() -> Flask:
                     session_id = None
             except Exception:
                 pass
-        cmd, env = _make_agent_cmd(case_path, message, session_id=session_id)
+        prompt = f"{_agent_operating_contract()}\nOperator message:\n{message}"
+        cmd, env = _make_agent_cmd(case_path, prompt, session_id=session_id)
         def generate():
             yield from _stream_agent(cmd, env, case_path)
             yield "data: " + json.dumps({"type": "ui", "subtype": "agent_done"}) + "\n\n"
         return Response(generate(), mimetype="text/event-stream",
                         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+    @app.route("/api/agent/stop", methods=["POST"])
+    def api_agent_stop():
+        """Halt the running agent for the current case. SIGTERM, then SIGKILL
+        if it doesn't exit within 5s. Records an audit event so the cessation
+        is in the chain — DFIR posture demands a record of *who* stopped *what*."""
+        try:
+            case_path = audit.case_dir()
+        except Exception:
+            return Response("No case loaded.", status=400)
+        with _agent_lock_meta:
+            proc = _agent_procs.get(str(case_path))
+        if proc is None or proc.poll() is not None:
+            return jsonify({"stopped": False, "reason": "no agent running"})
+        try:
+            proc.terminate()
+            try:
+                proc.wait(timeout=5)
+                signal_used = "SIGTERM"
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=2)
+                signal_used = "SIGKILL"
+        except Exception as exc:
+            return jsonify({"stopped": False, "reason": str(exc)}), 500
+        try:
+            audit.append_event(
+                "agent_stopped",
+                {"reason": "operator_requested",
+                 "signal": signal_used,
+                 "pid": proc.pid},
+                actor="operator",
+            )
+        except Exception:
+            pass
+        return jsonify({"stopped": True, "signal": signal_used, "pid": proc.pid})
 
     @app.route("/api/agent/status")
     def api_agent_status():
@@ -740,7 +897,18 @@ def create_app() -> Flask:
         llm_calls = sum(1 for e in events if e["type"] == "llm_call")
         itq_answered = sum(1 for e in events if e["type"] == "itq_answered")
         asr_count = sum(1 for e in events if e["type"] in ("asr_appended", "asr_updated"))
-        if llm_calls == 0:
+        finding_count = sum(1 for e in events if e["type"] == "finding_recorded")
+        try:
+            case_path = audit.case_dir()
+            lock = _case_lock(str(case_path))
+            running = not lock.acquire(blocking=False)
+            if not running:
+                lock.release()
+        except Exception:
+            running = False
+        if running:
+            state = "active"
+        elif llm_calls == 0 and finding_count == 0:
             state = "fresh"
         elif any(e["type"] == "case_closed" for e in events):
             state = "complete"
@@ -756,6 +924,8 @@ def create_app() -> Flask:
             "llm_calls": llm_calls,
             "itq_answered": itq_answered,
             "asr_count": asr_count,
+            "finding_count": finding_count,
+            "agent_running": running,
             "phase_runs": phase_runs,
         })
 
@@ -769,7 +939,7 @@ def create_app() -> Flask:
         readable = []
         labels = {
             "llm_call":             "Agent LLM call",
-            "itq_answered":         "ITQ question answered",
+            "itq_answered":         "Line of Inquiry updated",
             "asr_appended":         "Finding recorded",
             "asr_updated":          "Finding updated",
             "cet_appended":         "CET entry added",
@@ -780,10 +950,14 @@ def create_app() -> Flask:
             "cti_lookup":           "CTI IOC lookup",
             "briefing_posted":      "Briefing posted",
             "finding_recorded":     "Evidence finding recorded",
+            "case_ingest_completed": "Evidence ingest complete",
+            "agent_skill_context_injected": "Role context injected",
+            "agent_stopped":         "Agent stopped",
+            "authority_gate_blocked": "Authority Gate blocked",
             "ioc_generated":        "IOC artifact generated",
             "intel_published":      "Intel published",
             "case_initialised":     "Case initialised",
-            "itq_seeded":           "ITQ seeded",
+            "itq_seeded":           "Inquiry board seeded",
             "phase_started":        "Phase started",
             "phase_complete":       "Phase complete",
         }
@@ -804,6 +978,12 @@ def create_app() -> Flask:
                 detail = payload.get("phase_id", "")
             elif e["type"] == "finding_recorded":
                 detail = payload.get("finding_id", "")
+            elif e["type"] == "case_ingest_completed":
+                detail = f"{payload.get('evidence_file_count', '')} files"
+            elif e["type"] == "agent_skill_context_injected":
+                detail = ", ".join(s.get("name", "") for s in payload.get("skills", []))
+            elif e["type"] == "authority_gate_blocked":
+                detail = payload.get("blocked_by", "")
             elif e["type"] == "ioc_generated":
                 detail = payload.get("ioc_id", "") + " " + payload.get("ioc_type", "")
             elif e["type"] == "intel_published":
@@ -858,6 +1038,11 @@ def create_app() -> Flask:
 _agent_locks: dict = {}
 _agent_lock_meta = threading.Lock()
 
+# Active claude subprocesses keyed by absolute case path. Populated by
+# _stream_agent when the Popen lands; cleared in its finally. The /api/agent/stop
+# endpoint reads this to send SIGTERM. Same lock object protects both maps.
+_agent_procs: dict = {}
+
 
 def _case_lock(case_path: str) -> threading.Lock:
     with _agent_lock_meta:
@@ -885,7 +1070,10 @@ def _write_session(case_path: Path, data: dict) -> None:
 
 
 def _mcp_config(case_path: str, venv_python: str) -> dict:
-    env_block = {"SIFTICS_CASE_DIR": case_path}
+    env_block = {
+        "SIFTICS_CASE_DIR": case_path,
+        "SIFTICS_BROKER_MODE": os.environ.get("SIFTICS_BROKER_MODE", "mock"),
+    }
     servers = {
         "siftics_case":        {"command": venv_python, "args": ["-m", "mcp_case.server"],        "env": env_block},
         "siftics_ic_approval": {"command": venv_python, "args": ["-m", "mcp_ic_approval.server"], "env": env_block},
@@ -908,9 +1096,27 @@ def _stream_agent(cmd: list, env: dict, case_path: Path):
     # Accumulate token usage across all assistant turns so we can write a
     # single llm_call audit event when the result event arrives.
     _usage = {"input": 0, "cached_read": 0, "cached_creation": 0, "output": 0, "model": ""}
+    proc = None
+    non_json_tail: list[str] = []
     try:
-        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                text=True, env=env)
+        try:
+            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                    text=True, env=env)
+        except FileNotFoundError as exc:
+            yield "data: " + json.dumps({
+                "type": "error",
+                "message": (
+                    f"Agent executable not found: {cmd[0]}. "
+                    "Install Claude Code with ./setup.sh --install-claude, "
+                    "or ensure the claude CLI is on PATH."
+                ),
+                "detail": str(exc),
+            }) + "\n\n"
+            return
+        # Register so /api/agent/stop can find it. Keyed by case path.
+        with _agent_lock_meta:
+            _agent_procs[str(case_path)] = proc
+        assert proc.stdout is not None
         for raw in proc.stdout:
             raw = raw.strip()
             if not raw:
@@ -918,6 +1124,8 @@ def _stream_agent(cmd: list, env: dict, case_path: Path):
             try:
                 evt = json.loads(raw)
             except Exception:
+                non_json_tail.append(raw)
+                non_json_tail = non_json_tail[-12:]
                 continue
             if evt.get("type") == "system" and evt.get("session_id"):
                 sess = _read_session(case_path)
@@ -968,17 +1176,34 @@ def _stream_agent(cmd: list, env: dict, case_path: Path):
                 except Exception:
                     pass
             yield "data: " + json.dumps(evt) + "\n\n"
-        proc.wait()
+        rc = proc.wait()
+        if rc != 0:
+            msg = f"Agent process exited with status {rc}."
+            if non_json_tail:
+                msg += " Last output:\n" + "\n".join(non_json_tail[-6:])
+            yield "data: " + json.dumps({"type": "error", "message": msg}) + "\n\n"
     finally:
+        with _agent_lock_meta:
+            _agent_procs.pop(str(case_path), None)
         lock.release()
 
 
 def _make_agent_cmd(case_path: Path, prompt: str,
                     session_id: str | None = None) -> tuple[list, dict]:
-    venv_bin = str(Path(__file__).parent.parent / ".venv" / "bin")
-    venv_python = str(Path(venv_bin) / "python3")
-    mcp_file = Path(tempfile.mktemp(suffix=".json", prefix="siftics_mcp_"))
-    mcp_file.write_text(json.dumps(_mcp_config(str(case_path), venv_python)))
+    repo_root = Path(__file__).parent.parent
+    venv_bin_path = repo_root / ".venv" / "bin"
+    venv_python_path = venv_bin_path / "python3"
+    if venv_python_path.exists():
+        venv_python = str(venv_python_path)
+        venv_bin = str(venv_bin_path)
+    else:
+        venv_python = sys.executable or shutil.which("python3") or "python3"
+        venv_bin = str(Path(venv_python).parent)
+    with tempfile.NamedTemporaryFile("w", suffix=".json", prefix="siftics_mcp_",
+                                     delete=False, encoding="utf-8") as fh:
+        json.dump(_mcp_config(str(case_path), venv_python), fh)
+        mcp_file = Path(fh.name)
+    os.chmod(mcp_file, 0o600)
     # Prompt must come before variadic flags (--mcp-config consumes subsequent args).
     # --dangerously-skip-permissions required: permission prompts block in the background
     # process and cannot be answered from the browser UI.
@@ -1001,6 +1226,10 @@ def _make_agent_cmd(case_path: Path, prompt: str,
     env = {**os.environ, "SIFTICS_CASE_DIR": str(case_path)}
     env["PATH"] = venv_bin + os.pathsep + env.get("PATH", "")
     env["VIRTUAL_ENV"] = str(Path(venv_bin).parent)
+    env["PYTHONPATH"] = (
+        str(repo_root) + os.pathsep + env["PYTHONPATH"]
+        if env.get("PYTHONPATH") else str(repo_root)
+    )
     return cmd, env
 
 
@@ -1018,16 +1247,231 @@ def _dashboard_context() -> dict:
         cfg = runtime_config.load_config(case_dir=audit.case_dir())
     except Exception:
         cfg = runtime_config.RuntimeConfig()
+    cop = _cop_snapshot()
     return {
         "case": header,
         "latest_briefing": case_state.briefing_latest(),
         "asr": _asr_summary(),
         "cet": _cet_summary(),
         "itq": case_state.itq_progress(),
-        "pending_gate_count": len(_list_pending_gates()),
+        "pending_gate_count": len(_list_pending_gates()) + len(_list_blocked_gates()),
+        "blocked_gate_count": len(_list_blocked_gates()),
         "draft_ioc_count": _draft_ioc_count(),
         "runtime": _runtime_status(),
         "cfg": cfg,
+        "cop": cop,
+        "loi": cop.get("loi", {}),
+    }
+
+
+def _cop_snapshot() -> dict:
+    """Operator-facing Common Operating Picture summary for the dashboard."""
+    try:
+        from siftics import findings as findings_lib
+        evidence_findings = findings_lib.finding_list()
+    except Exception:
+        evidence_findings = []
+    try:
+        events = list(audit.iter_events(limit=250))
+    except Exception:
+        events = []
+    try:
+        manifest = ingest.read_manifest()
+    except Exception:
+        manifest = {}
+    try:
+        briefings = case_state.briefing_history(limit=100)
+    except Exception:
+        briefings = []
+    loi = _lines_of_inquiry_snapshot(manifest=manifest,
+                                     evidence_findings=evidence_findings)
+    try:
+        case_path = audit.case_dir()
+        lock = _case_lock(str(case_path))
+        running = not lock.acquire(blocking=False)
+        if not running:
+            lock.release()
+    except Exception:
+        running = False
+
+    event_types = [e.get("type", "") for e in events]
+    ingest_event = next((e for e in reversed(events)
+                         if e.get("type") == "case_ingest_completed"), None)
+    skill_event = next((e for e in reversed(events)
+                        if e.get("type") == "agent_skill_context_injected"), None)
+    last_write = events[-1] if events else None
+    durable_types = {
+        "finding_recorded", "asr_appended", "asr_updated", "itq_answered",
+        "briefing_posted", "ic_request_approval", "authority_gate_blocked",
+        "case_ingest_completed", "agent_skill_context_injected",
+    }
+    last_durable = next((e for e in reversed(events)
+                         if e.get("type") in durable_types), None)
+
+    incident_time_re = re.compile(
+        r"(?:Sep\s+\d{1,2},?\s+2020\s+\d{2}:\d{2}:\d{2}|"
+        r"Sep\s+\d{1,2}\s+2020\s+\d{2}:\d{2}:\d{2}|"
+        r"2020-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2})"
+    )
+    timeline = []
+    for f in evidence_findings:
+        text = " ".join([
+            str(f.get("claim", "")),
+            str(f.get("output_excerpt", "")),
+        ])
+        m = incident_time_re.search(text)
+        timeline.append({
+            "when": m.group(0) if m else (f.get("recorded_at", "")[11:19] + "Z"),
+            "finding_id": f.get("finding_id", ""),
+            "claim": f.get("claim", ""),
+            "source": f.get("artifact_source", ""),
+        })
+
+    evidence_items = manifest.get("evidence", []) if isinstance(manifest, dict) else []
+    extracted_count = sum(len((item.get("zip") or {}).get("extracted", []))
+                          for item in evidence_items)
+    return {
+        "agent_running": running,
+        "evidence_findings": evidence_findings,
+        "recent_findings": list(reversed(evidence_findings[-5:])),
+        "timeline": timeline[:8],
+        "last_write": last_write,
+        "last_durable": last_durable,
+        "ingest_complete": ingest_event is not None,
+        "ingest_event": ingest_event,
+        "skill_injected": skill_event is not None,
+        "skill_event": skill_event,
+        "operator_stops": event_types.count("agent_stopped"),
+        "llm_calls": event_types.count("llm_call"),
+        "briefing_count": len(briefings),
+        "latest_briefing": briefings[0] if briefings else None,
+        "loi": loi,
+        "evidence_file_count": manifest.get("evidence_file_count", 0)
+                               if isinstance(manifest, dict) else 0,
+        "pcap_quicklook_count": len(manifest.get("pcap_quicklooks", []))
+                                if isinstance(manifest, dict) else 0,
+        "extracted_count": extracted_count,
+    }
+
+
+_LOI_DEFINITIONS = {
+    "scope": {
+        "title": "Incident Scope and Timeline",
+        "objective": "Bound initial access, detection, related incidents, and declared scope.",
+    },
+    "platform": {
+        "title": "Affected Platforms and Dependencies",
+        "objective": "Identify impacted hosts, services, ownership boundaries, and dependencies.",
+    },
+    "logs": {
+        "title": "Telemetry and Evidence Coverage",
+        "objective": "Inventory logs, retention, tamper resistance, and anti-forensics signals.",
+    },
+    "ownership": {
+        "title": "Ownership, Legal, and Reporting",
+        "objective": "Identify system/data owners and any legal or regulator obligations.",
+    },
+    "tooling": {
+        "title": "Analysis Capability",
+        "objective": "Confirm tools, live-response coverage, and analyst capacity for this evidence.",
+    },
+    "business_impact": {
+        "title": "Business Impact and Data Exposure",
+        "objective": "Assess exposed data, exfiltration, customer impact, and financial exposure.",
+    },
+    "containment": {
+        "title": "Containment and Eradication Readiness",
+        "objective": "Track actions taken, credential risk, attacker activity, and eradication plan.",
+    },
+    "communication": {
+        "title": "Command Communications",
+        "objective": "Keep IC cadence, external comms, and notification timelines explicit.",
+    },
+}
+
+
+def _lines_of_inquiry_snapshot(manifest: dict | None = None,
+                               evidence_findings: list[dict] | None = None) -> dict:
+    """Translate legacy ITQ rows into an operator-facing inquiry board."""
+    try:
+        rows = case_state.itq_all()
+    except Exception:
+        rows = []
+    manifest = manifest if isinstance(manifest, dict) else {}
+    evidence_findings = evidence_findings or []
+
+    categories: dict[str, list[dict]] = {}
+    for row in rows:
+        categories.setdefault(row.get("category") or "uncategorized", []).append(row)
+
+    lines = []
+    for category, grouped in categories.items():
+        definition = _LOI_DEFINITIONS.get(category, {
+            "title": category.replace("_", " ").title(),
+            "objective": "Resolve case-specific investigative gaps in this area.",
+        })
+        total = len(grouped)
+        answered = sum(1 for q in grouped
+                       if q.get("status") in ("completed", "not_applicable"))
+        active = sum(1 for q in grouped
+                     if q.get("status") == "in_progress" or q.get("answer"))
+        current = next((q for q in grouped
+                        if q.get("status") in ("open", "in_progress")), None)
+        if total and answered == total:
+            status = "closed"
+        elif active or answered:
+            status = "active"
+        else:
+            status = "open"
+        lines.append({
+            "category": category,
+            "title": definition["title"],
+            "objective": definition["objective"],
+            "answered": answered,
+            "total": total,
+            "pct": round(100 * answered / total, 1) if total else 0.0,
+            "status": status,
+            "current": current,
+        })
+
+    priority = {"active": 0, "open": 1, "closed": 2}
+    lines.sort(key=lambda item: (priority.get(item["status"], 9), item["category"]))
+
+    evidence_items = manifest.get("evidence", [])
+    type_counts: dict[str, int] = {}
+    for item in evidence_items:
+        kind = item.get("kind")
+        if kind:
+            type_counts[kind] = type_counts.get(kind, 0) + 1
+        for member_kind, count in ((item.get("zip") or {})
+                                   .get("member_type_counts") or {}).items():
+            type_counts[member_kind] = type_counts.get(member_kind, 0) + int(count)
+
+    evidence_drivers = []
+    driver_defs = [
+        ("disk_image", "Disk forensics", "Registry, EVTX, filesystem, execution artifacts"),
+        ("memory_image", "Memory forensics", "Processes, injected code, credentials, network state"),
+        ("network_capture", "Network forensics", "Initial access, C2, lateral movement, exfiltration"),
+        ("zip_container", "Evidence containers", "Archive inventory, hashing, controlled extraction"),
+        ("log", "Log review", "Application, system, and service telemetry"),
+    ]
+    for key, title, objective in driver_defs:
+        count = type_counts.get(key, 0)
+        if count:
+            evidence_drivers.append({
+                "kind": key,
+                "title": title,
+                "objective": objective,
+                "count": count,
+            })
+
+    return {
+        "lines": lines,
+        "evidence_drivers": evidence_drivers,
+        "total_lines": len(lines),
+        "active_lines": sum(1 for item in lines if item["status"] == "active"),
+        "closed_lines": sum(1 for item in lines if item["status"] == "closed"),
+        "finding_count": len(evidence_findings),
     }
 
 
@@ -1057,6 +1501,24 @@ def _runtime_status() -> dict:
         "calls": cache_stats["calls"],
         "cache_hit_rate": cache_stats["cache_hit_rate"],
     }
+
+
+def _budget_error_response() -> Response | None:
+    """Refuse to start a new agent turn once the per-case budget is spent."""
+    try:
+        cfg = runtime_config.load_config(case_dir=audit.case_dir())
+        cost_tracker.check_budget_or_raise(cfg.cost_budget_per_case_usd)
+    except cost_tracker.BudgetExceeded as exc:
+        try:
+            audit.append_event("budget_circuit_breaker",
+                               {"message": str(exc)},
+                               actor="siftics-ui")
+        except Exception:
+            pass
+        return Response(str(exc), status=402, mimetype="text/plain")
+    except Exception:
+        return None
+    return None
 
 
 def _setup_options(cfg) -> list[dict]:
@@ -1103,8 +1565,8 @@ def _executive_summary(header: dict, findings: list, briefings: list, itq: dict)
     what remains. Empty list if no findings exist yet — the template
     then suppresses the section entirely.
 
-    Composed from existing case state (header, ASR rows, briefings, ITQ
-    progress) on every render — sharpens automatically as data accrues.
+    Composed from existing case state (header, ASR rows, briefings, inquiry
+    progress) on every render - sharpens automatically as data accrues.
     No separate field for the agent to maintain.
     """
     import re
@@ -1294,8 +1756,8 @@ def _executive_summary(header: dict, findings: list, briefings: list, itq: dict)
         else:
             remaining.append(f"pending actions on {rendered}")
     if itq_open:
-        q_word = "triage question" if itq_open == 1 else "triage questions"
-        remaining.append(f"{itq_open} unanswered {q_word}")
+        q_word = "inquiry check" if itq_open == 1 else "inquiry checks"
+        remaining.append(f"{itq_open} unresolved {q_word}")
     if remaining:
         if len(remaining) == 1:
             joined = remaining[0]
@@ -1352,6 +1814,31 @@ def _list_pending_gates() -> list[dict]:
     return out
 
 
+def _list_blocked_gates(limit: int = 10) -> list[dict]:
+    out = []
+    for ev in reversed(list(audit.iter_events())):
+        if ev.get("type") != "authority_gate_blocked":
+            continue
+        payload = ev.get("payload") or {}
+        ah = payload.get("action_hash")
+        safety, legal = _command_staff_for(ah) if ah else (None, None)
+        out.append({
+            "request_id": f"blocked-{ev.get('seq')}",
+            "gate": payload.get("gate", ""),
+            "summary": payload.get("summary_first_120", ""),
+            "requested_at": ev.get("ts", ""),
+            "blocked_by": payload.get("blocked_by", ""),
+            "reason": payload.get("reason", ""),
+            "rationale": payload.get("rationale", ""),
+            "action_hash": ah,
+            "safety": safety,
+            "legal": legal,
+        })
+        if len(out) >= limit:
+            break
+    return out
+
+
 def _command_staff_for(ah: str) -> tuple[dict | None, dict | None]:
     """Return (safety_assessment_payload, legal_review_payload) for an
     action_hash — most recent matching audit events, or (None, None) if
@@ -1393,6 +1880,12 @@ def _sign_request(decision: str) -> Response:
     passphrase = request.form.get("passphrase", "")
     if not request_id or not passphrase:
         return Response("missing request_id or passphrase", status=400)
+    pending_request: dict = {}
+    try:
+        pending_path = audit.case_dir() / "approvals" / "pending" / f"{request_id}.json"
+        pending_request = json.loads(pending_path.read_text(encoding="utf-8"))
+    except Exception:
+        pending_request = {}
     try:
         approval = ic_approval.sign_approval(request_id, passphrase, decision)
     except ic_approval.ApprovalInvalidError as e:
@@ -1407,8 +1900,8 @@ def _sign_request(decision: str) -> Response:
         # ("execute the approved action") — this is the "fight back at AI
         # speed" loop closure. Only fires for approvals; denials do not
         # auto-dispatch.
-        gate = _html.escape(str(approval.get("gate") or ""), quote=True)
-        summary = _html.escape(str(approval.get("summary") or "")[:200],
+        gate = _html.escape(str(approval.get("gate") or pending_request.get("gate") or ""), quote=True)
+        summary = _html.escape(str(pending_request.get("summary") or "")[:200],
                                 quote=True)
         req_id_esc = _html.escape(str(request_id), quote=True)
         return Response(

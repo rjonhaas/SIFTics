@@ -1,0 +1,19 @@
+{
+  "action": {
+    "action_class": "intel_publication",
+    "ioc_ids": [
+      "IOC-001",
+      "IOC-002",
+      "IOC-003",
+      "IOC-004"
+    ],
+    "rationale": "Four artifact-backed IOCs ready for circulation: attacker RDP IP 194.61.24.102 (F-001), C2 server 203.78.103.109 (F-012), coreupdater.exe SHA256 (F-006), and service persistence registry key (F-005). Safety and Legal cleared. IC note: review publication timing before active remediation \u2014 early publication may alert the attacker to rotate infrastructure."
+  },
+  "action_hash": "7b6433a58de393c01f61372f3d243206c76177b4df59684f21b0548f77af51cd",
+  "agent_context_hash": "d2b3a9e8705d827bcdfab8ae0bed5d6306d83ba87121bb97693b1e011afcfea1",
+  "gate": "publish_intel",
+  "proposed_by": "investigation-section-chief",
+  "request_id": "9e08438bc85c4e79a22e9988db07cc07",
+  "requested_at": "2026-06-14T23:56:31Z",
+  "summary": "Publish 4 IOC(s) to the threat-intel platform \u2014 Four artifact-backed IOCs ready for circulation: attacker RDP IP 194.61.24.102 (F-001), C2 server 203.78.103.109 (F-012), coreupdater.exe SHA256 (F-006), and service persistence registry key (F-005). Safety and Legal cleared. IC note: review publication timing before active remediation \u2014 early publication may alert the attacker to rotate infrastructure."
+}

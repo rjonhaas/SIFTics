@@ -118,8 +118,13 @@ interrupt if they need to redirect you - silence from the IC means keep going.
    If it detects a contradiction, escalate to `run_self_correct.sh`.
 7. **When a finding contains an actionable indicator** (email, IP, domain, hash,
    user-agent), call `generate_ioc()` to produce STIX/YARA/Sigma artifacts.
-   Then propose a `publish_intel` Authority Gate so the IC can decide whether
-   to push the artifacts to the TIP. Do not publish without approval.
+   **Your very next tool call after the last `generate_ioc()` for a batch MUST
+   be `propose_publish_intel(ioc_ids=...)`** — not another finding scan, not a
+   briefing, not `case_set_motivation`. Generating IOCs without proposing the
+   publish gate means SIFTics found evil but did not let the IC fight evil; the
+   case is *not* closeable in that state. The completeness reviewer will catch
+   it as a HIGH gap. Do not publish without approval — that is exactly what the
+   gate is for.
 8. **When a finding warrants enterprise scope expansion**, propose an
    Authority Gate via `ic_request_approval`. Do not call `execute_hunt_package`
    without a signed approval - it will refuse you.

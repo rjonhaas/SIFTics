@@ -33,7 +33,11 @@ def request_approval(gate: str, summary: str, action: dict[str, Any],
     """Open an Authority Gate. Returns the ApprovalRequest dict with a request_id.
 
     Args:
-        gate: one of `execute_hunt_package`, `escalate_to_cold`, `isolate_host`.
+        gate: one of `execute_hunt_package`, `escalate_to_cold`, `isolate_host`,
+              `containment_action`, `host_isolation`, `user_account_response`,
+              `publish_intel`. Match the gate to the proposed action's class —
+              host containment uses `host_isolation`, identity rotation uses
+              `user_account_response`, IOC publishing uses `publish_intel`, etc.
         summary: one or two human-readable sentences shown to the IC.
         action: typed dict describing the action. Must match the gate's schema.
         proposed_by: optional override for the actor field.

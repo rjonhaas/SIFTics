@@ -47,7 +47,7 @@ Hardware tiers, manual install path, individual flags, and `agent.yaml` configur
 | False positives, misses, hallucinations - honest self-assessment | [`docs/accuracy_report.md`](docs/accuracy_report.md) |
 | Setup detail, hardware tiers, manual install path | [`docs/QUICKSTART.md`](docs/QUICKSTART.md) |
 | Demo video storyboard | [`docs/demo_video.md`](docs/demo_video.md) |
-| Demo video word-for-word script | [`docs/demo_video_script.md`](docs/demo_video_script.md) |
+| Demo video word-for-word script | [`docs/demo_video_script_v2.md`](docs/demo_video_script_v2.md) |
 
 ---
 

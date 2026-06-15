@@ -1,0 +1,23 @@
+{
+  "case_id": "2026-06-14-01",
+  "context": "Investigate the evidence in this file. I want a timeline, when initial access happened, any compromised accounts, lateral movement, persistence, and c2, data access or exfil",
+  "current_briefing_id": "2026-06-15T00-27-42Z",
+  "deputy_ic": {},
+  "external_tickets": [],
+  "forensics_lead": {},
+  "impact_level": "moderate",
+  "incident_commander": {
+    "contact": "",
+    "ic_pubkey_fingerprint": "",
+    "name": "bigbadjon"
+  },
+  "ir_lead": {},
+  "last_updated_at": "2026-06-15T00:27:42Z",
+  "last_updated_by": "investigation-section-chief",
+  "motivation": "Targeted data theft and credential harvesting \u2014 attacker achieved domain Administrator access to C137.local before Sep 18 2020, conducted DCSync to extract all domain hashes (F-003), accessed the FileShare\\Secret directory containing proprietary files (\"Szechuan Sauce.txt\", \"PortalGunPlans.txt\") via RDP (F-014), exfiltrated 39MB to attacker-controlled OneDrive at 02:37 UTC Sep 19 (F-011), and installed a custom C2 implant (coreupdater.exe, F-005/F-006) on both the domain controller and workstation for persistent access; no destructive payload or ransomware observed.",
+  "name": "szechuan",
+  "opened_at": "2026-06-14T23:16:15Z",
+  "ops_exec": [],
+  "press_lead": {},
+  "scope": {}
+}

@@ -1,200 +1,319 @@
 {% extends "base.html" %}
-{% block title %}Dashboard{% endblock %}
+{% block title %}Common Operating Picture{% endblock %}
 {% block content %}
 {% if not case %}
-  <div class="bg-yellow-900/40 border border-yellow-700 p-4 rounded">
+  <div class="border border-yellow-800 bg-yellow-950/30 p-4 rounded text-sm">
     <p class="text-yellow-300">No case loaded.</p>
-    <p class="text-sm text-slate-400 mt-1">
-      Go to <a href="{{ url_for('cases_list') }}" class="text-amber-300 underline">Cases</a>
-      to open one, or <a href="{{ url_for('new_case_view') }}" class="text-amber-300 underline">+ New case</a> to create one.
+    <p class="text-zinc-400 mt-1">
+      Open a case from <a href="{{ url_for('cases_list') }}" class="text-amber-300 underline">Cases</a>
+      or create one from <a href="{{ url_for('new_case_view') }}" class="text-amber-300 underline">New case</a>.
     </p>
   </div>
 {% else %}
 
-<!-- ── Layout: fills the viewport below the header ───────────────────── -->
-<div class="flex gap-4" style="height: calc(100vh - 8rem)">
-
-  <!-- Left column: agent conversation -->
-  <div class="flex flex-col flex-1 min-w-0 bg-slate-900 rounded-lg overflow-hidden">
-
-    <!-- Begin Investigation banner (hidden once agent has started) -->
-    <div id="begin-banner" class="flex flex-col items-center justify-center flex-1 gap-4 p-8 text-center">
-      <div class="text-4xl mb-2">&#x1F50D;</div>
-      <h2 class="text-xl font-bold text-slate-100">Ready to investigate</h2>
-      <p class="text-slate-400 text-sm max-w-sm">
-        The Investigation Section Chief will survey your evidence,
-        work through the triage questions, and record findings - all
-        visible here in real time.
-      </p>
-      {% if case and case.context %}
-      <div class="bg-slate-800/70 border border-slate-700 rounded p-4 text-left text-sm text-slate-200 max-w-xl whitespace-pre-wrap leading-relaxed">
-        <div class="text-xs uppercase tracking-wide text-amber-400 font-semibold mb-2">IC briefing</div>
-        {{ case.context }}
+<div class="space-y-4">
+  <section class="border border-zinc-800 bg-zinc-950">
+    <div class="grid grid-cols-1 xl:grid-cols-[1.35fr_1fr]">
+      <div class="p-4 border-b xl:border-b-0 xl:border-r border-zinc-800">
+        <div class="flex flex-wrap items-center gap-3">
+          <h2 class="text-xl font-bold text-zinc-100">Common Operating Picture</h2>
+          <span id="inv-pill" class="text-xs font-bold px-2 py-0.5 rounded uppercase bg-zinc-800 text-zinc-300">...</span>
+          {% if cop.agent_running %}
+            <span class="text-xs px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800">agent working</span>
+          {% endif %}
+        </div>
+        <div class="mt-3 grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
+          <div>
+            <div class="text-zinc-500 text-xs uppercase tracking-wide">Affected Systems</div>
+            <div class="text-2xl text-zinc-100">{{ asr.total }}</div>
+          </div>
+          <div>
+            <div class="text-zinc-500 text-xs uppercase tracking-wide">Evidence Findings</div>
+            <div class="text-2xl text-violet-300">{{ cop.evidence_findings|length }}</div>
+          </div>
+          <div>
+            <div class="text-zinc-500 text-xs uppercase tracking-wide">Inquiry Lines</div>
+            <div class="text-2xl text-amber-300">{{ cop.loi.active_lines }}<span class="text-sm text-zinc-600"> active</span></div>
+          </div>
+          <div>
+            <div class="text-zinc-500 text-xs uppercase tracking-wide">Briefings</div>
+            <div class="text-2xl {% if cop.briefing_count %}text-sky-300{% else %}text-orange-300{% endif %}">{{ cop.briefing_count }}</div>
+          </div>
+          <div>
+            <div class="text-zinc-500 text-xs uppercase tracking-wide">Authority Gates</div>
+            <div class="text-2xl {% if pending_gate_count %}text-orange-300{% else %}text-zinc-400{% endif %}">{{ pending_gate_count }}</div>
+          </div>
+        </div>
       </div>
-      {% endif %}
+
+      <div class="p-4">
+        <div class="grid grid-cols-2 gap-3 text-xs">
+          <div>
+            <div class="text-zinc-500 uppercase tracking-wide">Ingest</div>
+            <div class="{% if cop.ingest_complete %}text-sky-300{% else %}text-orange-300{% endif %}">
+              {% if cop.ingest_complete %}complete{% else %}missing{% endif %}
+            </div>
+            <div class="text-zinc-600 mt-1">{{ cop.evidence_file_count }} files · {{ cop.extracted_count }} extracted · {{ cop.pcap_quicklook_count }} pcap</div>
+          </div>
+          <div>
+            <div class="text-zinc-500 uppercase tracking-wide">Role Context</div>
+            <div class="{% if cop.skill_injected %}text-sky-300{% else %}text-orange-300{% endif %}">
+              {% if cop.skill_injected %}ISC skill injected{% else %}not injected{% endif %}
+            </div>
+            {% if cop.skill_event %}
+              <div class="text-zinc-600 mt-1">{{ cop.skill_event.ts[11:19] }} UTC</div>
+            {% endif %}
+          </div>
+          <div>
+            <div class="text-zinc-500 uppercase tracking-wide">Last Durable Write</div>
+            {% if cop.last_durable %}
+              <div class="text-zinc-300">{{ cop.last_durable.type }}</div>
+              <div class="text-zinc-600 mt-1">{{ cop.last_durable.ts[11:19] }} UTC · seq {{ cop.last_durable.seq }}</div>
+            {% else %}
+              <div class="text-zinc-600">none</div>
+            {% endif %}
+          </div>
+          <div>
+            <div class="text-zinc-500 uppercase tracking-wide">Accuracy Run</div>
+            <div class="{% if cop.operator_stops %}text-orange-300{% else %}text-sky-300{% endif %}">
+              {{ cop.operator_stops }} intervention{{ '' if cop.operator_stops == 1 else 's' }}
+            </div>
+            {% if cop.latest_briefing %}
+              <div class="text-zinc-600 mt-1">last briefing {{ cop.latest_briefing.briefing_id[11:19] }} UTC</div>
+            {% else %}
+              <div class="text-orange-300 mt-1">no briefings yet</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="border border-zinc-800 bg-zinc-950">
+    <div class="px-4 py-3 border-b border-zinc-800 flex items-center gap-3">
+      <h3 class="text-sm font-semibold text-zinc-200 uppercase tracking-wide">Agent Workbench</h3>
+      <div id="agent-status-bar" class="text-xs text-zinc-500 flex items-center gap-2">
+        <span id="agent-status-dot" class="w-2 h-2 rounded-full bg-zinc-600"></span>
+        <span id="agent-status-text">idle</span>
+      </div>
       <button id="begin-btn" onclick="beginInvestigation()"
-              class="mt-2 bg-amber-700 hover:bg-amber-600 px-8 py-3 rounded-lg font-semibold text-lg">
-        Begin Investigation
+              class="ml-auto bg-amber-700 hover:bg-amber-600 px-3 py-1.5 rounded text-xs font-semibold">
+        Resume Investigation
       </button>
-      <p class="text-xs text-slate-600">You can direct the agent at any time using the box below</p>
     </div>
-
-    <!-- Conversation transcript (hidden until agent starts) -->
-    <div id="transcript"
-         class="hidden flex-1 overflow-y-auto p-4 space-y-3 text-sm font-sans"></div>
-
-    <!-- Agent status bar -->
-    <div id="agent-status-bar"
-         class="px-4 py-1.5 border-t border-slate-800 text-xs text-slate-500 flex items-center gap-2 hidden">
-      <span id="agent-status-dot" class="w-2 h-2 rounded-full bg-slate-600"></span>
-      <span id="agent-status-text">idle</span>
-    </div>
-
-    <!-- Input -->
+    <div id="transcript" class="max-h-64 overflow-y-auto p-4 space-y-3 text-sm font-sans"></div>
     <form id="chat-form" onsubmit="sendMessage(event)"
-          class="flex gap-2 p-3 border-t border-slate-700 flex-shrink-0">
+          class="flex gap-2 p-3 border-t border-zinc-800">
       <textarea id="chat-input" rows="2"
-                placeholder="Direct the agent… (Ctrl+Enter to send)"
-                class="flex-1 bg-slate-800 border border-slate-700 focus:border-amber-500
-                       px-3 py-2 rounded text-sm resize-none outline-none font-sans"></textarea>
+                placeholder="Direct the agent..."
+                class="flex-1 bg-zinc-900 border border-zinc-800 focus:border-amber-600 px-3 py-2 rounded text-sm resize-none outline-none font-sans"></textarea>
       <button type="submit" id="send-btn"
               class="bg-amber-700 hover:bg-amber-600 px-4 py-2 rounded text-sm font-semibold self-end">
         Send
       </button>
+      <button type="button" id="stop-btn" onclick="stopAgent()"
+              title="Halt the running agent. Writes an agent_stopped audit event."
+              class="hidden bg-orange-700 hover:bg-orange-600 px-4 py-2 rounded text-sm font-semibold self-end">
+        Stop
+      </button>
     </form>
-  </div>
+  </section>
 
-  <!-- Right column: live stats -->
-  <div class="w-72 flex-shrink-0 flex flex-col gap-3 overflow-y-auto">
-
-    <!-- Investigation status -->
-    <div id="inv-status" class="bg-slate-900 rounded-lg p-3 flex items-center gap-3">
-      <span id="inv-pill" class="text-xs font-bold px-2 py-0.5 rounded-full uppercase bg-slate-700 text-slate-300">…</span>
-      <span id="inv-stats" class="text-xs text-slate-400"></span>
-    </div>
-
-    <!-- Findings -->
-    <div id="asr-summary" class="bg-slate-900 rounded-lg p-3">{% include "_asr_summary.html" %}</div>
-
-    <!-- Remediation -->
-    <div id="cet-summary" class="bg-slate-900 rounded-lg p-3">{% include "_cet_summary.html" %}</div>
-
-    <!-- Triage questions -->
-    <div id="itq-progress" class="bg-slate-900 rounded-lg p-3">{% include "_itq_progress.html" %}</div>
-
-    <!-- Authority gates (live — refreshes on gate workflow events) -->
-    <a href="{{ url_for('gates') }}" id="gates-summary"
-       class="block bg-slate-900 rounded-lg p-3 hover:bg-slate-800 transition">
-      {% include "_gates_summary.html" %}
-    </a>
-
-    <!-- Intel IOCs -->
-    <a href="{{ url_for('intel_view') }}"
-       class="block bg-slate-900 rounded-lg p-3 hover:bg-slate-800 transition">
-      <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Intel / IOCs</h3>
-      <p class="text-2xl mt-1 {% if draft_ioc_count %}text-orange-400{% else %}text-slate-500{% endif %}">
-        {{ draft_ioc_count }}
-      </p>
-      <p class="text-xs text-slate-500">draft — awaiting IC approval</p>
-    </a>
-
-    <!-- Live activity -->
-    <div class="bg-slate-900 rounded-lg p-3">
-      <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Activity</h3>
-      <div id="activity-feed" class="space-y-1 text-xs font-mono overflow-y-auto max-h-48">
-        <p class="text-slate-600 italic">No activity yet.</p>
+  <div class="grid grid-cols-1 xl:grid-cols-[1.05fr_1.4fr_.85fr] gap-4" style="min-height: calc(100vh - 15rem);">
+    <section class="border border-zinc-800 bg-zinc-950 min-w-0">
+      <div class="px-4 py-3 border-b border-zinc-800 flex items-center justify-between">
+        <h3 class="text-sm font-semibold text-zinc-200 uppercase tracking-wide">Incident State</h3>
+        <a href="{{ url_for('report_view') }}" class="text-xs text-amber-300 hover:text-amber-200">Report</a>
       </div>
-    </div>
+      <div class="p-4 space-y-5">
+        <div>
+          <div class="text-xs text-zinc-500 uppercase tracking-wide mb-2">Affected Systems Register</div>
+          {% if asr.recent %}
+            <div class="space-y-2">
+              {% for r in asr.recent %}
+                <div class="border-l-2 pl-3 py-1
+                            {% if r.impact_rating == 'critical' %}border-orange-500
+                            {% elif r.impact_rating == 'high' %}border-orange-400
+                            {% else %}border-yellow-500{% endif %}">
+                  <div class="flex items-baseline gap-2">
+                    <span class="text-xs text-zinc-500">{{ r.serial_no }}</span>
+                    <span class="text-sm text-zinc-100 break-all">{{ r.system_identifier }}</span>
+                  </div>
+                  <div class="text-xs text-zinc-500 mt-0.5">{{ r.impact_rating }} · {{ r.system_safe }}</div>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <p class="text-sm text-zinc-600">No affected systems recorded.</p>
+          {% endif %}
+        </div>
 
-    <!-- Runtime -->
-    <div id="runtime-status" class="bg-slate-900 rounded-lg p-3">{% include "_runtime_status.html" %}</div>
+        <div>
+          <div class="text-xs text-zinc-500 uppercase tracking-wide mb-2">Incident Timeline</div>
+          {% if cop.timeline %}
+            <div class="space-y-2">
+              {% for t in cop.timeline %}
+                <div class="grid grid-cols-[7.5rem_1fr] gap-2 text-xs">
+                  <div class="text-zinc-500 font-mono">{{ t.when }}</div>
+                  <div class="border-l border-zinc-800 pl-2">
+                    <div class="text-violet-300">{{ t.finding_id }}</div>
+                    <div class="text-zinc-300 leading-snug">{{ t.claim }}</div>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <p class="text-sm text-zinc-600">Timeline will populate from evidence findings.</p>
+          {% endif %}
+        </div>
 
+        <div>
+          <div class="text-xs text-zinc-500 uppercase tracking-wide mb-2">Lines of Inquiry</div>
+          <div id="itq-progress">{% include "_itq_progress.html" %}</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="border border-zinc-800 bg-zinc-950 min-w-0">
+      <div class="px-4 py-3 border-b border-zinc-800 flex items-center justify-between">
+        <h3 class="text-sm font-semibold text-zinc-200 uppercase tracking-wide">Evidence Ledger</h3>
+        <a href="{{ url_for('findings_view') }}" class="text-xs text-amber-300 hover:text-amber-200">Open Findings</a>
+      </div>
+      <div class="p-4">
+        {% if cop.recent_findings %}
+          <div class="space-y-3">
+            {% for f in cop.recent_findings %}
+              <article class="border border-zinc-800 bg-zinc-900/40 p-3">
+                <div class="flex items-center gap-2 text-xs mb-2">
+                  <span class="font-bold text-violet-300">{{ f.finding_id }}</span>
+                  {% if f.linked_asr %}<span class="text-zinc-600">{{ f.linked_asr }}</span>{% endif %}
+                  {% if f.linked_itq %}<span class="text-zinc-600">{{ f.linked_itq }}</span>{% endif %}
+                  <span class="ml-auto text-zinc-600">{{ f.recorded_at[11:19] }} UTC</span>
+                </div>
+                <p class="text-sm text-zinc-100 leading-snug">{{ f.claim }}</p>
+                <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <div class="text-zinc-500">Artifact</div>
+                    <div class="text-zinc-300 font-mono break-all">{{ f.artifact_path }}</div>
+                  </div>
+                  <div>
+                    <div class="text-zinc-500">Source</div>
+                    <div class="text-zinc-300 font-mono break-all">{{ f.artifact_source }}</div>
+                  </div>
+                </div>
+                <details class="mt-3">
+                  <summary class="text-xs text-sky-300 cursor-pointer">Command and excerpt</summary>
+                  <pre class="mt-2 bg-zinc-950 p-2 text-xs text-sky-300 overflow-x-auto whitespace-pre-wrap">{{ f.command }}</pre>
+                  <pre class="mt-2 bg-zinc-950 p-2 text-xs text-zinc-300 overflow-x-auto whitespace-pre-wrap">{{ f.output_excerpt }}</pre>
+                </details>
+              </article>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="py-12 text-center text-zinc-600 text-sm">
+            No evidence findings recorded yet.
+          </div>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="border border-zinc-800 bg-zinc-950 min-w-0">
+      <div class="px-4 py-3 border-b border-zinc-800">
+        <h3 class="text-sm font-semibold text-zinc-200 uppercase tracking-wide">Command Decisions</h3>
+      </div>
+      <div class="p-4 space-y-4">
+        <a href="{{ url_for('gates') }}" id="gates-summary"
+           class="block border border-zinc-800 p-3 hover:border-amber-800 transition">
+          {% include "_gates_summary.html" %}
+        </a>
+        <a href="{{ url_for('intel_view') }}" class="block border border-zinc-800 p-3 hover:border-amber-800 transition">
+          <h3 class="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Intel / IOCs</h3>
+          <p class="text-2xl mt-1 {% if draft_ioc_count %}text-orange-300{% else %}text-zinc-500{% endif %}">
+            {{ draft_ioc_count }}
+          </p>
+          <p class="text-xs text-zinc-500">draft indicators</p>
+        </a>
+        <div id="runtime-status" class="border border-zinc-800 p-3">{% include "_runtime_status.html" %}</div>
+        <div class="border border-zinc-800 p-3">
+          <h3 class="text-xs font-semibold text-zinc-400 uppercase tracking-wide mb-2">Audit Activity</h3>
+          <div id="activity-feed" class="space-y-1 text-xs font-mono overflow-y-auto max-h-56">
+            <p class="text-zinc-600 italic">No activity yet.</p>
+          </div>
+        </div>
+      </div>
+    </section>
   </div>
+
 </div>
 
 <script>
-  // ── Live panels ───────────────────────────────────────────────────
-  Siftics.livePanel('#asr-summary',    "{{ url_for('dashboard_asr_summary') }}",    ['asr_appended','asr_updated'], 0);
-  Siftics.livePanel('#cet-summary',    "{{ url_for('dashboard_cet_summary') }}",    ['cet_appended','cet_updated'], 0);
-  Siftics.livePanel('#itq-progress',   "{{ url_for('dashboard_itq_progress') }}",   ['itq_answered','itq_updated','itq_seeded'], 0);
+  Siftics.livePanel('#itq-progress',   "{{ url_for('dashboard_itq_progress') }}",   ['itq_answered','itq_updated','itq_seeded','finding_recorded','case_ingest_completed'], 0);
   Siftics.livePanel('#runtime-status', "{{ url_for('dashboard_runtime_status') }}", ['llm_call','runtime_config_saved'], 30000);
   Siftics.livePanel('#gates-summary',  "{{ url_for('dashboard_gates_summary') }}",
                      ['ic_request_approval','ic_approval_signed','action_executed',
-                      'safety_assessment','legal_review'], 0);
+                      'safety_assessment','legal_review','authority_gate_blocked'], 0);
 
-  // ── Investigation status ──────────────────────────────────────────
   var STATE_STYLES = {
-    fresh:    { cls: 'bg-slate-700 text-slate-300',     label: 'Ready' },
-    active:   { cls: 'bg-amber-700 text-amber-100',       label: 'Active' },
-    complete: { cls: 'bg-sky-700 text-sky-100', label: 'Complete' },
+    fresh:    { cls: 'bg-zinc-800 text-zinc-300', label: 'Ready' },
+    active:   { cls: 'bg-amber-800 text-amber-100', label: 'Active' },
+    complete: { cls: 'bg-sky-800 text-sky-100', label: 'Complete' },
   };
   function refreshStatus() {
     fetch('/api/investigation/status').then(function(r){return r.json();}).then(function(d){
       var s = STATE_STYLES[d.state] || STATE_STYLES.fresh;
       var pill = document.getElementById('inv-pill');
-      pill.className = 'text-xs font-bold px-2 py-0.5 rounded-full uppercase ' + s.cls;
-      pill.textContent = s.label;
-      var parts = [];
-      if (d.llm_calls)    parts.push(d.llm_calls + ' calls');
-      if (d.itq_answered) parts.push(d.itq_answered + ' questions');
-      if (d.asr_count)    parts.push(d.asr_count + ' findings');
-      document.getElementById('inv-stats').textContent = parts.join(' · ');
+      if (pill) {
+        pill.className = 'text-xs font-bold px-2 py-0.5 rounded uppercase ' + s.cls;
+        pill.textContent = s.label;
+      }
     }).catch(function(){});
   }
   refreshStatus();
-  Siftics.onSSE('llm_call', refreshStatus);
-  Siftics.onSSE('asr_appended', refreshStatus);
-  Siftics.onSSE('itq_answered', refreshStatus);
+  ['llm_call','asr_appended','itq_answered','finding_recorded'].forEach(function(ev){
+    Siftics.onSSE(ev, refreshStatus);
+  });
   setInterval(refreshStatus, 60000);
 
-  // ── Activity feed ─────────────────────────────────────────────────
-  var TYPE_STYLES = { llm_call:'text-amber-400', itq_answered:'text-sky-400',
-    asr_appended:'text-orange-400', ic_request_approval:'text-orange-400',
-    briefing_posted:'text-slate-300', phase_complete:'text-sky-300',
-    finding_recorded:'text-violet-400',
-    ioc_generated:'text-orange-400', intel_published:'text-sky-400' };
+  var TYPE_STYLES = {
+    llm_call:'text-amber-300', itq_answered:'text-sky-300',
+    asr_appended:'text-orange-300', asr_updated:'text-orange-300',
+    ic_request_approval:'text-orange-300', authority_gate_blocked:'text-orange-300',
+    briefing_posted:'text-zinc-300', phase_complete:'text-sky-300',
+    finding_recorded:'text-violet-300', case_ingest_completed:'text-sky-300',
+    agent_skill_context_injected:'text-sky-300', agent_stopped:'text-orange-300',
+    ioc_generated:'text-orange-300', intel_published:'text-sky-300'
+  };
   function refreshActivity() {
     fetch('/api/activity/feed').then(function(r){return r.json();}).then(function(evts){
       var feed = document.getElementById('activity-feed');
-      if (!evts.length) return;
+      if (!feed || !evts.length) return;
       feed.innerHTML = '';
       evts.forEach(function(e){
         var div = document.createElement('div');
-        var cls = TYPE_STYLES[e.type] || 'text-slate-500';
+        var cls = TYPE_STYLES[e.type] || 'text-zinc-500';
         var ts  = e.ts ? e.ts.slice(11,19) : '';
-        div.innerHTML = "<span class='text-slate-700'>" + ts + "</span> " +
+        div.innerHTML = "<span class='text-zinc-700'>" + ts + "</span> " +
                         "<span class='" + cls + "'>" + e.label + "</span>" +
-                        (e.detail ? " <span class='text-slate-600'>" + e.detail + "</span>" : "");
+                        (e.detail ? " <span class='text-zinc-600'>" + e.detail + "</span>" : "");
         feed.appendChild(div);
       });
-      feed.scrollTop = feed.scrollHeight;
     }).catch(function(){});
   }
   refreshActivity();
-  ['llm_call','itq_answered','asr_appended','ic_request_approval',
-   'briefing_posted','phase_complete','finding_recorded',
-   'ioc_generated','intel_published'].forEach(function(ev){ Siftics.onSSE(ev, refreshActivity); });
+  Object.keys(TYPE_STYLES).forEach(function(ev){ Siftics.onSSE(ev, refreshActivity); });
 
-  // ── Agent streaming ───────────────────────────────────────────────
   var transcript = document.getElementById('transcript');
-  var beginBanner = document.getElementById('begin-banner');
-  var statusBar   = document.getElementById('agent-status-bar');
   var agentRunning = false;
-
-  // Transcript persistence — keyed per case so navigating to /findings
-  // and back never requires a Resume click or costs any tokens.
   var TX_KEY = 'siftics_tx_{{ case.case_id }}';
-  var TX_MAX = 300; // cap stored messages
+  var TX_MAX = 300;
 
   function snapshotTranscript() {
     try {
       var items = [];
       transcript.querySelectorAll(':scope > div').forEach(function(wrap) {
-        var lbl  = wrap.querySelector('div:first-child');
+        var lbl = wrap.querySelector('div:first-child');
         var body = wrap.querySelector('div:last-child');
-        var border = (wrap.className.match(/border-\S+/) || ['border-slate-700'])[0];
-        // innerHTML on the label preserves the timestamp span styling
-        // across page navigations.
+        var border = (wrap.className.match(/border-\S+/) || ['border-zinc-700'])[0];
         items.push({ labelHtml: lbl ? lbl.innerHTML : '', border: border,
                      html: body ? body.innerHTML : '' });
       });
@@ -211,9 +330,8 @@
         var wrap = document.createElement('div');
         wrap.className = 'border-l-2 pl-3 py-0.5 ' + m.border;
         var lbl = document.createElement('div');
-        lbl.className = 'text-xs text-slate-500 mb-0.5';
-        // Back-compat: older snapshots stored a plain `role` string.
-        lbl.innerHTML = m.labelHtml || m.role || '';
+        lbl.className = 'text-xs text-zinc-500 mb-0.5';
+        lbl.innerHTML = m.labelHtml || '';
         var body = document.createElement('div');
         body.className = 'whitespace-pre-wrap leading-snug';
         body.innerHTML = m.html;
@@ -225,28 +343,47 @@
     } catch(_) { return false; }
   }
 
-  function showTranscript() {
-    beginBanner.classList.add('hidden');
-    transcript.classList.remove('hidden');
-    statusBar.classList.remove('hidden');
-  }
-
   function setRunning(running) {
     agentRunning = running;
     var dot  = document.getElementById('agent-status-dot');
     var text = document.getElementById('agent-status-text');
     var send = document.getElementById('send-btn');
-    dot.className  = 'w-2 h-2 rounded-full ' + (running ? 'bg-amber-400 animate-pulse' : 'bg-slate-600');
-    text.textContent = running ? 'agent working…' : 'idle';
-    send.disabled  = running;
+    var stop = document.getElementById('stop-btn');
+    var begin = document.getElementById('begin-btn');
+    if (dot) dot.className  = 'w-2 h-2 rounded-full ' + (running ? 'bg-amber-400 animate-pulse' : 'bg-zinc-600');
+    if (text) text.textContent = running ? 'agent working...' : 'idle';
+    if (send) {
+      send.disabled = running;
+      send.classList.toggle('hidden', running);
+    }
+    if (stop) stop.classList.toggle('hidden', !running);
+    if (begin) {
+      begin.disabled = running;
+      begin.textContent = running ? 'Investigation Running' : 'Resume Investigation';
+    }
   }
 
-  // UTC HH:MM:SS — DFIR convention is UTC, never local, for cross-host
-  // timeline reconstruction. The full ISO timestamp goes into the title
-  // attribute so an operator can hover for the date + millisecond detail
-  // without bloating the inline label.
+  function stopAgent() {
+    var stop = document.getElementById('stop-btn');
+    if (stop) { stop.disabled = true; stop.textContent = 'Stopping...'; }
+    fetch("{{ url_for('api_agent_stop') }}", {method: 'POST'})
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        appendMsg(d.stopped ? 'operator stop' : 'system', d.stopped ? 'border-orange-700' : 'border-zinc-700').textContent =
+          d.stopped ? 'Agent halted by operator (' + (d.signal || 'unknown') + ').'
+                    : 'No agent process is currently running' + (d.reason ? ': ' + d.reason : '') + '.';
+        setRunning(false);
+      })
+      .catch(function(err) {
+        appendMsg('error', 'border-orange-700').textContent = 'Stop request failed: ' + err.message;
+      })
+      .finally(function() {
+        if (stop) { stop.disabled = false; stop.textContent = 'Stop'; }
+      });
+  }
+
   function utcTimeStamp() {
-    var iso = new Date().toISOString();   // 2026-06-14T13:42:09.473Z
+    var iso = new Date().toISOString();
     return { short: iso.substring(11, 19) + ' UTC', iso: iso };
   }
 
@@ -254,12 +391,10 @@
     var wrap = document.createElement('div');
     wrap.className = 'border-l-2 pl-3 py-0.5 ' + borderCls;
     var lbl = document.createElement('div');
-    lbl.className = 'text-xs text-slate-500 mb-0.5';
+    lbl.className = 'text-xs text-zinc-500 mb-0.5';
     var ts = utcTimeStamp();
-    lbl.innerHTML =
-      '<span>' + role + '</span>' +
-      ' <span class="text-slate-600 font-mono ml-2" title="' + ts.iso + '">' +
-        ts.short + '</span>';
+    lbl.innerHTML = '<span>' + role + '</span>' +
+      ' <span class="text-zinc-600 font-mono ml-2" title="' + ts.iso + '">' + ts.short + '</span>';
     var body = document.createElement('div');
     body.className = 'whitespace-pre-wrap leading-snug';
     wrap.appendChild(lbl); wrap.appendChild(body);
@@ -268,142 +403,56 @@
     return body;
   }
 
-  // Block-level markdown renderer — no external dependency.
-  // Claude Code delivers complete messages, not token streams, so block-level
-  // parsing is safe (a table or list is always fully present in one c.text).
   function renderMd(text) {
-    function esc(s) {
-      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    }
+    function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
     function inline(s) {
       s = esc(s);
       s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-      s = s.replace(/\*([^*\n]+)\*/g,  '<em>$1</em>');
-      s = s.replace(/`([^`]+)`/g, '<code class="bg-slate-800 px-1 rounded text-xs font-mono text-sky-300">$1</code>');
+      s = s.replace(/\*([^*\n]+)\*/g, '<em>$1</em>');
+      s = s.replace(/`([^`]+)`/g, '<code class="bg-zinc-800 px-1 rounded text-xs font-mono text-sky-300">$1</code>');
       return s;
     }
-    function tableRow(line) {
-      return line.split('|').slice(1, -1).map(function(c){ return c.trim(); });
-    }
-    function isSeparatorRow(line) {
-      return /^\s*\|[\s\-:|]+\|\s*$/.test(line);
-    }
-
-    var lines = text.split('\n');
-    var out = '';
-    var i = 0;
-
+    var lines = text.split('\n'), out = '', i = 0;
     while (i < lines.length) {
       var line = lines[i];
-
-      // Blank line — just skip
       if (!line.trim()) { i++; continue; }
-
-      // Fenced code block ```
       if (/^```/.test(line.trim())) {
-        var codeLines = [];
+        var codeLines = []; i++;
+        while (i < lines.length && !/^```/.test(lines[i].trim())) codeLines.push(lines[i++]);
         i++;
-        while (i < lines.length && !/^```/.test(lines[i].trim())) {
-          codeLines.push(lines[i]);
-          i++;
-        }
-        i++; // consume closing ```
-        out += '<pre class="bg-slate-950 rounded p-2 text-xs font-mono text-sky-300 overflow-x-auto my-1 whitespace-pre">' +
+        out += '<pre class="bg-zinc-950 rounded p-2 text-xs font-mono text-sky-300 overflow-x-auto my-1 whitespace-pre">' +
                esc(codeLines.join('\n')) + '</pre>';
         continue;
       }
-
-      // Table (line starts with |)
-      if (/^\s*\|/.test(line)) {
-        var tRows = [];
-        while (i < lines.length && /^\s*\|/.test(lines[i])) {
-          tRows.push(lines[i]);
-          i++;
-        }
-        if (tRows.length >= 2 && isSeparatorRow(tRows[1])) {
-          var headers = tableRow(tRows[0]);
-          out += '<table class="text-xs w-full border-collapse my-2">';
-          out += '<thead><tr>' + headers.map(function(h) {
-            return '<th class="text-left px-2 py-1 border border-slate-700 bg-slate-800 text-slate-200">' + inline(h) + '</th>';
-          }).join('') + '</tr></thead><tbody>';
-          for (var r = 2; r < tRows.length; r++) {
-            var cells = tableRow(tRows[r]);
-            out += '<tr>' + cells.map(function(c) {
-              return '<td class="px-2 py-1 border border-slate-700 text-slate-300">' + inline(c) + '</td>';
-            }).join('') + '</tr>';
-          }
-          out += '</tbody></table>';
-        } else {
-          // Malformed table — render as lines
-          tRows.forEach(function(r){ out += inline(r) + '<br>'; });
-        }
-        continue;
-      }
-
-      // Unordered list
       if (/^[-*] /.test(line.trim())) {
         out += '<ul class="list-disc list-inside space-y-0.5 my-1">';
         while (i < lines.length && /^[-*] /.test(lines[i].trim())) {
-          out += '<li class="text-slate-300">' + inline(lines[i].trim().slice(2)) + '</li>';
-          i++;
+          out += '<li class="text-zinc-300">' + inline(lines[i].trim().slice(2)) + '</li>'; i++;
         }
-        out += '</ul>';
-        continue;
+        out += '</ul>'; continue;
       }
-
-      // Ordered list
-      if (/^\d+[.)]\s/.test(line.trim())) {
-        out += '<ol class="list-decimal list-inside space-y-0.5 my-1">';
-        while (i < lines.length && /^\d+[.)]\s/.test(lines[i].trim())) {
-          out += '<li class="text-slate-300">' + inline(lines[i].trim().replace(/^\d+[.)]\s/, '')) + '</li>';
-          i++;
-        }
-        out += '</ol>';
-        continue;
-      }
-
-      // ATX Heading # / ## / ###
       var hm = line.match(/^(#{1,3})\s+(.+)$/);
       if (hm) {
-        var hcls = hm[1].length === 1 ? 'text-slate-100 font-bold text-base mt-3 mb-1'
-                 : hm[1].length === 2 ? 'text-slate-100 font-bold mt-2 mb-0.5'
-                 :                      'text-slate-200 font-semibold mt-1';
-        out += '<p class="' + hcls + '">' + inline(hm[2]) + '</p>';
+        out += '<p class="text-zinc-100 font-bold mt-2 mb-0.5">' + inline(hm[2]) + '</p>';
         i++; continue;
       }
-
-      // Horizontal rule
-      if (/^---+$/.test(line.trim())) {
-        out += '<hr class="border-slate-700 my-2">';
-        i++; continue;
-      }
-
-      // Blockquote
-      if (/^> /.test(line.trim())) {
-        out += '<blockquote class="border-l-2 border-slate-600 pl-2 text-slate-400 italic my-1">';
-        while (i < lines.length && /^> /.test(lines[i].trim())) {
-          out += inline(lines[i].trim().slice(2)) + '<br>';
-          i++;
-        }
-        out += '</blockquote>';
-        continue;
-      }
-
-      // Plain line
-      out += inline(line) + '<br>';
-      i++;
+      out += inline(line) + '<br>'; i++;
     }
     return out;
   }
 
-function streamAgent(url, formData) {
+  function streamAgent(url, formData) {
     if (agentRunning) return;
-    showTranscript();
     setRunning(true);
-
     fetch(url, {method:'POST', body: formData})
       .then(function(r) {
-        if (!r.ok) { appendMsg('error','border-orange-700').textContent='HTTP '+r.status; setRunning(false); return; }
+        if (!r.ok) {
+          return r.text().then(function(body) {
+            appendMsg('error','border-orange-700').textContent = body || ('HTTP ' + r.status);
+            setRunning(false);
+            throw new Error('agent request failed');
+          });
+        }
         var reader = r.body.getReader(), dec = new TextDecoder(), buf = '', cur = null;
         function pump() {
           return reader.read().then(function(chunk) {
@@ -417,17 +466,10 @@ function streamAgent(url, formData) {
               var t = evt.type;
               if (t === 'ui') { cur = null; continue; }
               if (t === 'system' && evt.subtype === 'init') {
-                var sifticsTools = (evt.tools||[]).filter(function(x){ return x.startsWith('siftics'); });
-                var msg = sifticsTools.length
-                  ? 'SIFTics tools loaded: ' + sifticsTools.join(', ')
-                  : 'Initialising…';
-                appendMsg('system', 'border-slate-800').textContent = msg;
+                appendMsg('system', 'border-zinc-800').textContent = 'SIFTics tool surface loaded.';
                 cur = null; continue;
               }
               if (t === 'assistant') {
-                // Each assistant event (one per tool-use round) gets its own bubble
-                // so successive updates appear as separate lines rather than one
-                // long concatenated block.
                 cur = null;
                 (evt.message && evt.message.content || []).forEach(function(c) {
                   if (c.type === 'text' && c.text && c.text.trim()) {
@@ -435,7 +477,6 @@ function streamAgent(url, formData) {
                     cur.innerHTML += renderMd(c.text);
                     transcript.scrollTop = transcript.scrollHeight;
                   }
-                  // tool_use intentionally suppressed — visible in activity feed
                 });
                 continue;
               }
@@ -446,7 +487,10 @@ function streamAgent(url, formData) {
                 snapshotTranscript();
                 continue;
               }
-              if (t === 'error') { cur = null; appendMsg('error','border-orange-700').textContent = evt.message||JSON.stringify(evt); }
+              if (t === 'error') {
+                cur = null;
+                appendMsg('error','border-orange-700').textContent = evt.message || JSON.stringify(evt);
+              }
             }
             return pump();
           });
@@ -467,73 +511,23 @@ function streamAgent(url, formData) {
     var inp = document.getElementById('chat-input');
     var msg = inp.value.trim();
     if (!msg || agentRunning) return;
-    var userBubble = appendMsg('you', 'border-slate-700');
-    userBubble.textContent = msg;
+    appendMsg('you', 'border-zinc-700').textContent = msg;
     snapshotTranscript();
     inp.value = '';
     var fd = new FormData(); fd.append('message', msg);
     streamAgent("{{ url_for('api_agent_message') }}", fd);
   }
 
-  document.getElementById('chat-input').addEventListener('keydown', function(e) {
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-      e.preventDefault();
-      document.getElementById('chat-form').dispatchEvent(new Event('submit', {bubbles:true, cancelable:true}));
-    }
+  document.getElementById('chat-input').addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && e.ctrlKey) sendMessage(e);
   });
 
-  // On load: restore stored transcript (zero tokens) or fall back to banner.
-  if (restoreTranscript()) {
-    showTranscript();
-    setRunning(false);
-  } else {
-    // No stored transcript — show banner; update button text if session exists.
-    fetch("{{ url_for('api_agent_status') }}")
-      .then(function(r){ return r.json(); })
-      .then(function(d){
-        var btn = document.getElementById('begin-btn');
-        if (btn && d.has_session) btn.textContent = 'Resume Investigation';
-      });
-  }
-
-  // ── Auto-dispatch after IC gate sign ───────────────────────────────
-  // When /gates approves a request, gates.html redirects here with
-  // siftics_after_sign in sessionStorage. We immediately fire a chat
-  // message instructing the agent to execute the approved action —
-  // closing the "approved at zero, fired at three seconds" loop the
-  // demo is built around. No operator click required.
-  (function autoDispatchAfterSign() {
-    var raw = sessionStorage.getItem('siftics_after_sign');
-    if (!raw) return;
-    sessionStorage.removeItem('siftics_after_sign');
-    var info;
-    try { info = JSON.parse(raw); } catch (e) { return; }
-    if (!info || !info.request_id || !info.gate) return;
-
-    var msg = 'The Incident Commander just signed Authority Gate '
-            + info.request_id + ' (gate=' + info.gate
-            + (info.summary ? ', summary: ' + info.summary : '')
-            + '). Execute the approved action immediately via the '
-            + 'appropriate MCP execute_* function for this gate type '
-            + '(execute_containment_action for containment_action; '
-            + 'execute_hunt_package for execute_hunt_package; '
-            + 'publish_intel for publish_intel), citing the signed '
-            + 'approval. Post a one-paragraph briefing summarising what '
-            + 'fired and any immediate results.';
-
-    // Wait one tick for the chat form + transcript renderer to mount,
-    // then fill the input and submit it just like a normal operator
-    // message. The existing sendMessage() handler streams the agent
-    // response, snapshots the transcript, and updates the activity feed.
-    setTimeout(function () {
-      var inp = document.getElementById('chat-input');
-      var form = document.getElementById('chat-form');
-      if (!inp || !form) return;
-      inp.value = msg;
-      form.dispatchEvent(new Event('submit', {bubbles: true, cancelable: true}));
-    }, 200);
-  })();
+  restoreTranscript();
+  fetch("{{ url_for('api_agent_status') }}").then(function(r){return r.json();}).then(function(d){
+    setRunning(!!d.running);
+    var btn = document.getElementById('begin-btn');
+    if (btn && d.has_session && !d.running) btn.textContent = 'Resume Investigation';
+  }).catch(function(){ setRunning(false); });
 </script>
-
 {% endif %}
 {% endblock %}

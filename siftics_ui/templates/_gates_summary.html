@@ -1,10 +1,16 @@
-<h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Authority Gates</h3>
-<p class="text-2xl mt-1 {% if pending_gate_count %}text-orange-400{% else %}text-slate-500{% endif %}">
-  {{ pending_gate_count }}
+<h3 class="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Authority Gates</h3>
+{% set blocked_gate_count = blocked_gate_count|default(0) %}
+{% set total_gate_attention = pending_gate_count + blocked_gate_count %}
+<p class="text-2xl mt-1 {% if total_gate_attention %}text-orange-400{% else %}text-zinc-500{% endif %}">
+  {{ total_gate_attention }}
 </p>
-<p class="text-xs text-slate-500">
-  {%- if pending_gate_count == 0 -%}
+<p class="text-xs text-zinc-500">
+  {%- if total_gate_attention == 0 -%}
     no pending decisions
+  {%- elif blocked_gate_count and pending_gate_count -%}
+    {{ pending_gate_count }} pending, {{ blocked_gate_count }} blocked
+  {%- elif blocked_gate_count -%}
+    blocked by staff
   {%- elif pending_gate_count == 1 -%}
     pending decision
   {%- else -%}

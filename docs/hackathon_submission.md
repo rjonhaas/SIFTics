@@ -14,12 +14,12 @@ The README focuses on what SIFTics is and how to run it. The detailed compliance
 | 2 | Open-source license (MIT or Apache 2.0) | [`LICENSE`](../LICENSE) *(repo root, MIT)* |
 | 3 | README with setup instructions | [`README.md`](../README.md) - see Quickstart |
 | 4 | Live deployment URL OR local setup instructions | Local - [`docs/QUICKSTART.md`](QUICKSTART.md) |
-| 5 | Text description (features and functionality) | This file (Project description below) + [`docs/architecture.md`](architecture.md) |
+| 5 | Text description (features and functionality) | This file (Project description below), [`docs/devpost_story.md`](devpost_story.md), and [`docs/architecture.md`](architecture.md) |
 | 6 | Demo video (≤ 5 min, live terminal, audio narration) | [`docs/demo_video.md`](demo_video.md) - YouTube link + storyboard; [`docs/demo_video_script.md`](demo_video_script.md) - word-for-word narration |
 | 7 | Architecture Diagram | [`docs/architecture.md`](architecture.md) - three-layer deployment framing (§0), Mermaid + ASCII rendering, trust boundaries colour-coded (red = architectural, yellow = prompt-based) |
 | 8 | Evidence Dataset Documentation | [`docs/datasets.md`](datasets.md) |
 | 9 | Accuracy Report | [`docs/accuracy_report.md`](accuracy_report.md) - measured FP/FN, hallucinations, integrity, T1–T8 bypass test results |
-| 10 | Agent Execution Logs | [`examples/run_2026-XX-XX/forensic_audit.jsonl`](../examples/) - hash-chained, end-to-end trace from finding to tool execution |
+| 10 | Agent Execution Logs | [`examples/szechuan_sauce/runs/2026-06-14-szechuan_sauce_2026-06-14/forensic_audit.jsonl`](../examples/szechuan_sauce/runs/2026-06-14-szechuan_sauce_2026-06-14/forensic_audit.jsonl) - hash-chained, end-to-end trace from finding to tool execution |
 
 Every entry above has a direct link. Issues at [the repo](https://github.com/rjonhaas/SIFTics/issues) for anything unclear.
 
@@ -29,11 +29,12 @@ Every entry above has a direct link. Issues at [the repo](https://github.com/rjo
 
 SIFTics turns the SIFT Workstation into a machine-speed incident response agent that:
 
-1. **Closes the speed gap** between attackers operating at 7-minute breakout times and human responders. The HOT execution layer produces candidate findings in seconds, generates a Velociraptor hunt package, surfaces it to the Incident Commander for cryptographically-signed approval, and fires it across the enterprise within tens of seconds.
+1. **Closes the speed gap** between attackers operating at 7-minute breakout times and human responders. The HOT execution layer produces candidate findings in seconds, converts those findings into response options, generates a Velociraptor hunt package, surfaces it to the Incident Commander for cryptographically-signed approval, and can hand approved actions to the enterprise response layer.
 2. **Operates under NIMS Incident Command System doctrine.** The Claude Code agent functions as the *Investigation Section Chief* (tactical autonomy); the human analyst is the *Incident Commander* (strategic authority). Authority Gates between them are **architecturally enforced** via HMAC-signed approval objects, not by prompt instructions.
 3. **Maintains a tamper-evident audit chain.** Every tool execution, every IC decision, and every action result is logged as a hash-chained JSONL row; the chain is verifiable end-to-end with `audit_verify.sh`.
 4. **Self-corrects under doctrine.** Phase-18 anomaly detection scans for cross-artifact contradictions and re-runs upstream phases up to three iterations until the contradiction count decreases. A pre-close *completeness critic* (`case_completeness_check()` MCP tool) runs persona-driven coverage assessment against the case state - anti-forensics scope, persistence parity, browser history, timezone, CTI lookup, credential-dump-on-DC-compromise - and returns ordered HIGH→LOW gaps the agent must address before any final briefing or motivation lock-in.
-5. **Drives Velociraptor as an active hunt controller** (not just a parser). Findings become typed `HuntPackage` objects; approved packages execute as enterprise-wide hunts; results feed back into the Common Operating Picture (COP).
+5. **Turns findings into controlled fight-back actions.** SIFTics does not stop at a postmortem. Findings become typed IOCs, hunt packages, and containment proposals. The agent can prepare the defensive move, but Incident Commander approval and OT safety gates control execution.
+6. **Drives Velociraptor as an active hunt controller** (not just a parser). Findings become typed `HuntPackage` objects; approved packages execute as enterprise-wide hunts; results feed back into the Common Operating Picture (COP).
 6. **Grounds AI enrichment in retrieved evidence, not model memory.** Every MITRE technique alignment, LOLBAS context note, and Sigma rule explanation is backed by a record retrieved from the embedded `mcp_rag` forensic index - not generated from training-time knowledge alone. Deterministic lookups (baseline hash checks, IOC exact-match) are typed separately from LLM enrichment in `forensic_audit.jsonl`, so analysts know exactly what to verify. See [`docs/accuracy_report.md §3`](accuracy_report.md) for the full hallucination accounting.
 
 ---
@@ -44,9 +45,9 @@ The criteria are equally weighted; ties cascade in the order listed.
 
 | Criterion | Where to see it |
 |---|---|
-| **1. Autonomous Execution Quality** | `phases/run_self_correct.sh` + Phase 18 anomaly check + `case_completeness_check()` + `anti_forensics_review()` + the full self-correction arc in `examples/run_*/forensic_audit.jsonl` |
-| **2. IR Accuracy** | [`docs/accuracy_report.md`](accuracy_report.md) - measured FP/FN against the DFIR Madness Stolen Szechuan Sauce ground truth and (where applicable) Caldera Debrief output for hunt_lab scenarios |
-| **3. Breadth and Depth** | 20 phase scripts across Windows / Linux / memory / network / email / cross-machine attack-path correlation - [`phases/`](../phases/). Cross-source correlation between disk, memory, EVTX, and network is in the agent's reasoning chain. |
+| **1. Autonomous Execution Quality** | `phases/run_self_correct.sh` + Phase 18 anomaly check + `case_completeness_check()` + `anti_forensics_review()` + the correction arc in the Szechuan run (`F-011` corrected by `F-017`) |
+| **2. IR Accuracy** | [`docs/accuracy_report.md`](accuracy_report.md) - measured FP/FN against the DFIR Madness Stolen Szechuan Sauce ground truth and other benchmark cases |
+| **3. Breadth and Depth** | 20 phase scripts across Windows / Linux / memory / network / email / cross-machine attack-path correlation - [`phases/`](../phases/). Cross-source correlation between disk, memory, EVTX, and network is in the agent's reasoning chain. Response paths include IOC publication, hunt-package proposal, and containment requests. |
 | **4. Constraint Implementation** | [`docs/constraint_implementation.md`](constraint_implementation.md) - architectural (red) vs prompt-based (yellow) guardrails. T1–T8 bypass test results in [`tests/test_constraints.py`](../tests/test_constraints.py) (14/14 passing). Anti-fabrication guard at the MCP write boundary. |
 | **5. Audit Trail Quality** | `siftics/audit.py` - hash-chained `forensic_audit.jsonl` with line-hash linkage, SBOM at case-init, `audit_verify.sh` for independent replay. Any finding traces to its originating tool call via the `finding_record` chain. |
 | **6. Usability and Documentation** | [`README.md`](../README.md), [`docs/QUICKSTART.md`](QUICKSTART.md), and the SIFTics web UI at `localhost:8080` - dashboard, `/gates`, `/audit`, `/findings`, `/report` (with auto-derived Executive Summary), `/setup` |
@@ -59,6 +60,36 @@ The Find Evil! rules state honesty is valued over perfection: hallucinations and
 
 ---
 
-## Last verification
+## Latest Packaged Accuracy Run
 
-The repository was at commit `1bfc55e` as of June 15, 2026, 11:45 PM EDT submission. Commits after that date are portfolio updates and out of scope for judging per the Official Rules.
+The strongest packaged run for judge review is:
+
+[`examples/szechuan_sauce/runs/2026-06-14-szechuan_sauce_2026-06-14/`](../examples/szechuan_sauce/runs/2026-06-14-szechuan_sauce_2026-06-14/)
+
+It includes:
+
+- `score_card.md` - answer-key comparison and three-claim trace
+- `forensic_audit.jsonl` - hash-chained execution log with token/cost event
+- `findings.jsonl` - 18 evidence-backed findings
+- `briefings/` - two Investigation Section Chief briefings
+- `evidence_manifest.json` and `evidence_quicklook.md` - source evidence inventory
+
+The run documented one corrected false positive: F-011 claimed OneDrive
+exfiltration; F-017 corrected the interpretation with directional PCAP byte
+counts, and ASR-2 was updated by `operator-review`.
+
+## Verification
+
+Before final submission, run the focused regression suite and bytecode check:
+
+```bash
+python -m pytest tests/test_constraints.py tests/test_ingest.py tests/test_intel_gates.py -q
+python -m compileall -q siftics siftics_ui mcp_case mcp_intel
+```
+
+The packaged Szechuan audit chain can be verified independently with:
+
+```bash
+SIFTICS_CASE_DIR=examples/szechuan_sauce/runs/2026-06-14-szechuan_sauce_2026-06-14 \
+python -c 'from siftics import audit; print(audit.verify_chain())'
+```

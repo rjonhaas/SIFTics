@@ -1,5 +1,7 @@
-{% if pending %}
-  <span class="ml-1 inline-block bg-orange-700 text-white text-xs px-1.5 rounded pulse-dot text-orange-200">{{ pending|length }}</span>
+{% set blocked = blocked|default([]) %}
+{% set total = pending|length + blocked|length %}
+{% if total %}
+  <span class="ml-1 inline-block bg-orange-700 text-white text-xs px-1.5 rounded pulse-dot text-orange-200">{{ total }}</span>
 {% else %}
-  <span class="ml-1 inline-block bg-slate-700 text-slate-400 text-xs px-1.5 rounded">0</span>
+  <span class="ml-1 inline-block bg-zinc-700 text-zinc-400 text-xs px-1.5 rounded">0</span>
 {% endif %}

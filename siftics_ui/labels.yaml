@@ -14,8 +14,8 @@ label_sets:
     systems_register_short: "ASR"
     remediation_register: "Containment & Eradication Tracker"
     remediation_register_short: "CET"
-    triage_questionnaire: "Initial Triage Questionnaire"
-    triage_questionnaire_short: "ITQ"
+    triage_questionnaire: "Lines of Inquiry"
+    triage_questionnaire_short: "LOI"
     framework_attribution: |
       Framework structure aligned with NIMS Incident Command System (Common
       Operating Picture, Authority Gates), NIST SP 800-61 §3.3 (Containment,

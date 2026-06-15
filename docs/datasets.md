@@ -42,8 +42,8 @@ Available as an alternate benchmark if time permits - *not currently required*.
 | Format | 5-file evidence set (memory image + 2 disk images + Sysmon EVTX + pcap), MD5-verified per upstream manifest |
 | Documented checks | Narrative answer key (HTML), ~30 grading questions |
 | Why we use it | Hand-authored answer key by a credentialed DFIR instructor; covers persistence, lateral movement, exfil - broad surface for accuracy testing |
-| Evidence location | `/media/zeus/long_storage/dfir_datasets/szechuan_sauce/evidence/` (external HDD) |
-| Answer key location | `/home/zeus/dfir_answers/szechuan_sauce/szechuan-answers.html` (host-only; **never** copied into SIFT VM - see §4) |
+| Evidence location | External host storage, copied into the SIFT VM case `evidence/` directory before the run |
+| Answer key location | Host-only answer-key directory outside the SIFT VM; **never** copied into the agent case - see §4 |
 | Where SIFTics results land | `examples/szechuan_sauce/` |
 
 ### 1.5 CFReDS - Data Leakage Case (FY2018)
@@ -54,8 +54,8 @@ Available as an alternate benchmark if time permits - *not currently required*.
 | Format | Disk image + log set |
 | Documented checks | 23 questions in NIST scenario brief |
 | Why we use it | NIST-curated; widely used in academic DFIR courses; answer key authored by federal forensic reference team |
-| Evidence location | (inside SIFT VM - TODO: extract evidence-only subset to external drive per isolation rule) |
-| Answer key location | `/home/zeus/dfir_answers/cfreds_data_leakage/` (host-only; pulled out of SIFT) |
+| Evidence location | Not packaged for the current Stage One bundle |
+| Answer key location | Host-only answer-key directory outside the SIFT VM |
 | Where SIFTics results land | `examples/cfreds_data_leakage/` |
 
 ### 1.6 CFReDS - Hacking Case
@@ -66,8 +66,8 @@ Available as an alternate benchmark if time permits - *not currently required*.
 | Format | Disk image |
 | Documented checks | 31 questions |
 | Why we use it | Older case (Linux + WinXP) - exercises the agent's handling of timeline analysis and registry artefacts on a non-modern Windows build |
-| Evidence location | (inside SIFT VM - same TODO as 1.5) |
-| Answer key location | `/home/zeus/dfir_answers/cfreds_hacking/` (host-only) |
+| Evidence location | Not packaged for the current Stage One bundle |
+| Answer key location | Host-only answer-key directory outside the SIFT VM |
 | Where SIFTics results land | `examples/cfreds_hacking/` |
 
 ---
@@ -161,7 +161,7 @@ examples/
 │   │       ├── forensic_audit.jsonl     hash-chained execution trace
 │   │       ├── findings/
 │   │       ├── case.json
-│   │       ├── grid.jsonl               Initial Triage Questionnaire (ITQ) answers
+│   │       ├── grid.jsonl               Lines of Inquiry checks (legacy ITQ storage)
 │   │       └── score_card.md            vs answer key
 ├── cfreds_data_leakage/runs/<…>
 ├── cfreds_hacking/runs/<…>
@@ -182,15 +182,19 @@ Each run appends one row per accuracy category. Truth-column legend: **TP** = tr
 
 | Run date | Case ID | Model | Wall-clock | Output tokens | True positives | False positives | Hallucinations | Misses (FN) | Score-card link |
 |---|---|---|---|---|---|---|---|---|---|
-| _to be filled by SIFTics_ | | | | | | | | | |
+| 2026-06-14 to 2026-06-15 | `szechuan_sauce_2026-06-14` | `claude-sonnet-4-6` | 84 min | 9,602 | 15 hit / 7 partial | 1 corrected, 0 uncorrected | 0 uncorrected | 7 | [`score_card.md`](../examples/szechuan_sauce/runs/2026-06-14-szechuan_sauce_2026-06-14/score_card.md) |
 
-**Operator review notes:** _what surprised you, what to fix next iteration_
+**Operator review notes:** F-017 corrected the run's largest false positive:
+F-011 claimed OneDrive exfiltration, but directional PCAP analysis proved the
+36 MB flow was inbound to DESKTOP. Remaining misses cluster around the Beth
+secret manipulation/timestomp sequence, domain password recovery, timezone
+handling, and complete registry persistence enumeration.
 
 #### 6.2 CFReDS - Data Leakage
 
 | Run date | Case ID | Model | Wall-clock | Output tokens | True positives | False positives | Hallucinations | Misses (FN) | Score-card link |
 |---|---|---|---|---|---|---|---|---|---|
-| _to be filled by SIFTics_ | | | | | | | | | |
+| Not packaged for current Stage One bundle | | | | | | | | | |
 
 **Operator review notes:**
 
@@ -198,7 +202,7 @@ Each run appends one row per accuracy category. Truth-column legend: **TP** = tr
 
 | Run date | Case ID | Model | Wall-clock | Output tokens | True positives | False positives | Hallucinations | Misses (FN) | Score-card link |
 |---|---|---|---|---|---|---|---|---|---|
-| _to be filled by SIFTics_ | | | | | | | | | |
+| Not packaged for current Stage One bundle | | | | | | | | | |
 
 **Operator review notes:**
 
@@ -206,7 +210,7 @@ Each run appends one row per accuracy category. Truth-column legend: **TP** = tr
 
 | Run date | Case ID | Model | Wall-clock | Output tokens | ATT&CK techniques surfaced (of 13) | False positives | Hallucinations | Misses (FN) | Score-card link |
 |---|---|---|---|---|---|---|---|---|---|
-| _to be filled by SIFTics_ | | | | | | | | | |
+| Not packaged for current Stage One bundle | | | | | | | | | |
 
 **Operator review notes:**
 
@@ -214,7 +218,7 @@ Each run appends one row per accuracy category. Truth-column legend: **TP** = tr
 
 | Run date | Case ID | Model | Wall-clock | Output tokens | Lateral hops reconstructed (of 5) | False positives | Hallucinations | Misses (FN) | Score-card link |
 |---|---|---|---|---|---|---|---|---|---|
-| _to be filled by SIFTics_ | | | | | | | | | |
+| Not packaged for current Stage One bundle | | | | | | | | | |
 
 **Operator review notes:**
 
@@ -231,7 +235,7 @@ finding counts. Specifically:
 
 | Run date | Case ID | Model | Wall-clock | Output tokens | OT chain surfaced? | Safety hard-stop fired? | Audit chain intact? | Score-card link |
 |---|---|---|---|---|---|---|---|---|
-| _to be filled by SIFTics_ | | | | | | | | |
+| Not packaged for current Stage One bundle | | | | | | | | |
 
 **Operator review notes:**
 

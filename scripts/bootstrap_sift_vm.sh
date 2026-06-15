@@ -14,13 +14,13 @@
 # Optional:
 #   SIFT_REMOTE_PATH   default ~/SIFTics
 #   SIFT_START_UI      "yes" (default) | "no"
-#   SIFT_CASE_DIR      default ~/cases/dry_run
+#   SIFT_CASE_DIR      default ~/Desktop/cases/dry_run
 set -euo pipefail
 
 SIFT_HOST="${SIFT_HOST:-sansforensics@192.168.4.52}"
 SIFT_REMOTE_PATH="${SIFT_REMOTE_PATH:-~/SIFTics}"
 SIFT_START_UI="${SIFT_START_UI:-yes}"
-SIFT_CASE_DIR="${SIFT_CASE_DIR:-~/cases/dry_run}"
+SIFT_CASE_DIR="${SIFT_CASE_DIR:-~/Desktop/cases/dry_run}"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
