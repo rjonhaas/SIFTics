@@ -57,11 +57,11 @@ Hardware tiers, manual install path, individual flags, and `agent.yaml` configur
 - **NIST SP 800-61 Rev 2** - for the Containment, Eradication, Recovery framing in the CET register.
 - **FEMA ICS Form 209** - for the affected-systems register column model.
 - **SANS LDR553** (Steve Armstrong-Godwin / AG Cyber) - UI structure inspired by the CIMTK toolkit. *Pending explicit permission to use branded names; currently shipped with generic IR-doctrine labels (`labels.yaml: active_label_set: generic`).*
-- **AndrewRathbun / VanillaWindowsReference + VanillaWindowsRegistryHives** - Windows known-good baseline corpus used by `mcp_baseline`.
+- **AndrewRathbun / VanillaWindowsReference + VanillaWindowsRegistryHives** - Windows known-good baseline corpus used by `mcp_baseline` for deterministic comparison. Baseline misses are review candidates, not standalone proof of compromise.
 - **wagga40 / Zircolite** - Sigma rule application over EVTX in `phases/run_zircolite.sh`.
 - **OpenSourceMalware.com** - STIX threat-intel feed integrated via `mcp_cti`.
 - **abuse.ch** (URLhaus, MalwareBazaar, ThreatFox) - multi-source IOC enrichment in `mcp_cti`.
-- **MITRE ATT&CK, LOLBAS, Atomic Red Team, SigmaHQ** - knowledge corpus indexed into `mcp_rag` for semantic alignment.
+- **MITRE ATT&CK, LOLBAS, Atomic Red Team, SigmaHQ** - knowledge corpus indexed into `mcp_rag` for explanatory enrichment of evidence-backed findings, not as ground truth.
 - **Velociraptor team** - the EDR platform that makes the detect-hunt loop possible.
 
 ---

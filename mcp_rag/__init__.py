@@ -1,7 +1,8 @@
 """SIFTics forensic RAG MCP — embedded semantic search over forensic knowledge.
 
-22 000-record corpus: Sigma + ATT&CK + LOLBAS + Atomic Red Team + Rathbun
-metadata + OSM STIX descriptions.
+22 000-record corpus: Sigma + ATT&CK + LOLBAS + Atomic Red Team + OSM STIX
+descriptions, plus reference metadata for explanatory context. Authoritative
+known-good baseline decisions live in `mcp_baseline`, not here.
 
 Embedded vector store (numpy / sqlite-vec) — no OpenSearch dependency.
 Pre-built index ships as a GitHub Release asset; cloners fetch it once.

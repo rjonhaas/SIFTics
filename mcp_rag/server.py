@@ -2,7 +2,11 @@
 
 Records (built by `mcp_rag.build_index`):
     Sigma rules · MITRE ATT&CK · LOLBAS · Atomic Red Team
-    · Rathbun reference metadata · OSM STIX descriptions
+    · OSM STIX descriptions · reference metadata for context
+
+This server retrieves forensic knowledge for explanation/classification. It
+does not prove case facts. Deterministic known-good comparison is handled by
+`mcp_baseline`.
 
 Query interface (a single MCP tool):
     forensic_rag_search(query, top_k=10, source_filter=[…])

@@ -36,7 +36,7 @@ Companion to [`docs/demo_video.md`](demo_video.md) (storyboard). This file is th
 
 **NARRATION:**
 
-> The Investigation Section Chief reads the Common Operating Picture, walks the Initial Triage Questionnaire, picks a persistence scan. Hit on lsass_helper.exe in C-Users-Public. Four signals fuse in five hundred milliseconds - path off the Rathbun baseline, imphash matches mimikatz family, capa says credential dumper, the forensic RAG aligns to ATT&CK T1003. Every claim traces to artifact, tool, command, and output excerpt.
+> The Investigation Section Chief reads the Common Operating Picture, walks the Initial Triage Questionnaire, picks a persistence scan. Hit on lsass_helper.exe in C-Users-Public. Evidence proves the file and execution. The Rathbun baseline gives a deterministic off-reference comparison; CTI and capa add behavior signals; local RAG explains why the behavior maps to ATT&CK T1003. RAG is classification support, not proof. Every claim traces to artifact, tool, command, and output excerpt.
 
 **Pacing note:** the "four signals fuse" sentence is dense. Pause briefly between each signal so the viewer sees each `mcp_*` call land in the transcript.
 

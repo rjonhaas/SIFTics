@@ -85,6 +85,13 @@ agent, the same audit chain, the same Authority Gates - now with
 hunts actually firing across an enterprise. This is the path that
 demonstrates "fighting back at AI-speed."
 
+**Evidence versus enrichment:** SIFTics keeps three sources of truth separate.
+Case artifacts prove facts. `mcp_baseline` performs deterministic known-good
+comparison against Windows reference data and turns anomalies into review
+candidates. `mcp_rag` retrieves forensic knowledge - ATT&CK, Sigma, LOLBAS,
+Atomic Red Team - to explain or classify evidence-backed behavior. RAG output
+cannot establish a finding by itself.
+
 The mode is selected from `/setup`'s **Response posture** radio
 (*Standalone* vs. *Connected*). Switching takes
 effect on the next agent turn (the save handler patches
@@ -655,7 +662,8 @@ typically has 1-2 architectural and the rest prompt-based.
 
 4.  Layer 2 interpretation runs on extractor output
        └─> narrative_chunker, classify_binary, cross_artifact_correlator
-       └─> Calls mcp_baseline + mcp_rag + mcp_cti for enrichment
+       └─> Calls mcp_baseline + mcp_cti for deterministic comparison;
+           calls mcp_rag for explanatory enrichment
        └─> Each call emits a typed audit event:
              mcp_rag     → rag_lookup     (source_type: "ai_enrichment")
              mcp_baseline → baseline_lookup (source_type: "deterministic")
@@ -705,7 +713,7 @@ typically has 1-2 architectural and the rest prompt-based.
 | Forging an approval | Skip IC review | G2 HMAC; G7 key not on MCP surface |
 | Budget runaway | Exhaust API credits | G9 circuit breaker |
 | Spoliation of original evidence | Mutate KAPE bundle / disk image | G11 read-only mounts + G12 surface review |
-| AI hallucination in enrichment claims | Agent asserts unsupported facts | RAG grounding (every enrichment backed by retrieved record); `source_type` field in audit log distinguishes `ai_enrichment` from `deterministic` lookups so analysts know what to verify (see [`accuracy_report.md §3`](accuracy_report.md)) |
+| AI hallucination in enrichment claims | Agent asserts unsupported facts | Evidence-backed findings are required before RAG is used; RAG enrichments must cite retrieved records; deterministic baseline/CTI lookups are kept separate from `ai_enrichment` so analysts know what to verify (see [`accuracy_report.md §3`](accuracy_report.md)) |
 
 ## 6. What's deliberately *not* defended in v1
 

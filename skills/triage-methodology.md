@@ -75,12 +75,13 @@ When you start a case:
    credential access).
 2. **`fast_persistence_scan`** (HOT) - < 10 s. Diff registry persistence
    keys + services + scheduled tasks against `mcp_baseline`. Anything not in
-   baseline becomes a candidate.
+   baseline becomes a candidate for review, not proof of compromise.
 3. **`fast_execution_timeline`** (HOT) - last 4 hours of MFT + Prefetch +
    Amcache + Sysmon-1 events, deduplicated.
 4. **`classify_binary` fan-out** on each surface binary - Rathbun baseline,
-   imphash via abuse.ch MalwareBazaar, capa behavioural tags, RAG matches to
-   ATT&CK.
+   imphash via abuse.ch MalwareBazaar, capa behavioural tags, and RAG-backed
+   ATT&CK explanation. Evidence proves the binary's presence and behavior; RAG
+   only supplies classification context.
 
 Only after HOT findings stabilise should you reach for WARM (targeted EZ
 Tools usage) or COLD (full Plaso super-timeline, Volatility full image).

@@ -412,17 +412,21 @@ unsupported by tool output. Example archetypes:
   without there being an audit event proving it ran X.
 - **Hash-chained provenance** - fabricated findings cannot be inserted into the
   audit log without breaking the chain at `audit_verify.sh`.
-- **RAG grounding** - every semantic enrichment claim (MITRE technique alignment,
-  Sigma rule match explanation, LOLBAS context) is backed by a retrieved record
-  from `mcp_rag`. The agent is instructed to cite the returned `record_id` and
-  similarity score; uncited claims can therefore be identified by diffing the
-  agent's narrative against `forensic_audit.jsonl` `rag_lookup` events. Claims
-  that cannot be grounded in a retrieved record are the residual hallucination
-  surface - Phase 18 catches most of them via cross-artifact contradiction
-  checks.
+- **RAG-bounded enrichment** - evidence artifacts establish case facts; `mcp_rag`
+  does not. RAG is used only to explain and classify facts already supported by
+  artifact output: MITRE technique alignment, Sigma rule rationale, LOLBAS
+  context, and Atomic Red Team references. The agent is instructed to cite the
+  returned `record_id` and similarity score for those enrichment claims; uncited
+  enrichments can therefore be identified by diffing the agent's narrative
+  against `forensic_audit.jsonl` `rag_lookup` events.
+- **Baseline-bounded suspicion** - `mcp_baseline` is deterministic comparison
+  against known-good Windows reference data. A miss or path anomaly is a review
+  candidate, not proof of compromise; it becomes a finding only when correlated
+  with case evidence such as execution, persistence, network traffic, or memory.
 - **Deterministic vs probabilistic source typing** - baseline lookups
-  (`mcp_baseline`), IOC lookups (`mcp_cti`), and Sigma rule hits (`mcp_rag`
-  Sigma path) return exact-match results, not probability-weighted completions.
+  (`mcp_baseline`) and IOC lookups (`mcp_cti`) return exact-match results, not
+  probability-weighted completions. RAG lookups are typed as enrichment, not
+  deterministic proof.
   The `source_type` field in each `forensic_audit.jsonl` event distinguishes
   `deterministic` (hash/IP exact-match) from `ai_enrichment` (LLM reasoning
   over retrieved context) so downstream verification can be targeted.

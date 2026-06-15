@@ -305,7 +305,8 @@ class InProcessToolExecutor:
             # ---- mcp_rag ----
             {"name": "forensic_rag_search",
              "description": ("Semantic search over Sigma + ATT&CK + LOLBAS + Atomic Red Team + "
-                              "OSM STIX. Use for matching observations to known techniques."),
+                              "OSM STIX. Use to explain/classify observations already supported "
+                              "by case evidence; RAG is not proof by itself."),
              "input_schema": {"type": "object",
                               "properties": {
                                   "query": {"type": "string"},
